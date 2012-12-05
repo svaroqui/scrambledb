@@ -1280,25 +1280,27 @@ sub worker_node_command($$) {
 
 }
 
-sub worker_node_command($$) {
+sub worker_config_command($$) {
     my $cmd    = shift;
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    print STDOUT $ip . " " . $cmd . "\n";
 
     #$client->set_timeout($gearman_timeout);
-    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
-    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
+    ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
-        if ( $result eq "true" ) {
-            return "000000";
-        }
-        else { return "ER0003"; }
-
+        return "ER0006";
     }
-    else { return "ER0002"; }
+    elsif ( !defined $result ) {
+        return "ER0006";
+    }
+    elsif ( $result eq "{result:{status:'00000'}}" ) {
+        return "000000";
+    }
+    else {
+        return "000000";
+    }
 
 }
 
