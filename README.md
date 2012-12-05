@@ -1,4 +1,4 @@
 scrambledb
 ==========
 
-ScambleDB is a cluster stack based on proxying and MySQL assynchronus replication 
+ScambleDB is an open source cluster stack based on Proxying and MariaDB asynchronous replication 
