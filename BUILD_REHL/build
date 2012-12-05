@@ -136,8 +136,7 @@ tar xzf libmemcached-0.34.tar.gz
 cd libmemcached-0.34
 ./configure --prefix=$SKYDESTDIR/memcached-client --with-memcached=$SKYDESTDIR/memcached/bin/memcached
 #./configure --prefix=$SKYDESTDIR/memcached-client --with-memcached=$SKYDESTDIR/memcached  --with-gearmand=$SKYDESTDIR/gearmand 
-make 
-make install
+make && make install
 cd $DEPOTDIR
 rm -rf libmemcached-1.0.9
 rm -rf libmemcached-0.34
@@ -209,8 +208,7 @@ cd sysbench-0.4.12
 glibtoolize --force --copy
 ./autogen.sh
 ./configure --prefix=$SKYDESTDIR/sysbench --with-mysql=$SKYDESTDIR/mysql
-make
-make install
+make && make install
 cd $DEPOTDIR
 rm -rf sysbench-0.4.12
 
@@ -221,4 +219,11 @@ cmake . -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/mydumper -DMYSQL_CONFIG=$SKYDESTDIR/m
 make install
 cd $DEPOTDIR
 rm -rf mydumper-0.5.1
+
+tar xzf sphinx-2.0.4-release.tar.gz
+cd  sphinx-2.0.4-release
+ ./configure --prefix=$SKYDESTDIR/sphinx --with-mysql=$SKYDESTDIR/mariadb
+make && make install
+cd $DEPOTDIR
+rm -f sphinx-2.0.4-release.tar.gz
 

@@ -3,8 +3,8 @@
 </architecture>
 
 <cloud vcloud1>
-    user            skysql@David_CHANIAL_1001895
-    password        !davixx#
+    user            xxxx
+    password        xxxx
     host            vcloud.hegerys.com
     version         1.5
     driver          VCLOUD
