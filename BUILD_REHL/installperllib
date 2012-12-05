@@ -1,0 +1,243 @@
+SKYDESTDIR=/usr/local/skysql
+DEPOTDIR=$(dirname $0)/..
+cd $DEPOTDIR
+DEPOTDIR=$(pwd)
+export PERL5LIB=$SKYDESTDIR/perl/lib/5.16.0 
+
+export PATH=$SKYDESTDIR/perl/bin:$PATH
+
+SKYINSTALLBASE=$SKYDESTDIR/lib/5.16.0
+
+
+
+tar xzf JSON-2.53.tar.gz
+cd JSON-2.53/
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl 
+make install
+cd $DEPOTDIR
+
+tar xzf JSON-XS-2.32.tar.gz
+cd JSON-XS-2.32/
+make install
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+
+cd $DEPOTDIR
+tar xzf DBI-1.618.tar.gz
+cd DBI-1.618/
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+
+install_name_tool -id $SKYDESTDIR/mariadb/lib/libmysqlclient.18.dylib $SKYDESTDIR/mariadb/lib/libmysqlclient.18.dylib 
+tool -D `mdfind libmysqlclient.18.dylib`
+cd $DEPOTDIR
+tar xzf DBD-mysql-4.020.tar.gz
+cd DBD-mysql-4.020/
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl --mysql_config=$SKYDESTDIR/mariadb/bin/mysql_config
+make install
+
+export GEARMAN_INCLUDE=$SKYDESTDIR/gearmand/include
+export GEARMAN_LIB=$SKYDESTDIR/gearmand/lib
+
+cd $DEPOTDIR
+tar xzf Gearman-XS-0.11.tar.gz
+cd Gearman-XS-0.11
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make 
+make install
+
+cd $DEPOTDIR
+tar xzf Log-Log4perl-1.31.tar.gz
+cd Log-Log4perl-1.31
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf Error-0.17018.tar.gz
+cd Error-0.17018
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make 
+make install
+
+cd $DEPOTDIR
+tar xzf Log-Dispatch-2.32.tar.gz 
+cd Log-Dispatch-2.32
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf Config-Tiny-2.14.tar.gz 
+cd Config-Tiny-2.14
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf Parallel-ForkManager-0.7.5.tar.gz
+cd Parallel-ForkManager-0.7.5
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf Module-Install-1.06.tar.gz
+cd Module-Install-1.06
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf URI-1.60.tar.gz
+cd URI-1.60
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf HTTP-Date-6.02.tar.gz 
+cd HTTP-Date-6.02
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=/usr/local/skysql/perl
+make 
+make install
+
+cd $DEPOTDIR
+tar xzf yoshinorim-mha4mysql-node-14a086a.tar.gz
+cd yoshinorim-mha4mysql-node-14a086a
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+
+cd $DEPOTDIR
+tar xzf File-Remove-1.52.tar.gz
+cd File-Remove-1.52
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf libwww-perl-6.04.tar.gz
+cd libwww-perl-6.04
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf YAML-Tiny-1.51.tar.gz
+cd YAML-Tiny-1.51
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf HTTP-Message-6.03.tar.gz
+cd HTTP-Message-6.03 
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install
+
+cd $DEPOTDIR
+tar xzf String-CRC32-1.4.tar.gz
+cd String-CRC32-1.4
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install 
+
+
+cd $DEPOTDIR
+tar xzf Cache-Memcached-1.30.tar.gz
+cd Cache-Memcached-1.30
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl
+make
+make install 
+
+cd $DEPOTDIR
+tar xzf yoshinorim-mha4mysql-node-14a086a.tar.gz
+cd yoshinorim-mha4mysql-node-14a086a
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/mha4mysql
+make
+make install
+
+cd $DEPOTDIR
+tar xzf yoshinorim-mha4mysql-manager-cde41fd.tar.gz
+cd yoshinorim-mha4mysql-manager-cde41fd 
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/mha4mysql
+make
+make install
+
+
+
+cd $DEPOTDIR
+tar xzf percona-toolkit-2.1.2.tar.gz
+cd percona-toolkit-2.1.2
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/percona-toolkit
+make
+make install
+
+
+
+cd $DEPOTDIR
+rm -rf MySQL-Sandbox-3.0.25
+tar xzf MySQL-Sandbox-3.0.25.tar.gz
+cd  MySQL-Sandbox-3.0.25
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/sandbox
+make test 
+make install
+tar xzf Class-Load-0.20.tar.gz && cd Class-Load-0.20 && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install 
+cd $DEPOTDIR
+tar xzf Data-OptList-0.107.tar.gz && cd Data-OptList-0.107 && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl  && make && make install
+cd $DEPOTDIR
+tar xzf Params-Util-1.07.tar.gz && cd  Data-OptList-0.* && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl  && make && make install
+cd $DEPOTDIR
+tar xzf Sub-Install-0.926.tar.gz && cd Sub-Install-0.926 && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl  && make && make install
+cd $DEPOTDIR
+tar xzf Module-Implementation-0.06.tar.gz && cd cd Module-Implementation-* && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install 
+cd $DEPOTDIR
+tar xzf Module-Runtime-0.013.tar.gz &&  cd Module-Runtime-* && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install  
+cd $DEPOTDIR
+tar xzf Try-Tiny-0.11.tar.gz &&  cd Try-Tiny-0.11 && $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install 
+cd $DEPOTDIR
+tar xzf Class-Load-XS-0.06.tar.gz &&  cd Class-Load-XS-0.06 && $SKYDESTDIR/perl/bin/perl Build.PL PREFIX=$SKYDESTDIR/perl && ./Build  && ./Build install  
+
+cd $DEPOTDIR
+tar xzf Params-Validate-1.07.tar.gz &&  cd Params-Validate-1.07  && $SKYDESTDIR/perl/bin/perl Build.PL PREFIX=$SKYDESTDIR/perl && ./Build && ./Build install 
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/G/GR/GRANTM/XML-SAX-Base-1.08.tar.gz
+tar xzf XML-SAX-Base-1.08.tar.gz && cd XML-SAX-Base-1.08  && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/G/GR/GRANTM/XML-SAX-0.99.tar.gz
+tar xzf XML-SAX-0.99.tar.gz && cd XML-SAX-0.99 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/P/PE/PERIGRIN/XML-NamespaceSupport-1.11.tar.gz
+tar xzf XML-NamespaceSupport-1.11.tar.gz && cd XML-NamespaceSupport-1.11 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/T/TO/TODDR/XML-Parser-2.41.tar.gz
+tar xzf XML-Parser-2.41.tar.gz && cd XML-Parser-2.41 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/B/BJ/BJOERN/XML-SAX-Expat-0.40.tar.gz
+tar xzf XML-SAX-Expat-0.40.tar.gz  && cd XML-SAX-Expat-0.40  && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/G/GR/GRANTM/XML-Simple-2.20.tar.gz
+tar xzf XML-Simple-2.20.tar.gz && cd  XML-Simple-2.20 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR 
+wget http://search.cpan.org/CPAN/authors/id/M/MI/MIROD/XML-Twig-3.42.tar.gz
+tar xzf XML-Twig-3.42.tar.gz && cd XML-Twig-3.42 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+cd $DEPOTDIR
+wget http://search.cpan.org/CPAN/authors/id/M/MA/MARKWKM/Test-Parser-1.9.tar.gz
+tar xzf Test-Parser-1.9.tar.gz &&  cd Test-Parser-1.9 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
+
+
+

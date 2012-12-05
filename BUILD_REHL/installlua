@@ -1,0 +1,18 @@
+SKYDESTDIR=/usr/local/skysql
+DEPOTDIR=$(dirname $0)/..
+cd $DEPOTDIR
+DEPOTDIR=$(pwd)
+
+tar xzf luamemcached.0.7.tar.gz 
+mv $DEPOTDIR/*.lua $SKYDESTDIR/mysql-proxy/lib/mysql-proxy/lua/
+cd $DEPOTDIR
+
+tar xzf luasocket-2.0.2.tar.gz
+cd luasocket-2.0.2
+echo "INSTALL_TOP_LIB=$SKYDESTDIR/lua/lib" >> config
+echo "INSTALL_TOP_SHARE=$SKYDESTDIR/lua/share" >> config
+echo "LUAINC=$SKYDESTDIR/lua/include" >> config
+make
+make install 
+
+/usr/local/skysql/mysql-proxy/lib/mysql-proxy/lua

@@ -1,0 +1,37 @@
+wget http://pypi.python.org/packages/source/a/apache-libcloud/apache-libcloud-0.11.4.tar.bz2#md5=94b4bebbe500cf4747623e9503213a4a
+tar xjf apache-libcloud-0.11.4.tar.bz2
+cd apache-libcloud-0.11.4
+python setup.py build
+python setup.py install --user
+
+wget http://pypi.python.org/packages/source/s/setuptools/setuptools-0.6c11.tar.gz
+tar zxvf setuptools-0.6c11.tar.gz
+cd setuptools-0.6c11
+python setup.py build
+python setup.py install 
+
+
+wget http://pypi.python.org/packages/source/g/gearman/gearman-2.0.2.tar.gz#md5=3847f15b763dc680bc672a610b77c7a7
+tar xzf gearman-2.0.2.tar.gz 
+cd gearman-2.0.2
+python setup.py build
+python setup.py install
+
+wget http://mycheckpoint.googlecode.com/files/mycheckpoint-208.tar.gz 
+tar xzf mycheckpoint-208.tar.gz
+cd mycheckpoint-208
+python setup.py build 
+python setup.py install --prefix=/usr/local/skysql/mycheckpoint
+
+
+http://pypi.python.org/packages/source/M/MySQL-python/MySQL-python-1.2.4b4.tar.gz#md5=0958cb9c23d5a656caac031c4886b1cf
+tar xzf MySQL-python-1.2.4b4.tar.gz 
+cd MySQL-python-1.2.4b4
+mkdir /usr/local/skysql/MySQL-python/lib
+mkdir /usr/local/skysql/MySQL-python/lib/python
+mkdir /usr/local/skysql/MySQL-python/lib/python/site-packages
+
+export PYTHONUSERBASE=/usr/local/skysql/MySQL-python
+CC='/usr/bin/gcc'  python setup.py build 
+python setup.py install --user
+

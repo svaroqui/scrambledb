@@ -1,0 +1,11 @@
+port install automake
+port install autoconf
+port install m4
+port install configure
+port install cmake
+port install pkgconfig
+port install flex
+port install libevent 
+port install libtool
+# boost version >= 1.39.0
+port install boost

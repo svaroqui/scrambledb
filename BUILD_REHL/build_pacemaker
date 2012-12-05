@@ -1,0 +1,46 @@
+export SKYDESTDIR=/usr/local/skysql
+export SKYDATADIR=/var/lib/skysql
+export CLUSTER_USER=skysql
+export CLUSTER_GROUP=skysql
+
+
+
+export CLUSTER_GROUP=haclient
+export PREFIX=/usr/local/skysql/peacemaker
+export LCRSODIR=$PREFIX/libexec/lcrso 
+DEPOTDIR=$(dirname $0)/.. 
+cd $DEPOTDIR
+export DEPOTDIR=$(pwd)
+
+OS=linux
+
+
+
+tar jxvf cluster-glue.tar.bz2
+cd Reusable-Cluster-Components-*
+./autogen.sh && ./configure --prefix=$PREFIX  --with-daemon-user=${CLUSTER_USER} --with-daemon-group=${CLUSTER_GROUP}
+make
+make install
+cd $DEPOTDIR
+rm -rf  cluster-glue
+
+tar xzvf resource-agents.tar.gz
+cd ClusterLabs-resource-agents-*
+./autogen.sh && ./configure --prefix=$PREFIX CFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib
+make
+make install
+cd $DEPOTDIR
+
+tar jxvf heartbeat.tar.bz2
+cd Heartbeat-3-0-*
+./bootstrap && ./configure --prefix=$PREFIX CFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib --disable-fatal-warnings
+make
+make install
+cd $DEPOTDIR
+
+git clone https://github.com/corosync/corosync.git
+cd corosync
+./autogen.sh && ./configure --prefix=$PREFIX CFLAGS=-I$PREFIX/include LDFLAGS=-L$PREFIX/lib
+make
+make install
+cd $DEPOTDIR

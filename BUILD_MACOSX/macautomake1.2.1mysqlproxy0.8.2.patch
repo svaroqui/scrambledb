@@ -1,0 +1,11 @@
+--- mysql-proxy-0.8.2/configure.in	2011-08-17 16:50:54.000000000 +0200
++++ BUILD/configure.in	2012-07-01 13:13:43.000000000 +0200
+@@ -51,7 +51,7 @@
+ 
+ 
+ dnl more automake stuff
+-AM_C_PROTOTYPES
++#AM_C_PROTOTYPES
+ AC_C_BIGENDIAN
+ 
+ dnl libtool

@@ -1,0 +1,12 @@
+yum install glib2
+yum install glib2-devel
+yum install libtool 
+yum install cmake 
+yum install gcc 
+yum install gcc-c++
+yum install libxml2
+yum install ncurses-devel
+yum install readline-devel
+yum install libevent-devel
+yum install boost-devel
+yum install uuid-devel
