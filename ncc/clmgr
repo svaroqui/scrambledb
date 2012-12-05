@@ -1,0 +1,58 @@
+#!../perl/bin/perl
+use strict;
+use Class::Struct;
+use warnings FATAL => 'all';
+use Sys::Hostname;
+use Gearman::XS qw(:constants);
+use Gearman::XS::Client;
+use JSON;
+
+
+
+if (scalar(@ARGV) < 2) {
+	print ""
+	. "Cloud manager Ver 1.0\n" 
+	. "This software comes with ABSOLUTELY NO WARRANTY\n"
+	. "This is free software under GPLv2, trademark to SkySQL AB \n\n"
+	. "Usage: $0 --config=<config_file> <action> <service> <type>\n\n"
+        . " Action:\n"
+        . "       \t[install|remove|sync|start|stop|restart|update]\n"
+        . "       \t[switch|join]\n"
+        . "       \t[bootstrap_binaries|bootstrap_config|bootstrap_ncc]\n"
+        . "       \t[bench_dbt2|bench_dbt3|bench_sysbench]\n"
+	. " Service: \n"
+        . "       \t[all|service name |hostname|local] default local    \n"
+	. " Type: \n"
+        . "       \t[all|db|nosql|bench|proxy|lb] default all     \n\n\n";
+	exit(1);
+}
+
+my $config_file = "etc/cloud.cnf";
+my $action =shift;
+my $group=shift; 
+my $type=shift;
+if ( ! defined $type ) {$type='all';}
+if ( ! defined $group ) {$group='all';}
+
+my $command="{command:{action:'$action',group:'$group',type:'$type'}}";
+
+print "$command\n";
+my $json = new JSON;
+my $json_text = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
+
+
+sub gearman_client() {
+  my $client = Gearman::XS::Client->new();
+  $client->add_servers("localhost");
+ 
+  (my $ret, my $result) = $client->do('cluster_cmd', $command);
+
+  print STDOUT $result;
+    
+}
+
+
+gearman_client();
+
+
+

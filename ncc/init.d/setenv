@@ -1,0 +1,6 @@
+#!/bin/bash
+PATH=$PATH:/home/skysql/sandbox/bin/:/home/skysql/gearmand/bin/:/home/skysql/gearmand/sbin/:/home/skysql/mysql-client/bin/
+export PATH
+export PERL5LIB=:/home/skysql/sandbox/share/perl/5.10.1:/home/skysql/ncc/lib/perl/5.10.1:/home/skysql/ncc/share/perl/5.10.1
+
+

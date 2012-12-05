@@ -1,0 +1,87 @@
+#!/bin/sh
+#
+# mysql-proxy This script starts and stops the mysql-proxy daemon
+#
+# chkconfig: - 78 30
+# processname: mysql-proxy
+# description: mysql-proxy is a proxy daemon to mysql
+
+# Source function library.
+#. /etc/rc.d/init.d/functions
+
+SKYBASEDIR=$(dirname $0)/../..
+cd $SKYBASEDIR
+export SKYBASEDIR=$(pwd)
+
+PROXY_PATH=$SKYBASEDIR/mysql-proxy/bin
+
+prog="mysql-proxy"
+
+# Source networking configuration.
+#. /etc/sysconfig/network
+
+# Check that networking is up.
+#[ ${NETWORKING} = "no" ] && exit 0
+
+# Set default mysql-proxy configuration.
+PROXY_OPTIONS="--daemon"
+#PROXY_OPTIONS=""
+PROXY_PID=$SKYBASEDIR/mysql-proxy/mysql-proxy.pid
+DEFAULTS_FILE=$SKYBASEDIR/ncc/etc/mysql-proxy.cnf
+# Source mysql-proxy configuration.
+#if [ -f $SKYBASEDIR/ncc/etc/proxy_write_failover.cnf ] ; then
+#       . /home/skysql/ncc/etc/proxy_write_failover.cnf
+#fi
+PATH=$PATH:/usr/bin:/usr/local/bin:$PROXY_PATH
+
+# By default it's all good
+RETVAL=0
+
+# See how we were called.
+case "$1" in
+  start)
+        # Start daemon.
+        #echo -n $"Starting $prog: "
+        export LD_PRELOAD=libksupersockets.so
+	$PROXY_PATH/mysql-proxy $PROXY_OPTIONS --defaults-file=$DEFAULTS_FILE --pid-file=$PROXY_PID
+        RETVAL=$?
+        echo $RETVAL
+ #       if [ $RETVAL = 0 ]; then
+               # touch /var/lock/subsys/mysql-proxy
+ #       fi
+        ;;
+  stop)
+        # Stop daemons.
+	pid=$(echo `ps aux | grep mysql-proxy | grep -v grep | awk '{ print $2 }'`)
+ 	if [ -n "$pid" ]
+        then
+        echo -n "Stopping $prog: "
+        kill $pid
+        RETVAL=$?
+        echo $RETVAL
+        if [ $RETVAL = 0 ]; then
+                # rm -f /var/lock/subsys/mysql-proxy
+                rm -f $PROXY_PID
+        fi
+	fi 
+        ;;
+  restart)
+        $0 stop
+        sleep 3
+        $0 start
+        ;;
+  condrestart)
+       [ -e /var/lock/subsys/mysql-proxy ] && $0 restart
+       ;;
+  status)
+        status mysql-proxy
+        RETVAL=$?
+        ;;
+  *)
+        echo "Usage: $0 {start|stop|restart|status|condrestart}"
+        RETVAL=1
+        ;;
+esac
+
+exit $RETVAL
+

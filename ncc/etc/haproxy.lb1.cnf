@@ -1,0 +1,37 @@
+global
+   log         127.0.0.1 local2
+   maxconn     4000
+   daemon
+   # turn on stats unix socket
+   stats socket /usr/local/skysql/ncc/tmp/stats
+#---------------------------------------------------------------------
+# common defaults that all the 'listen' and 'backend' sections will
+# use if not designated in their block
+#---------------------------------------------------------------------
+defaults
+   mode                    http
+   log                     global
+   option                  tcplog
+   option                  dontlognull
+   option                  redispatch
+   retries                 3
+   timeout http-request    10s
+   timeout connect         10s
+   timeout client          50000
+   timeout server          50000
+#    timeout http-keep-alive 10s
+   timeout check           10s
+   maxconn                 3000
+frontend mysql-front
+mode tcp
+bind     127.0.0.1:3304
+default_backend  mysql-back
+#---------------------------------------------------------------------
+# round robin balancing between the various backends
+#---------------------------------------------------------------------
+backend mysql-back
+  balance     roundrobin
+  mode    tcp
+   server proxy3 127.0.0.1:3309  check
+   server proxy2 127.0.0.1:3308  check
+   server proxy1 127.0.0.1:3307  check

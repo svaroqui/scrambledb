@@ -1,0 +1,201 @@
+[mysqld]
+
+plugin-load=spider=ha_spider.so;spider_alloc_mem=ha_spider.so
+skip_name_resolv
+back_log=1024  
+max_connections = 1024
+table_open_cache = 2048
+table_definition_cache = 2048
+max_allowed_packet = 16M
+binlog_cache_size = 1M
+max_heap_table_size = 64M
+thread_cache_size = 128 
+query_cache_size = 0
+query_cache_limit = 2M
+ft_min_word_len = 4
+thread_stack = 192K
+tmp_table_size = 512K 
+expire_logs_days=7
+sort_buffer_size =  512K
+join_buffer_size =  2M 
+key_buffer_size = 256M
+key_cache_block_size=4K 
+spider_use_handler=1
+
+
+#spider_bgs_mode=1
+#spider_bgs_mode
+#  Mode of background search.
+#  -1 : The table parameter is adopted.
+#   0 : Background search is disabled.
+#   1 : Background search is used if search with no lock.
+#   2 : Background search is used if search with no lock or shared lock.
+#   3 : Background search is used regardless of the lock.
+#  The default value is -1
+
+#spider_bka_mode=1
+#spider_bka_engine=myisam
+
+spider_conn_recycle_mode=1
+# ++spider_conn_recycle_mode
+#  It behaves in that case though the connection is recycled as for the spider
+#  storage engine when the transaction is completed.
+#  0 : Disconnect.
+#  1 : It recycles by all sessions.
+#  2 : It recycles in the same session.
+#  The default value is 0
+
+
+
+spider_use_hs_read=1
+#spider_use_hs_write=1
+
+spider_reset_sql_alloc=0
+#spider_use_pushdown_udf=1
+
+
+spider_crd_mode=1
+# spider_crd_bg_mode
+#  Mode of cardinality confirmation at background.
+#  (Only when crd_mode is 1 or 2 and crd_interval is bigger than 0,
+#  it is effective.)
+#  -1 : The table parameter is adopted.
+#   0 : Background confirmation is disabled.
+#   1 : Background confirmation is enabled.
+#  The default value is -1
+
+spider_crd_interval=4
+# spider_crd_interval
+#  Interval of cardinality confirmation.(second)
+# (Only when crd_mode is 1 or 2, it is effective.)
+#  Spider always get the newest information from remote servers, if this
+# parameter is set to 0.
+#  -1        : The table parameter is adopted.
+#  0 or more : Interval of cardinality confirmation.
+#  The default value is -1
+
+spider_crd_bg_mode=1
+# spider_crd_mode
+#  Mode of cardinality confirmation.
+#  -1,0 : The table parameter is adopted.
+#   1   : The show command is used.
+#   2   : The information schema is used.
+#   3   : The explain is used.
+#  The default value is -1
+
+spider_crd_sync=0
+# spider_crd_sync
+#  Cardinality synchronization in partitioned table.
+#  -1 : The table parameter is adopted.
+#   0 : No synchronization.
+#   1 : Cardinality is synchronized when opening a table.
+#       Then no synchronization.
+#   2 : Synchronization.
+#  The default value is -1
+
+# spider_crd_type
+#  Type of cardinality calculation.
+#  (Only when crd_mode is 1 or 2, it is effective.)
+#  -1 : The table parameter is adopted.
+#   0 : The crd_weight is used as a fixed value.
+#   1 : The crd_weight is used as an addition value.
+#   2 : The crd_weight is used as a multiplication value.
+#  The default value is -1
+
+spider_sync_trx_isolation=0
+#++ spider_sync_trx_isolation
+#  Local transaction isolation level synchronous existence to remote server.
+#   0 : It doesn't synchronize.
+#   1 : It synchronizes.
+#  The default value is 1
+
+
+spider_sync_autocommit=0
+# spider_sync_autocommit
+#  Local autocommit synchronous existence to remote server.
+#   0 : It doesn't synchronize.
+#   1 : It synchronizes.
+#  The default value is 1
+
+
+# spider_semi_trx
+#  Mode that executes transaction during one SQL execution for autocommit=1.
+#  (Only when spider_sync_autocommit is 1, it is effective.)
+#   0 : OFF
+#   1 : ON
+#  The default value is 1
+
+# spider_semi_trx_isolation
+#  The consistency set during one SQL execution is used.
+#  (Only when spider_sync_trx_isolation is 1, it is effective.)
+#  -1 : OFF
+#   0 : READ UNCOMMITTED
+#   1 : READ COMMITTED
+#   2 : REPEATABLE READ
+#   3 : SERIALIZABLE
+#  The default value is -1
+
+
+spider_support_xa
+#spider_support_xa
+#  Support xa transaction by spider.
+#  internal_xa is available in spider_support_xa=0.
+
+
+
+
+# spider_internal_xa
+#  Option to switch usual transaction to xa transaction internally.
+#  0 : It doesn't switch.
+#  1 : It switches.
+#  The default value is 0
+#  The rule of internal xa id is the following.
+#  gtrid:MySQL's thread id
+#  bqual:MySQL's server id
+#  formatID:1
+#  Please set different server id in the all MySQL instances for generating
+#  different xa id.
+
+
+# spider_split_read=?
+# spider_split_read
+#  When SQL(SELECT) internally issued to a remote server is executed, it is a
+#  number of records in which division is acquired as for the execution result.
+#  -1        : The table parameter is adopted.
+#  0 or more : Number of records.
+#  The default value is -1
+
+#spider_quick_mode=0
+#spider_quick_mode
+#  The retrieval result from a remote server is acquired by acquisition
+#  one by one.
+#  -1 : The table parameter is adopted.
+#   0 : It acquires it collectively.
+#   1 : Acquisition one by one.If it discontinues once, and it will need
+#       it later, it retrieves it again when there is interrupt on the way.
+#   2 : Acquisition one by one.Interrupt is waited for until end of getting
+#       result when there is interrupt on the way.
+#  The default value is -1
+
+
+# spider_local_lock_table
+#  Remote server transmission when lock tables is executed at local.
+#   0 : Transmits.
+#   1 : Don't transmit.
+#  The default value is 0
+
+# spider_lock_exchange
+#  Lock in share mode is converted in lock tables read and for update is
+#  converted into lock tables write.
+#  (Only when semi_table_lock of the table parameter is one, it is effective.)
+#  0 : It doesn't convert it.
+#  1 : It converts it.
+#  The default value is 0
+#
+#
+spider_sts_sync=0
+spider_remote_sql_log_off=1
+spider_remote_autocommit=1
+spider_direct_dup_insert=1
+
+

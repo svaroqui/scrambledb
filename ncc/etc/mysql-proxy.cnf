@@ -1,0 +1,13 @@
+[mysql-proxy]
+pid-file = mysql-proxy.pid
+log-file = ../ncc/log/mysql-proxy.log
+log-level = debug
+plugin-dir=lib/mysql-proxy/plugins
+admin-username=skysql 
+admin-password=skyvodka
+admin-lua-script=lib/mysql-proxy/lua/admin.lua
+proxy-address =:3307
+proxy-backend-addresses=127.0.0.1:5010
+proxy-read-only-backend-addresses=127.0.0.1:5012,127.0.0.1:5011
+proxy-lua-script = ../ncc/scripts/interceptor.lua
+proxy-lua-script = ../ncc/scripts/rw-splitting.lua

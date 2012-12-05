@@ -1,0 +1,127 @@
+<host default>
+    cluster_interface       eth0
+    pid_path                mmmd_agent.pid
+    bin_path                ./
+    replication_user        repl
+    replication_password    repl
+    mysql_user		    skysql 
+    mysql_password	    skyvodka		
+    agent_user              mmm_agent
+    agent_password          agent_password
+</host>
+
+<host node10>
+    ip                      81.175.23.3 
+    mode                    master
+    peer                    node11
+#    mysql_version	    mariadb-5.3.4-rc 
+    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+    mysql_port		    5010 
+    mysql_cnf		    etc/my.cnf
+</host>
+
+<host node11>
+    ip                      81.175.23.4
+    mode                    slave
+    peer		    node10
+    mysql_version	    mariadb-5.3.4-rc
+    mysql_port 		    5011
+    mysql_cnf		    etc/my.cnf
+</host>
+
+<host node12>
+    ip                      81.175.23.3
+    mode                    monitor
+    peer                    node10,node11
+    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+    mysql_port              5012
+    mysql_cnf		    etc/my_proxy.cnf
+</host>
+
+<host node20>
+    ip                      81.175.23.4
+    mode                    master
+    peer                    node21
+    mysql_version 	    mariadb-5.3.4-rc
+    mysql_port		    5020	
+    mysql_cnf		    etc/my.cnf
+</host>
+
+<host node21>
+    ip                      81.175.23.3
+    mode                    slave
+    peer 		    node20
+    mysql_version 	    mariadb-5.3.4-rc
+    mysql_port 		    5021
+    mysql_cnf		    etc/my.cnf
+</host>
+
+<host node22>
+    ip                      81.175.23.4
+    mode                    monitor
+    peer                    node20,node21
+    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+    mysql_port              5022
+    mysql_cnf		    etc/my_proxy.cnf
+</host>
+
+
+
+#<host node30>
+#    ip                      81.175.23.3
+#    mode                    master
+#    peer                    node31
+#    mysql_version           mariadb-5.3.4-rc
+#    mysql_port              5030
+#</host>
+
+#<host node31>
+#    ip                      81.175.23.4
+#    mode                    slave
+#    peer                    node30
+#    mysql_version           mariadb-5.3.4-rc
+#    mysql_port              5031
+#</host>
+
+#<host node32>
+#    ip                      81.175.23.4
+#    mode                    monitor
+#    peer                    node30,node31
+#    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95 
+#    mysql_port              5032
+#</host>
+
+<host node80>
+    ip                      81.175.23.3
+    mode                    proxy
+    mysql_version	    mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+    mysql_port 		    5005
+    mysql_cnf		    etc/my_proxy.cnf
+</host>
+
+<host node81>
+    ip                      81.175.23.4
+    mode                    proxy
+    mysql_version	    mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95 
+    mysql_port 		    5005
+    mysql_cnf		    etc/my_proxy.cnf
+</host>
+
+<host node90>
+    ip                      81.175.23.3
+    hosts                   node80, node81
+    peer		    node91	
+    mode                    router
+    mysql_port 		    3307 
+</host>
+
+<host node91>
+    ip                      81.175.23.4
+    hosts                   node80, node81
+    peer 		    node90
+    mode                    router
+    mysql_port 		    3307 
+</host>
+
+
+

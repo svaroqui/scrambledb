@@ -1,0 +1,13 @@
+[server default]
+user=$mhauser
+password=@@mhapassword
+ssh_user=@@mhasshuser
+master_binlog_dir= /var/lib/mysql
+remote_workdir=/var/lib/mha
+#secondary_check_script= masterha_secondary_check -s remote_host1 -s remote_host2
+ping_interval=3
+log_level=debug
+master_ip_failover_script=/var/lib/mha/master_ip_failovermaster_ip_online_change_script=/var/lib/
+mha/master_ip_online_change
+#shutdown_script= /var/lib/mha/power_manager
+report_script= /var/lib/mha/send_report

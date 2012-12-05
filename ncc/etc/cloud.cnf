@@ -1,0 +1,172 @@
+<architecture>
+    topology                MASTERSLAVE
+</architecture>
+
+<cloud vcloud1>
+    user            skysql@David_CHANIAL_1001895
+    password        !davixx#
+    host            vcloud.hegerys.com
+    version         1.5
+    driver          VCLOUD
+    template        Centos6.2x86_64_SkySQL_Template   
+    key             none
+    ex_vdc          vApp_skysql_1
+</cloud>
+
+<db default>
+    cluster_interface       eth0
+    replication_user        repl
+    replication_password    repl
+    mysql_user		    skysql 
+    mysql_password	    skyvodka		
+    agent_user              skysql
+    agent_password          skyvodka
+  	
+</db>
+
+<db node10>
+    mode                    master
+    ip                      127.0.0.1
+    peer                    node11
+    mysql_version           mariadb
+    mysql_port		    5010 
+    mysql_cnf		    etc/my.cnf
+    datadir		    /var/lib/skysql
+</db>
+
+<db node11>
+    mode                    slave 
+    ip                      127.0.0.1
+    peer		    node10
+    mysql_version	    mariadb
+    mysql_port 		    5011
+    mysql_cnf		    etc/my.cnf
+    datadir		    /var/lib/skysql
+</db>
+
+
+<db node12>
+    mode                    slave 
+    ip                      127.0.0.1
+    peer		    node10
+    mysql_version	    mariadb
+    mysql_port 		    5012
+    mysql_cnf		    etc/my.cnf
+    datadir		    /var/lib/skysql
+</db>
+
+#<db node20>
+#    ip                      127.0.0.1
+#    mode                    monitor
+#    peer                    node10,node11
+#    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+#    mysql_port              5020
+#    mysql_cnf		    etc/my_proxy.cnf
+#    datadir		    /var/lib/skysql
+#</db>
+
+
+<proxy proxy1>
+    mode                    mysql-proxy
+    ip                      127.0.0.1 
+    hosts                   node10
+    peer		    node11	
+    port 		    3307 
+    script                  rw-splitting.lua
+</proxy>
+<proxy proxy2>
+    mode                    mysql-proxy
+    ip                      127.0.0.1 
+    hosts                   node10
+    peer		    node11	
+    port 		    3308
+    script                  rw-splitting.lua
+</proxy>
+<proxy proxy3>
+    mode                    mysql-proxy
+    ip                      127.0.0.1 
+    hosts                   node10
+    peer		    node11	
+    port 		    3309 
+    script                  rw-splitting.lua
+</proxy>
+
+<nosql nosql1>
+    ip                      127.0.0.1
+    mode                    memcache
+    status                   master
+    port              	    11211
+    mem                     16
+</nosql>
+<nosql nosql2>
+    ip                      127.0.0.1
+    status                  slave
+    mode                    memcache
+    port              	    11212
+    mem                     16
+</nosql>
+
+
+<lb lb1>
+    ip                      127.0.0.1
+    vip                     127.0.0.1
+    port                    3304  
+    peer                    lb2
+    status                  master
+    mode                    keepalived
+    balance                 none
+    device                  eth1 
+    mysql_user		    skysql 
+    mysql_password	    skyvodka	
+</lb>
+<lb lb2>
+    ip                      127.0.0.1
+    vip                     127.0.0.1
+    port                    3303  
+    peer                    lb1
+    status                  slave
+    mode                    keepalived
+    balance                 none
+    device                  eth2 
+    mysql_user		    skysql 
+    mysql_password	    skyvodka	
+</lb>
+<lb lb3>
+    ip                      127.0.0.1
+    vip                     0.0.0.0
+    port                    3306  
+    mysql_user		    skysql 
+    mysql_password	    skyvodka	
+    peer                    lb4
+    mode                    haproxy
+    status                  master
+    device                  eth1 
+</lb>
+<lb lb4>
+    ip                      127.0.0.1
+    vip                     0.0.0.0
+    mysql_user		    skysql 
+    mysql_password	    skyvodka	
+    port                    3305  
+    peer                    lb3
+    mode                    haproxy
+    device                  eth2 
+    status                  slave
+</lb>
+
+<bench bench1> 
+  mode                    dbt2
+  peer                    lb1
+  warehouse               100
+  concurrency             16 
+  duration                600
+  datadir                 /var/lib/skysql/dbt2   
+</bench>
+
+<monitor mon1>
+    mode                  mycheckpoint
+    port                  8080
+    smtp-from             mon@skysql.com
+    smtp-to               stephane@skysql.com
+    smtp-host             localhost  
+</monitor>

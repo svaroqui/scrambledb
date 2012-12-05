@@ -1,0 +1,8 @@
+#Memory a usar
+-m 16
+# default port
+-p 11211
+# user to run daemon nobody/apache/www-data
+-u skysql
+# only listen locally
+#-l 127.0.0.1
