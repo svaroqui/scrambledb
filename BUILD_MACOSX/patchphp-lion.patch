@@ -1,4 +1,0 @@
-19c19
-< MH_BUNDLE_FLAGS = -bundle -bundle_loader /usr/local/skysql/httpd/bin/httpd -L/usr/lib -laprutil-1 -lldap -llber -llber -lexpat -liconv -L/usr/lib -lpq -lsqlite3 -lldap -llber -llber -L/usr/lib -lapr-1 -lpthread
----
-> MH_BUNDLE_FLAGS = -bundle -bundle_loader /usr/local/skysql/httpd/bin/httpd -L/opt/local/lib -laprutil-1 -lldap -llber -llber -lexpat -liconv -L/opt/local/lib -lpq -lsqlite3 -lldap -llber -llber -L/opt/local/lib -lapr-1 -lpthread
