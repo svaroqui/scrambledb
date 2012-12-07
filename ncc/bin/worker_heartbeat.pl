@@ -6,9 +6,10 @@ use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
 use JSON;
+
 our $SKYDATADIR = $ ENV {SKYDATADIR};
 
-
+# perl -le 'BEGIN{use Linux::MemInfo} %mem=get_mem_info; print $mem{"MemTotal"}'
 my $interface;
 my %IPs;
 foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
@@ -25,33 +26,36 @@ open my $LOG , q{>>}, $SKYDATADIR."/log/hearbeat.log"
 
 
 my $config_file = "etc/cloud.cnf";
-my $action ="ping";
-my $group="all"; 
-my $type="db";
-if ( ! defined $type ) {$type='all';}
 
 
-
-my $command="{command:{action:'$action',group:'$group',type:'$type'}}";
-
-print "$command\n";
-my $json = new JSON;
-my $json_text = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
 my $TIME=10;
-
+my $client = Gearman::XS::Client->new();
+$client->add_servers("localhost");
+ 
 sub gearman_client() {
-  my $client = Gearman::XS::Client->new();
-  $client->add_servers("localhost");
-  (my $ret,my $result) = $client->do('cluster_cmd', $command);
-  print  $ret;
-    if ($ret == 0) {
+# get the status from my point of view  
+  my $command="{command:{action:'status',group:'all',type:'all'}}";
+  (my $ret,my $result) = $client->do('cluster_cmd', $command);   
+  if ($ret != GEARMAN_SUCCESS) {
+        printf(STDOUT "%s\n", $client->error());    
+           return 0;
+  }
+ system("system_profiler SPHardwareDataType | grep -i memory  | awk  '{print \$2*1024*1024*1024}'"); 
+ # system(`cat /proc/meminfo |  grep "MemTotal" | awk '{print \$2}'`); 
+  
+my $ram =$? ;
+
+$command="{command:{action:'ping',group:'all',type:'db'},data:{ram:'$ram'},hearbeat:$result}";
+  
+( $ret, $result) = $client->do('cluster_cmd', $command);
+    printf(STDOUT "%s\n", $command);
+    if ($ret != GEARMAN_SUCCESS) {
         printf(STDOUT "%s\n", $client->error());
     }
-	else 
-	{
-	 printf(STDOUT "%s\n",  $result);
-
-	}
+    else {
+        printf(STDOUT "%s\n",  $ret);
+	printf(STDOUT "%s\n",  $result);
+    }
 }
 
 while ( 1 )  

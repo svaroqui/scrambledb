@@ -21,15 +21,14 @@
 require('Memcached')
 require('CRC32')
 
+
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
 
 
-local memcache_host = '192.168.0.100'
-local memcache_port = 11211
-	    
+-- insert here --	    
 
 -- connection pool
 if not proxy.global.config.rwsplit then
@@ -262,7 +261,7 @@ function connect_server()
 		elseif s.type == proxy.BACKEND_TYPE_RW and
 		       s.state ~= proxy.BACKEND_STATE_DOWN and
 		       rw_ndx == 0 then
-			rw_ndx = i
+                        rw_ndx = i
 		end
 	end
 
@@ -482,19 +481,26 @@ function read_query( packet )
             local masterGTID=0  
             for tbl,v in pairs(tbls) do
              if is_debug then 
-               print("    Get table from memcache   : " .. tbl .." sercer-id 5010" )
+               print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[1])
              end
-             masterGTID=memcache:get(CRC32.Hash(tbl) .. "5010")   
+             masterGTID=memcache:get(CRC32.Hash(tbl) .. backend_id_server[1] )   
 	     if (masterGTID ==  nil) then
                 proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                print ("   Fail back to master : No memcache entry in master")
+                if is_debug then
+                  print ("   Fail back to master : No memcache entry in master")
+                end
                 memcache:disconnect_all()   
                 break
              end 
-             slaveGTID=memcache:get(CRC32.Hash(tbl) .. (5009 + proxy.connection.backend_ndx))
+             if is_debug then 
+               print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[proxy.connection.backend_ndx])
+             end
+             slaveGTID=memcache:get(CRC32.Hash(tbl) ..  backend_id_server[proxy.connection.backend_ndx] )
              if slaveGTID==nil then
                 proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                print ("   Fail back to master : No memcache entry in slave")
+                if is_debug then
+                 print ("   Fail back to master : No memcache entry in slave")
+                end
                 memcache:disconnect_all()   
                 break
              end  
@@ -595,6 +601,8 @@ function disconnect_client()
 
 	-- make sure we are disconnection from the connection
 	-- to move the connection into the pool
-	-- proxy.connection.backend_ndx = 0
+	-- if  proxy.connection and  proxy.connection.backend_ndx then 
+        --     proxy.connection.backend_ndx = 0
+        -- end      
 end
 

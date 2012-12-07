@@ -37,34 +37,3 @@ vrrp_instance mysql_pool {
   }
 }
 
-# Here we add the virtal mysql node
-virtual_server 127.0.0.1 3304 {
-  delay_loop 6
-  # Round robin, but you can use whatever fits your needs.
-  lb_algo rr
-  lb_kind DR
-nat_mask 255.255.255.0
-persistence_timeout 50
-  protocol TCP
-
-   real_server 127.0.0.1 3309  {
-     weight 10
-    TCP_CHECK {
-      connect_timeout 3
-   } 
- }
-
-   real_server 127.0.0.1 3308  {
-     weight 10
-    TCP_CHECK {
-      connect_timeout 3
-   } 
- }
-
-   real_server 127.0.0.1 3307  {
-     weight 10
-    TCP_CHECK {
-      connect_timeout 3
-   } 
- }
- }

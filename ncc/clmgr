@@ -1,4 +1,4 @@
-#!../perl/bin/perl
+#!/usr/local/skysql/perl/bin/perl
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
@@ -17,7 +17,7 @@ if (scalar(@ARGV) < 2) {
 	. "Usage: $0 --config=<config_file> <action> <service> <type>\n\n"
         . " Action:\n"
         . "       \t[install|remove|sync|start|stop|restart|update]\n"
-        . "       \t[switch|join]\n"
+        . "       \t[switch|rolling_restart|join]\n"
         . "       \t[bootstrap_binaries|bootstrap_config|bootstrap_ncc]\n"
         . "       \t[bench_dbt2|bench_dbt3|bench_sysbench]\n"
 	. " Service: \n"
@@ -37,8 +37,6 @@ if ( ! defined $group ) {$group='all';}
 my $command="{command:{action:'$action',group:'$group',type:'$type'}}";
 
 print "$command\n";
-my $json = new JSON;
-my $json_text = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
 
 
 sub gearman_client() {
@@ -46,8 +44,19 @@ sub gearman_client() {
   $client->add_servers("localhost");
  
   (my $ret, my $result) = $client->do('cluster_cmd', $command);
-
-  print STDOUT $result;
+    
+my $json      = new JSON;
+my @json_text =
+      $json->utf8->relaxed->allow_singlequote->allow_barekey->decode($result);
+use Data::Dumper;
+$Data::Dumper::Terse     = 1;       # don't output names where feasible
+    $Data::Dumper::Quotekeys = 0;
+    $Data::Dumper::Indent    = 2;       # mild pretty print
+    $Data::Dumper::Pair      = ":";
+    $Data::Dumper::Indent    = 2;
+    $Data::Dumper::Useqq     = 0; 
+ print  STDERR Dumper(@json_text);
+ #print STDOUT $result;
     
 }
 

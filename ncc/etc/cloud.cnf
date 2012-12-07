@@ -17,6 +17,7 @@
     cluster_interface       eth0
     replication_user        repl
     replication_password    repl
+   
     mysql_user		    skysql 
     mysql_password	    skyvodka		
     agent_user              skysql
@@ -30,7 +31,8 @@
     peer                    node11
     mysql_version           mariadb
     mysql_port		    5010 
-    mysql_cnf		    etc/my.cnf
+    mysql_server_id         5010
+    mysql_cnf		    etc/my.template
     datadir		    /var/lib/skysql
 </db>
 
@@ -40,7 +42,8 @@
     peer		    node10
     mysql_version	    mariadb
     mysql_port 		    5011
-    mysql_cnf		    etc/my.cnf
+    mysql_server_id         5011
+    mysql_cnf		    etc/my.template
     datadir		    /var/lib/skysql
 </db>
 
@@ -51,7 +54,7 @@
     peer		    node10
     mysql_version	    mariadb
     mysql_port 		    5012
-    mysql_cnf		    etc/my.cnf
+    mysql_cnf		    etc/my.template
     datadir		    /var/lib/skysql
 </db>
 
@@ -61,8 +64,8 @@
 #    peer                    node10,node11
 #    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
 #    mysql_port              5020
-#    mysql_cnf		    etc/my_proxy.cnf
-#    datadir		    /var/lib/skysql
+#    mysql_cnf		     etc/my.template
+#    datadir		     /var/lib/skysql
 #</db>
 
 
@@ -72,7 +75,7 @@
     hosts                   node10
     peer		    node11	
     port 		    3307 
-    script                  rw-splitting.lua
+    script                  rw-splitting.template
 </proxy>
 <proxy proxy2>
     mode                    mysql-proxy
@@ -80,7 +83,7 @@
     hosts                   node10
     peer		    node11	
     port 		    3308
-    script                  rw-splitting.lua
+    script                  rw-splitting.template
 </proxy>
 <proxy proxy3>
     mode                    mysql-proxy
@@ -88,13 +91,13 @@
     hosts                   node10
     peer		    node11	
     port 		    3309 
-    script                  rw-splitting.lua
+    script                  rw-splitting.template
 </proxy>
 
 <nosql nosql1>
     ip                      127.0.0.1
     mode                    memcache
-    status                   master
+    status                  master
     port              	    11211
     mem                     16
 </nosql>

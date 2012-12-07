@@ -8,7 +8,8 @@
 # the COPYING file in this directory for full text.
 
 SKYDATADIR="/var/lib/skysql"
-SKYBASEDIR=$(dirname $0)/../..
+SKYBASEDIR="/usr/local/skysql" 
+# SKYBASEDIR=$(dirname $0)/../..
 cd $SKYBASEDIR
 export SKYBASEDIR=$(pwd)
 export SKYDATADIR=$SKYDATADIR

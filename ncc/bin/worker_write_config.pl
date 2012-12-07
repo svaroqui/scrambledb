@@ -134,8 +134,10 @@ sub write_cmd {
     print STDOUT "write haproxy config\n";  
     write_memcached_config($SKYBASEDIR."/ncc/etc/memcached");
     print STDOUT "write memcached config\n"; 
-    write_lua_variables_config($SKYBASEDIR."/ncc/etc/lua_variables_config");
-    print STDOUT "write lua script include config\n"; 
+    write_lua_script();
+    print STDOUT "write lua script from config\n"; 
+    write_mysql_config();
+
     return  $console ;
 
 }
@@ -164,10 +166,10 @@ sub replace_config($$$){
 
 
 sub write_keepalived_config($){
-my $file= shift;
-my $i=100;
+ my $file= shift;
+ my $i=100;
  my $lb_info;
-foreach my $lb (keys(%{$config->{lb}})) {
+ foreach my $lb (keys(%{$config->{lb}})) {
 
     $lb_info = $config->{lb}->{default};
     $lb_info = $config->{lb}->{$lb};
@@ -249,27 +251,45 @@ foreach my $lb (keys(%{$config->{lb}})) {
     }
 
 }
-sub write_lua_variables_config($){
-my $file= shift;
+
+sub write_lua_script(){
+
 my $i=100;
-my $nosql_info; 
 
 
-foreach my $nosql (keys(%{$config->{nosql}})) {
-    $nosql_info = $config->{nosql}->{default};
-    $nosql_info = $config->{nosql}->{$nosql};
-    if  ( $nosql_info->{status} eq "master"){
-         open my $out, '>', "$file" or die "Can't write new file: $!";
-         system("export MEMCACHE_HOST='". $nosql_info->{ip} ."' && export MEMCACHE_PORT=". $nosql_info->{port}   );
-        print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
-        print $out "local memcache_port= " . $nosql_info->{port} ."\n"; 
-         close $out;
-         return 1; 
+
+
+ my $host_info;
+foreach my $host (keys(%{$config->{proxy}})) {
+    $host_info = $config->{proxy}->{default};
+    $host_info = $config->{proxy}->{$host};
+     open my $in ,  '<', $SKYBASEDIR."/ncc/scripts/". $host_info->{script} or die "Can't write new file: $!";
+     open my $out, '>', $SKYBASEDIR."/ncc/scripts/$host.lua" or die "Can't write new file: $!";
+       while (<$in>) {
+       # s/^$strin(.*)$/$strout/gi;
+      if (/-- insert here --/) {
+        my $nosql_info; 
+        foreach my $nosql (keys(%{$config->{nosql}})) {
+        $nosql_info = $config->{nosql}->{default};
+        $nosql_info = $config->{nosql}->{$nosql};
+        if  ( $nosql_info->{status} eq "master"){
+         print $out  get_lua_connection_pool_server_id() ."\n";
+         print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
+         print $out "local memcache_port = " . $nosql_info->{port} ."\n";
+        
     }
    }
     
+      } 
+      print $out $_;
+    }
+    close $out;
+   # system("rm -f $file.old");
+   # system("mv $file $file.old");
+   # system("mv $file.new $file");
+   # system("chmod 660 $file");
 
-
+  } 
   return 0; 
 }
 sub write_haproxy_config($){
@@ -285,7 +305,7 @@ foreach my $lb (keys(%{$config->{lb}})) {
     print $out "global\n";
     print $out "   log         127.0.0.1 local2\n";
     #print $out "   chroot      ".."/haproxy\n";
-    # print $out "   pidfile     ".$SKYBASEDIR."/ncc/tmp/haproxy.pid\n";
+    #print $out "   pidfile     ".$SKYBASEDIR."/ncc/tmp/haproxy.pid\n";
     print $out "   maxconn     4000\n";
     #print $out "   user        ".."\n";
     #print $out "   group       haproxy\n";
@@ -341,9 +361,7 @@ foreach my $lb (keys(%{$config->{lb}})) {
 
 sub write_memcached_config($){
     my $file = shift;
-    my $masters = list_masters();
-    my $slaves = list_slaves() ;
-
+   
     my $i=100;
     my $nosql;
     foreach my $host (keys(%{$config->{nosql}})) {
@@ -369,6 +387,10 @@ sub write_memcached_config($){
   # replace_config($file ,"proxy-backend-addresses","proxy-backend-addresses=".  $masters );
  }
 
+sub write_mysql_config(){
+
+}
+
 sub write_mysql_proxy_config($){
 my $file = shift;
 my $masters = list_masters();
@@ -393,7 +415,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
     print $out "proxy-backend-addresses=".$masters."\n";
     print $out "proxy-read-only-backend-addresses=". $slaves."\n";
   # print $out "proxy-lua-script = ../ncc/scripts/interceptor.lua\n";
-    print $out "proxy-lua-script = $SKYBASEDIR/ncc/scripts/". $host_info->{script} ."\n";
+    print $out "proxy-lua-script = $SKYBASEDIR/ncc/scripts/". $host .".lua\n";
      close $out;
  $i++;
 system("chmod 660 $file.$host.cnf" );
@@ -438,6 +460,29 @@ sub write_mha_config($){
     system("chmod 660 $file" );
     return  $err;
 }
+
+sub get_lua_connection_pool_server_id(){
+    my @backend; 
+     my $host_info ;
+    foreach my $host (keys(%{$config->{db}})) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ($host_info->{mode} eq "master") {
+              push(@backend  , $host_info->{mysql_port});
+         }
+    }
+    foreach my $host (keys(%{$config->{db}})) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ($host_info->{mode} eq "slave") {
+              push(@backend ,  $host_info->{mysql_port});
+         }
+    }
+
+    return "local backend_id_server = { " . join(',',@backend). "}" ;
+
+}
+
 
 sub list_slaves(){
   my $host_info ;
@@ -512,6 +557,9 @@ sub all_ips(){
 }
 
 
+
+
+
 sub bootstrap(){
     my $my_home_user = $ ENV {HOME};
     my $cmd='string="`cat '.$SKYBASEDIR.'/ncc/etc/id_rsa.pub`"; sed -e "\|$string|h; \${x;s|$string||;{g;t};a\\" -e "$string" -e "}" $HOME/.ssh/authorized_keys > $HOME/.ssh/authorized_keys2 ;mv $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys_old;mv $HOME/.ssh/authorized_keys2 $HOME/.ssh/authorized_keys';
@@ -523,7 +571,8 @@ sub bootstrap(){
       system("scp -i ". $SKYBASEDIR."/ncc/etc/id_rsa " . $SKYBASEDIR. "/ncc/etc/cloud.cnf ". $_.":".$SKYBASEDIR."/ncc/etc");
 
 
- }
+}
+
 
 
 #$cms="cat <<EOF_LO0 > /etc/sysconfig/network-scripts/ifcfg-lo:1

@@ -58,7 +58,6 @@ our $SKYBASEDIR            = $ENV{SKYBASEDIR};
 our $SKYDATADIR            = $ENV{SKYDATADIR};
 our $gearman_timeout       = 2000;
 our $mysql_connect_timeout = 3;
-our $console               = "";
 our $config                = new SKY::Common::Config::;
 
 $config->read("etc/cloud.cnf");
@@ -67,6 +66,7 @@ $config->check('SANDBOX');
 my $interface;
 my %IPs;
 my %ServiceIPs;
+my @console;
 
 foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
     $interface = $1 if /^(\S+?):?\s/;
@@ -133,8 +133,8 @@ sub cluster_cmd {
     my $ddlallnode     = 0;
     my $ddlallproxy    = 0;
     my $ret            = "true";
-    $console = "{result:\n";
-
+    my @cmd_console;
+ @console=@cmd_console;
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
 
@@ -170,6 +170,12 @@ sub cluster_cmd {
     }
     elsif ( $action eq "bootstrap_ncc" ) {
         $ret = bootstrap_ncc();
+    }
+    elsif ( $action eq "bootstrap_config" ) {
+        $ret = bootstrap_config();
+    }
+    elsif ( $action eq "rolling_restart" ) {
+        $ret = mysql_rolling_restart();
     }
     elsif ( $action eq "ping" ) {
         print STDERR "Entering :start monitoring\n";
@@ -226,7 +232,7 @@ sub cluster_cmd {
         }
     }
     if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
-        create_spider_table_info( $query, $ddlallnode );
+        spider_create_table_info( $query, $ddlallnode );
     }
 
     foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
@@ -324,7 +330,6 @@ sub cluster_cmd {
     foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
         my $host_info = $config->{bench}->{default};
         $host_info = $config->{bench}->{$host};
-        add_ip_to_list($host_info->{ip});
         my $pass = 1;
         print STDOUT $group . " vs " . $host;
         if ( $group ne $host ) { $pass = 0 }
@@ -356,8 +361,10 @@ sub cluster_cmd {
     foreach my $key ( sort keys %ServiceIPs ) {
         print $key;
     }
-    $console = $console . "}\n";
-    return $console;
+   
+
+  
+    return "{services:[" . join(',', @console) ."]}";
 
 }
 
@@ -618,57 +625,7 @@ sub spider_node_sql($$$$$$$) {
     }
 }
 
-sub sql_command_proxy($) {
-    my $query = shift;
-    my $host_info;
-    my $err = "000000";
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "spider" ) {
-            use Error qw(:try);
-            my $dsn =
-                "DBI:mysql:database="
-              . $database
-              . ";host="
-              . $host_info->{ip}
-              . ";port="
-              . $host_info->{mysql_port}
-              . ";mysql_connect_timeout="
-              . $mysql_connect_timeout;
-            try {
-                my $TRIG =
-                    "$host_info->{datadir}/sandboxes/$host/my sql -h"
-                  . $host_info->{ip} . " -P "
-                  . $host_info->{mysql_port} . " -u"
-                  . $host_info->{mysql_user}
-                  . "  -p$host_info->{mysql_password} -e\""
-                  . $query . "\"";
-                worker_node_command( $TRIG, $host_info->{ip} );
-                print STDERR "dsn: "
-                  . $dsn . " : "
-                  . $host_info->{mysql_user} . " "
-                  . $host_info->{mysql_password} . " : "
-                  . $query . "\n";
-
-# my $dbh = DBI->connect($dsn, $host_info->{mysql_user}, $host_info->{mysql_password});
-# my $sth = $dbh->do($query);
-# $sth->execute();
-# $sth->finish();
-# $dbh->disconnect();
-
-            }
-            catch Error with {
-                print STDERR "ici7\n";
-                $err = "ER0003";
-            }
-
-        }
-    }
-    return $err;
-}
-
-sub create_spider_table_info($$) {
+sub spider_create_table_info($$) {
     my $query      = shift;
     my $ddlallnode = shift;
     my $err        = "000000";
@@ -745,6 +702,58 @@ sub create_spider_table_info($$) {
     }
     return $err;
 }
+
+sub sql_command_proxy($) {
+    my $query = shift;
+    my $host_info;
+    my $err = "000000";
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "spider" ) {
+            use Error qw(:try);
+            my $dsn =
+                "DBI:mysql:database="
+              . $database
+              . ";host="
+              . $host_info->{ip}
+              . ";port="
+              . $host_info->{mysql_port}
+              . ";mysql_connect_timeout="
+              . $mysql_connect_timeout;
+            try {
+                my $TRIG =
+                    "$host_info->{datadir}/sandboxes/$host/my sql -h"
+                  . $host_info->{ip} . " -P "
+                  . $host_info->{mysql_port} . " -u"
+                  . $host_info->{mysql_user}
+                  . "  -p$host_info->{mysql_password} -e\""
+                  . $query . "\"";
+                worker_node_command( $TRIG, $host_info->{ip} );
+                print STDERR "dsn: "
+                  . $dsn . " : "
+                  . $host_info->{mysql_user} . " "
+                  . $host_info->{mysql_password} . " : "
+                  . $query . "\n";
+
+# my $dbh = DBI->connect($dsn, $host_info->{mysql_user}, $host_info->{mysql_password});
+# my $sth = $dbh->do($query);
+# $sth->execute();
+# $sth->finish();
+# $dbh->disconnect();
+
+            }
+            catch Error with {
+                print STDERR "ici7\n";
+                $err = "ER0003";
+            }
+
+        }
+    }
+    return $err;
+}
+
+
 
 
 sub get_host_vip() {
@@ -960,8 +969,7 @@ sub ping_election() {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
         print STDERR "connect to db: " . $host . "\n";
-        $command="{command:{action:'status',group:'all',type:'all'}}";
-       
+        
         # Check memcache_udf
         check_memcache_from_db($host_info);
         
@@ -972,6 +980,33 @@ sub ping_election() {
     return $err;
 
 }
+
+sub mysql_rolling_restart(){ 
+ my $host_info;
+ my $host_slave;
+ foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if  ( $host_info->{mode} eq "slave" ){
+                $ret = node_cmd( $host_info, $host, "stop" );
+                $host_slave=$host_info;
+        }         
+       
+  }
+
+
+ foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if  ( $host_info->{mode} eq "master" ){
+           mha_master_switch($host_slave); 
+           $ret = node_cmd( $host_info, $host, "stop" );
+       }         
+       
+  }
+ 
+}
+
 
 sub install_bench() {
 
@@ -1086,7 +1121,7 @@ sub node_cmd($$$) {
                 $port = $self->{mysql_port};
             }
             my $theip = $self->{ip};
-            if ( $self->{mode} eq "keepalived" || $self->{mode} eq "haproxy" ) {
+            if ( $self->{mode} eq "keepalived" ) {
                 $theip = $self->{vip};
             }
             my $dsn =
@@ -1332,7 +1367,7 @@ sub RPad($$$) {
     my $chr = shift;
     $chr = " " unless ( defined($chr) );
     return substr( $str . ( $chr x $len ), 0, $len );
-}    # RPad
+}    
 
 sub report_node($$$) {
     my $self = shift;
@@ -1342,20 +1377,22 @@ sub report_node($$$) {
     print STDERR $cmd . '\n';
     my $le_localtime = localtime;
     print $LOG $le_localtime . " $cmd\n";
-    $console =
-        $console
-      . "{time:'"
+    push(@console ,
+       "{time:'"
       . $le_localtime
-      . "',service:'"
-      . RPad( $host . "'",       8,  ' ' ) . ",ip:'"
-      . RPad( $self->{ip} . "'", 15, ' ' )
-      . ",mode:'"
-      . RPad( $self->{mode} . "'", 8, ' ' )
-      . ",error:'"
+      . "',name:'"
+      .  $host
+      . "',ip:'"
+      .  $self->{ip} 
+      . "',mode:'"
+      .  $self->{mode}  
+      . "',error:'"
       . $err
-      . "' status:'"
-      . $ERRORMESSAGE{$err} . "'}\n";
-    print $console;
+      . "',state:'"
+      . $ERRORMESSAGE{$err}  
+      . "'}"
+   );
+   
 
 }
 
@@ -1490,8 +1527,9 @@ sub mha_master_switch($) {
     system("mv $file.new $file");
     system("chmod 660 $file");
 
-    bootstrap_config();
+   
     stop_all_proxy();
+    bootstrap_config();
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};

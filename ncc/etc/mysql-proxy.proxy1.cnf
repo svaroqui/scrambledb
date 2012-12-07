@@ -1,8 +1,8 @@
 [mysql-proxy]
 pid-file = mysql-proxy.pid
-log-file = /var/lib/skysql/log/mysql-proxy.log
+log-file = /usr/local/skysql/ncc/log/mysql-proxy.log
 log-level = debug
-proxy-address=:3307
-proxy-backend-addresses=192.168.0.100:5010
-proxy-read-only-backend-addresses=192.168.0.102:5012,192.168.0.101:5011
-proxy-lua-script = /usr/local/skysql/ncc/scripts/rw-splitting.lua
+proxy-address =127.0.0.1:3307
+proxy-backend-addresses=127.0.0.1:5010
+proxy-read-only-backend-addresses=127.0.0.1:5012,127.0.0.1:5011
+proxy-lua-script = /usr/local/skysql/ncc/scripts/proxy1.lua

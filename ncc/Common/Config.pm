@@ -68,7 +68,10 @@ our $RULESET = {
 		'datadir'                       => { 'default' => '/usr/lib/skysql' },
 		'mysql_cnf'			=> { 'default' => 'etc/my.cnf' },
 		'mysql_port'			=> { 'default' => 3306 },
-		'mysql_pidfile'			=> { 'default' => '/var/run/mysqld/mysqld.pid' },
+		'mysql_server_id'		=> { 'default' => 1 },
+                'mem_pct'                       => { 'default' => 25 },
+                'io_pct'                        => { 'default' => 25 },
+                'mysql_pidfile'			=> { 'default' => '/var/run/mysqld/mysqld.pid' },
 		'mysql_rcscript'		=> { 'default' => '/etc/init.d/mysql' },
 		'mysql_cnf'			=> { 'default' => '/etc/my.cnf' },
 		'mysql_version'			=> { 'default' => 'mariadb-5.2.4' },
@@ -144,7 +147,7 @@ our $RULESET = {
                  'port'                         => { 'default' => 3306 },
                  'admin_user'			=> { 'default' => 'skysql' },
 		 'admin_password'		=> { 'default' => 'skyvodka' },
-                 'script'                       => {'default' => 'rw-splitting.lua' , 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['rw-splitting.lua', 'interceptor.lua']   }
+                 'script'                       => {'default' => 'rw-splitting.lua' , 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['rw-splitting.template', 'interceptor.lua']   }
                  
 		 
 	}},
