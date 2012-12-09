@@ -172,10 +172,12 @@
   duration                600
   datadir                 /var/lib/skysql/dbt2   
 </bench>
+
 <monitor mon1>
     mode                  mycheckpoint
     port                  8080
     smtp-from             mon@skysql.com
     smtp-to               stephane@skysql.com
     smtp-host             localhost  
+    ip                    10.0.0.102
 </monitor>

@@ -25,7 +25,7 @@ export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/
 cd $SKYBASEDIR/ncc
 
 groupadd -f $SKYGROUP 
-useradd  -g  $SKYGROUP $SKYUSER
+useradd  -g  $SKYGROUP $SKYUSER &> /dev/null
 chown -R $SKYUSER:$SKYGROUP $SKYDATADIR
 
 if [ ! -d $SKYDATADIR ];
@@ -75,18 +75,20 @@ WORKERHEARBEAT=$SKYBASEDIR/ncc/bin/worker_heartbeat.pl
 start()
 {
 
-  nohup $GEARMAND -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log &
-  procid=$!
-  echo $procid >> $PIDFILE 
+  $GEARMAND -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log &
+  
   nohup $SKYBASEDIR/perl/bin/perl $WORKER  < /dev/null > $LOG/worker_node.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+  
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null > $LOG/worker_cluster.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+  
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCONFIG < /dev/null > $LOG/worker_config.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid  
+
   nohup $SKYBASEDIR/perl/bin/perl $WORKERHEARBEAT < /dev/null > $LOG/worker_hearbeat.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid  

@@ -179,6 +179,7 @@ our $RULESET = {
         	'smtp-from'			=> { 'default' => '' },
                 'smtp-to'			=> { 'default' => '' },
                 'smtp-host'			=> { 'default' => '' },
+                'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                         => { 'default' => 8080  }
 		
 	}}

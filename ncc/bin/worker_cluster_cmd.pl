@@ -365,6 +365,35 @@ sub cluster_cmd {
         }
 
     }
+      foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
+        my $host_info = $config->{monitor}->{default};
+        $host_info = $config->{monitor}->{$host};
+        my $pass = 1;
+        print STDOUT $group . " vs " . $host;
+        if ( $group ne $host ) { $pass = 0 }
+
+        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+            $pass = 1;
+        }
+        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+        if ( $pass == 1 ) {
+            my $le_localtime = localtime;
+           
+            if ( $action eq "stop" ) {
+                $ret = node_cmd( $host_info, $host, $action );
+            }
+            if ( $action eq "start" ) {
+                $ret = node_cmd( $host_info, $host, $action, $query );
+            }
+            if ( $action eq "restart" ) {
+                $ret = node_cmd( $host_info, $host, $action );
+            }
+
+        }
+
+    }
+
 
     foreach my $key ( sort keys %ServiceIPs ) {
         print $key;
@@ -787,6 +816,17 @@ sub get_master_host() {
     }
    return 0; 
 }
+sub get_master_host_hash() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "master" ) {
+            return $host;
+        }
+    }
+   return 0; 
+}
 
 sub get_memcache_director() {
     my $nosql_info; 
@@ -863,6 +903,32 @@ sub mycheckpoint_create_master_db($$) {
         return 1;  
 }
 
+sub mycheckpoint_start($) {
+  my $self = shift;
+  my $host=get_master_host_hash();
+  my $host_info = $config->{db}->{$host};  
+  my $err = "000000";
+  
+  my $cmd =
+            $SKYBASEDIR
+          . "/mycheckpoint/bin/mycheckpoint http "
+          . " --user="
+          . $host_info->{mysql_user}
+          . " --password="
+          . $host_info->{mysql_password}
+          . " --host="
+          . $host_info->{ip}
+          . " --port="
+          . $host_info->{mysql_port}
+          . " --database=mon_"
+          . $host
+          . " --http-port=80 &";
+   $err = worker_node_command( $cmd , $self->{ip} );
+  
+     return $err;
+
+}
+
 sub mycheckpoint_cmd($$$) {
   my $host_vip=shift;
   my $host_info=shift;
@@ -899,6 +965,7 @@ sub mycheckpoint_cmd($$$) {
 }
 
 sub check_memcache_from_db($) {
+     
       my $host_info=shift;
       my  $dsn2 =
             "DBI:mysql:host="
@@ -912,19 +979,17 @@ sub check_memcache_from_db($) {
             $dsn2,
             $host_info->{mysql_user},
             $host_info->{mysql_password},
-           {RaiseError=>1,PrintError=>1}
+           {RaiseError=>0,PrintError=>1}
         );
        
         my $sql="SELECT memc_set('test','test',0)";
         my $res = 0;
-        try {
-         my $sth2 = $dbh2->do($sql);
+       
+        my $sth2 = $dbh2->do($sql);
+        if (!$sth2)  {    
+             print STDERR "Error Mon connect memc_set \n";
+             return 0;
         }
-        catch Error with {
-            print STDERR "Mon connect mem_set failed\n";
-            return 0;
-        };  
-     
         $sql="SELECT memc_get('test') as c1";
           
         if ( my $stm = $dbh2->prepare($sql)){
@@ -1276,6 +1341,19 @@ sub node_cmd($$$) {
           . $node . ".pid`";
         $err = worker_node_command( $param, $self->{ip} );
     }
+    elsif ( $cmd eq "start" && $self->{mode} eq "mycheckpoint" ) {
+
+        $err = mycheckpoint_start($self);
+        
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "mycheckpoint" ) {
+        $param =
+            "kill -9 `cat "
+          . $SKYBASEDIR
+          . "/ncc/tmp/memcached."
+          . $node . ".pid`";
+        $err = worker_node_command( $param, $self->{ip} );
+    }
     else {
         $param = "$self->{datadir}/sandboxes/$node/$cmd";
         $err = worker_node_command( $param, $self->{ip} );
@@ -1308,7 +1386,6 @@ sub worker_node_command($$) {
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
     print STDOUT $ip . " " . $cmd . "\n";
-
     #$client->set_timeout($gearman_timeout);
     #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
