@@ -1,0 +1,70 @@
+global_defs {
+  notification_email {
+    stephane@skysql.com 
+  }
+  notification_email_from keepalived@lb1
+  smtp_server localhost
+  smtp_connect_timeout 30
+  # This should be unique.
+  router_id lb1
+}
+
+vrrp_instance mysql_pool {
+  # The interface we listen on.
+  interface eth1
+
+  # The default state, one should be master, the others should be set to SLAVE.
+  state MASTER
+
+  # This should be the same on all participating load balancers.
+  virtual_router_id 1
+
+  priority 101
+
+  # Set the interface whose status to track to trigger a failover.                   
+  track_interface {           
+    eth1
+  }
+
+  # Password for the loadbalancers to share.
+  authentication {
+    auth_type PASS
+    auth_pass 1111 
+  }
+
+  # This is the IP address that floats between the loadbalancers.
+  virtual_ipaddress {
+    192.168.0.10 dev eth1 
+  }
+}
+
+# Here we add the virtal mysql node
+virtual_server 192.168.0.10 3306 {
+  delay_loop 6
+  # Round robin, but you can use whatever fits your needs.
+  lb_algo rr
+  lb_kind DR
+  protocol TCP
+  sorry_server 192.168.0.101 3306	
+
+  real_server 192.168.0.100 3307 {
+    weight 10
+    TCP_CHECK {
+      connect_port    5010
+      connect_timeout 2
+    }
+  real_server 192.168.0.101 3307 {
+    weight 10
+    TCP_CHECK {
+      connect_port    5011  
+      connect_timeout 2
+    }
+   real_server 192.168.0.102 3307 {
+    weight 10
+    TCP_CHECK {
+      connect_port    5012
+      connect_timeout 2
+    }
+
+ }
+

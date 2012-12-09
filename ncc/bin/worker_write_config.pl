@@ -12,37 +12,17 @@ use Cache::Memcached;
 use DBI;
 use Data::Dumper;
 
-struct 'host' => {
-    name			=> '$',
-    ip                          => '$',
-    port			=> '$',
-    peer			=> '$',
-    mode			=> '$',
-    replication_user            => '$',
-    replication_password	=> '$',
-    mysql_port                  => '$',
-    mysql_user          	=> '$',
-    mysql_password		=> '$',
-    mysql_version		=> '$',
-    mysql_cnf                   => '$',
-    datadir                     => '$'
-};
-
-struct 'nosql' => {
-    name			=> '$',
-    ip                          => '$',
-    mode			=> '$',
-    port                  => '$'
-};
 
 
 our  %ERRORMESSAGE = (
     "000000" => "OK",
-    "ER0001" => "SQL command failure",
-    "ER0002" => "Remote manager communication failure ",
-    "ER0003" => "Database communication failure ",
-    "ER0004" => "Remote manager command failure ",
-    "ER0005" => "Memcache communication failure "
+    "ER0101" => "Error writing mysql_proxy config",
+    "ER0102" => "Error writing ha_proxy config",
+    "ER0103" => "Error writing memcached config",
+    "ER0104" => "Error writing mysql config",
+    "ER0105" => "Error writing lua script",
+    "ER0107" => "Error writing mha config",
+    "ER0106" => "Error writing keepalived config"
 );
 
 our $hashcolumn;
@@ -60,6 +40,7 @@ $config->read($conf);
 $config->check('SANDBOX');
 open my $LOG , q{>>},  $SKYDATADIR."/log/worker_write_config.log"
 or die "can't create 'worker_write_config.log'\n";
+
 
 
 my $worker = new Gearman::XS::Worker;
@@ -80,6 +61,28 @@ while (1) {
 		if ($ret != GEARMAN_SUCCESS) {
 			printf(STDERR "%s\n", $worker->error());
 		}
+}
+
+sub is_ip_localhost($) {
+    
+    my $testIP = shift;
+    
+    my %IPs;
+    my $interface;
+
+    foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
+        $interface = $1 if /^(\S+?):?\s/;
+        next unless defined $interface;
+        $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
+        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
+    }
+
+    foreach my $key ( sort keys %IPs ) {
+        if ( $IPs{$key}->{IP} eq $testIP ) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 sub write_cmd {
@@ -388,7 +391,22 @@ sub write_memcached_config($){
  }
 
 sub write_mysql_config(){
-
+ my $host_info ;
+    my $err = "000000";
+    my @masters;
+    foreach my $host (keys(%{$config->{db}})) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if (is_ip_localhost ($host_info->{ip})) {
+           system(`cat /proc/meminfo |  grep "MemTotal" | awk '{print \$2}'`); 
+           my $ram =$? ;
+             replace_config("$SKYBASEDIR/sandboxes/$host/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
+             if ($ram eq "0") {
+            
+             }    
+        }
+    }
+    return 0 ;
 }
 
 sub write_mysql_proxy_config($){

@@ -51,9 +51,9 @@ my @json_text =
 use Data::Dumper;
 $Data::Dumper::Terse     = 1;       # don't output names where feasible
     $Data::Dumper::Quotekeys = 0;
-    $Data::Dumper::Indent    = 2;       # mild pretty print
+    $Data::Dumper::Indent    = 1;       # mild pretty print
     $Data::Dumper::Pair      = ":";
-    $Data::Dumper::Indent    = 2;
+    $Data::Dumper::Indent    = 1;
     $Data::Dumper::Useqq     = 0; 
  print  STDERR Dumper(@json_text);
  #print STDOUT $result;

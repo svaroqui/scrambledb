@@ -13,6 +13,8 @@ SKYBASEDIR="/usr/local/skysql"
 cd $SKYBASEDIR
 export SKYBASEDIR=$(pwd)
 export SKYDATADIR=$SKYDATADIR
+export SKYUSER=skysql
+export SKYGROUP=skysql
 export PATH=$PATH:$SKYBASEDIR/sandbox/bin/:$SKYBASEDIR/gearmand/bin/:$SKYBASEDIR/gearmand/sbin/:$SKYBASEDIR/mariadb-client/bin/
 export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/site_perl/5.16.0/darwin-2level
 export SANDBOX_AS_ROOT=1
@@ -21,6 +23,10 @@ export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
 export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/
 
 cd $SKYBASEDIR/ncc
+
+groupadd -f $SKYGROUP 
+useradd  -g  $SKYGROUP $SKYUSER
+chown -R $SKYUSER:$SKYGROUP $SKYDATADIR
 
 if [ ! -d $SKYDATADIR ];
 then

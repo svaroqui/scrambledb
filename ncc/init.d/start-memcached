@@ -53,16 +53,18 @@ if (open $etchandle, $etcfile) {
         $pidfile=$arg
    }
   push @$params, $line;
-  #print STDERR @$params. $line ."\n";	
+  print STDERR @$params. $line ."\n";	
  }
 }
 unshift @$params, "-u root" unless (grep $_ eq '-u', @$params);
 $params = join " ", @$params;
+print STDERR  $pidfile;
 if (-e $pidfile) {
  open PIDHANDLE, "$pidfile";
  my $localpid = <PIDHANDLE>;
  close PIDHANDLE;
  chomp $localpid;
+ 
  if (-d "/proc/$localpid") {
   print STDERR "memcached is already running.\n"; 
   exit;
@@ -73,6 +75,7 @@ if (-e $pidfile) {
 my $pid = fork();
 if ($pid == 0) {
  reopen_logfile($fd_reopened);
+print STDERR "$memcached $params";
  exec "$memcached $params";
  exit(0);
 } elsif (open PIDHANDLE,">$pidfile") {

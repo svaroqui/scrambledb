@@ -1,0 +1,77 @@
+global
+	log 127.0.0.1	local0
+	log 127.0.0.1	local1 notice
+	#log loghost	local0 info
+	maxconn 4096
+	#chroot /usr/share/haproxy
+	user skysql 
+	group skysql
+	daemon
+	#debug
+	#quiet
+
+#---------------------------------------------------------------------
+# common defaults that all the 'listen' and 'backend' sections will
+# use if not designated in their block
+#---------------------------------------------------------------------
+defaults
+    mode                    http
+    log                     global
+    option                  tcplog
+    option                  dontlognull
+#    option http-server-close
+#    option forwardfor       except 127.0.0.0/8
+    option                  redispatch
+    retries                 3
+    timeout http-request    10s
+#    timeout queue           1m
+    timeout connect         10s
+    timeout client          50000
+    timeout server          50000
+#    timeout http-keep-alive 10s
+    timeout check           10s
+    maxconn                 3000
+
+
+frontend mysql-read-front
+ mode tcp
+ #ncc_vip_mysql_read 
+ bind 	192.168.0.100:3306
+ default_backend  mysql-read
+
+
+frontend mysql-write-front
+ mode tcp
+ #ncc_vip_mysql_write
+ bind   192.168.0.100:3306
+ default_backend  mysql-write
+
+ 
+frontend stats-front
+ bind *:80
+ mode http
+ default_backend stats-back
+
+
+#---------------------------------------------------------------------
+# round robin balancing between the various backends
+#---------------------------------------------------------------------
+
+backend stats-back
+ mode http
+ balance roundrobin
+ stats uri /haproxy/stats
+ stats auth emesa:secret
+
+backend mysql-read 
+    balance     leastconn --> roundrobin can be better 
+    mode	tcp
+    #ncc_list_slaves
+    server  srv56 192.168.0.101:3307 check
+    server  srv57 192.168.0.102:3307 check 
+
+backend mysql-write
+    balance     roundrobin
+    mode        tcp
+    #ncc_list_masters
+    server IPMaster 192.168.0.100:3307 check 

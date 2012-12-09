@@ -63,17 +63,13 @@ our $config                = new SKY::Common::Config::;
 $config->read("etc/cloud.cnf");
 $config->check('SANDBOX');
 
-my $interface;
-my %IPs;
+
+
 my %ServiceIPs;
 my @console;
 
-foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
-    $interface = $1 if /^(\S+?):?\s/;
-    next unless defined $interface;
-    $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
-    $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
-}
+
+
 
 open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
   or die "can't create 'worker_cluster_cmd.log'\n";
@@ -100,7 +96,19 @@ while (1) {
 }
 
 sub is_ip_localhost($) {
+    
     my $testIP = shift;
+    
+    my %IPs;
+    my $interface;
+
+    foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
+        $interface = $1 if /^(\S+?):?\s/;
+        next unless defined $interface;
+        $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
+        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
+    }
+
     foreach my $key ( sort keys %IPs ) {
         if ( $IPs{$key}->{IP} eq $testIP ) {
             return 0;
@@ -899,13 +907,14 @@ sub check_memcache_from_db($) {
           . $host_info->{mysql_port}
           . ";mysql_connect_timeout="
           . $mysql_connect_timeout;
-
+        
        my  $dbh2 = DBI->connect(
             $dsn2,
             $host_info->{mysql_user},
             $host_info->{mysql_password},
            {RaiseError=>1,PrintError=>1}
         );
+       
         my $sql="SELECT memc_set('test','test',0)";
         my $res = 0;
         try {
@@ -1589,7 +1598,7 @@ sub bootstrap_config() {
 sub bootstrap_binaries() {
     my $my_home_user = $ENV{HOME};
     my $command =
-        "tar czv -C "
+        "tar cz -C "
       . $SKYBASEDIR
       . "/.. -f "
       . $SKYDATADIR
@@ -1599,22 +1608,25 @@ sub bootstrap_binaries() {
     my @ips = list_cluster_ips();
     foreach (@ips) {
         if ( is_ip_localhost($_) == 1 ) {
+            
             $command =
-                "scp -i "
+                "scp -q -i  "
               . $SKYBASEDIR
               . "/ncc/etc/id_rsa "
               . $SKYDATADIR
               . "/skystack.tar.gz "
               . $_ . ":/tmp";
             system($command);
-            $command =
-                "ssh -i "
+            my @dest= split('/', $SKYBASEDIR);
+            pop(@dest);
+              $command =
+                "ssh -q -i  "
               . $SKYBASEDIR
               . "/ncc/etc/id_rsa "
               . $_
               . " \"tar -xvz -f /tmp/skystack.tar.gz -C "
-              . $SKYBASEDIR
-              . "/.. && "
+              . join('/',@dest)
+              . " && "
               . $SKYBASEDIR
               . "/ncc/init.d/clusterd stop && "
               . $SKYBASEDIR
@@ -1633,12 +1645,13 @@ sub bootstrap_ncc() {
     my $my_home_user = $ENV{HOME};
     my $err          = "000000";
 
+
     my @ips = list_cluster_ips();
     foreach (@ips) {
         if ( is_ip_localhost($_) == 1 ) {
 
             $command =
-                "scp -i "
+                "scp -q -i "
               . $SKYBASEDIR
               . "/ncc/etc/id_rsa "
               . $SKYDATADIR
@@ -1646,7 +1659,7 @@ sub bootstrap_ncc() {
               . $_ . ":/tmp";
             system($command);
             $command =
-                "ssh -i "
+                "ssh -q -i "
               . $SKYBASEDIR
               . "/ncc/etc/id_rsa "
               . $_

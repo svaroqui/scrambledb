@@ -1,5 +1,5 @@
 --[[ $%BEGINLICENSE%$
- Copyright (c) 2007, 2012, Oracle and/or its affiliates. All rights reserved.
+ Copyright (c) 2007, 2009, Oracle and/or its affiliates. All rights reserved.
 
  This program is free software; you can redistribute it and/or
  modify it under the terms of the GNU General Public License as
@@ -26,21 +26,27 @@
 -- * 
 -- 
 -- 
+require('Memcached')
+require('CRC32')
+
+
 
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
+local parser          = require("proxy.parser")
+
 
 --- config
 --
 -- connection pool
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-		min_idle_connections = 4,
-		max_idle_connections = 8,
+		min_idle_connections = 1,
+		max_idle_connections = 2,
 
-		is_debug = true 
+		is_debug = true  
 	}
 end
 
@@ -97,8 +103,9 @@ function connect_server()
 			proxy.connection.backend_ndx = i
 			break
 		elseif s.type == proxy.BACKEND_TYPE_RO and
-		       s.state ~= proxy.BACKEND_STATE_DOWN and
-		       cur_idle < pool.min_idle_connections then
+		       s.state ~= proxy.BACKEND_STATE_DOWN 
+		       and cur_idle < pool.min_idle_connections 
+                        then
 			proxy.connection.backend_ndx = i
 			break
 		elseif s.type == proxy.BACKEND_TYPE_RW and
@@ -174,6 +181,7 @@ function read_query( packet )
 
 	local tokens
 	local norm_query
+        local stmt
 
 	-- looks like we have to forward this statement to a backend
 	if is_debug then
@@ -199,31 +207,18 @@ function read_query( packet )
 
 		return proxy.PROXY_SEND_RESULT
 	end
-	
-	-- COM_BINLOG_DUMP packet can't be balanced
-	--
-	-- so we must send it always to the master
-	if cmd.type == proxy.COM_BINLOG_DUMP then
-		-- if we don't have a backend selected, let's pick the master
-		--
-		if proxy.connection.backend_ndx == 0 then
-			proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-		end
-
-		return
-	end
 
 	proxy.queries:append(1, packet, { resultset_is_needed = true })
+        if cmd.type == proxy.COM_QUERY then
+          tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
+	  stmt = tokenizer.first_stmt_token(tokens)
+        end  
 
-	-- read/write splitting 
+-- read/write splitting 
 	--
 	-- send all non-transactional SELECTs to a slave
 	if not is_in_transaction and
 	   cmd.type == proxy.COM_QUERY then
-		tokens     = tokens or assert(tokenizer.tokenize(cmd.query))
-
-		local stmt = tokenizer.first_stmt_token(tokens)
-
 		if stmt.token_name == "TK_SQL_SELECT" then
 			is_in_select_calc_found_rows = false
 			local is_insert_id = false
@@ -231,7 +226,7 @@ function read_query( packet )
 			for i = 1, #tokens do
 				local token = tokens[i]
 				-- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed 
-				-- on the same connection
+                    		-- on the same connection
 				-- print("token: " .. token.token_name)
 				-- print("  val: " .. token.text)
 				
@@ -297,6 +292,8 @@ function read_query( packet )
 	end
 
 	-- send to master
+ 
+      
 	if is_debug then
 		if proxy.connection.backend_ndx > 0 then
 			local b = proxy.global.backends[proxy.connection.backend_ndx]
@@ -309,8 +306,50 @@ function read_query( packet )
 		print("    in_calc_found   : " .. tostring(is_in_select_calc_found_rows))
 		print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
 	end
+        local tbls  = {} 
+        tbls = parser.get_tables(tokens)
+       local memcache= Memcached.Connect({'127.0.0.1' , 11211}) 
+      -- while ( memcache:add("_lock","lock",1) == nil ) do 
+      --      print("lock")
+     --  end
+   
+        if  cmd.type == proxy.COM_QUERY  and stmt.token_name ~= "TK_SQL_SELECT" then
+            print ("injection GTID")
+            proxy.queries:append(3, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"STATEMENT\"", { resultset_is_needed = true } )
+            for tbl,v in pairs(tbls) do 
+  print ("INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)") 
+                              
+proxy.queries:append(4, string.char(proxy.COM_QUERY)  .. "INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)",{ resultset_is_needed = true } )
+            end 
+            proxy.queries:append(5, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
+        elseif (proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO ) then
+            
+        
+            local slaveGTID=0  
+            local masterGTID=0  
+            for tbl,v in pairs(tbls) do
+                
+             masterGTID=memcache:get(CRC32.Hash(tbl) .. "5010")   
+	                
+	    slaveGTID=memcache:get(CRC32.Hash(tbl) .. (5009 + proxy.connection.backend_ndx))
+           
+            if is_debug then
+		 print(" master GTID : " ..  masterGTID .." for table : " .. tbl)   
+             print(" slave GTID : " ..  slaveGTID .." for table : " .. tbl)   
+            end  
+            if  masterGTID ~=slaveGTID then 
+                proxy.connection.backend_ndx = lb.idle_failsafe_rw()
+                print ("fail back to master replication delay....")
+                break
+             end 
+            end 
 
-	return proxy.PROXY_SEND_QUERY
+      end 
+      -- memcache:delete( "_lock")            
+       memcache:disconnect_all()
+
+              
+       return proxy.PROXY_SEND_QUERY
 end
 
 ---
@@ -340,6 +379,17 @@ function read_query_result( inj )
 				return proxy.PROXY_SEND_RESULT
 			end
 		end
+                if (inj.id == 4) then
+                    if res.query_status == proxy.MYSQLD_PACKET_ERR then
+                     proxy.response = {
+					type = proxy.MYSQLD_PACKET_ERR,
+					errmsg = "can't inject GTID ".. proxy.connection.client.default_db ..
+						" to on slave " .. proxy.global.backends[proxy.connection.backend_ndx].dst.name
+				}
+
+				return proxy.PROXY_SEND_RESULT
+                    end
+                end
 		return proxy.PROXY_IGNORE_RESULT
 	end
 
@@ -372,6 +422,6 @@ function disconnect_client()
 
 	-- make sure we are disconnection from the connection
 	-- to move the connection into the pool
---	proxy.connection.backend_ndx = 0
+	-- proxy.connection.backend_ndx = 0
 end
 

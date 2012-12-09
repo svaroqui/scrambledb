@@ -32,6 +32,6 @@ default_backend  mysql-back
 backend mysql-back
   balance     roundrobin
   mode    tcp
-   server proxy3 127.0.0.1:3309  check
-   server proxy2 127.0.0.1:3308  check
-   server proxy1 127.0.0.1:3307  check
+   server proxy3 10.0.0.48:3307  check
+   server proxy2 10.0.0.47:3307  check
+   server proxy1 10.0.0.102:3307  check

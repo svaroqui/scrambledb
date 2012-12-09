@@ -11,7 +11,7 @@ global_defs {
 
 vrrp_instance mysql_pool {
   # The interface we listen on.
-  interface eth1
+  interface eth0
   # The default state, one should be master, the others should be set to SLAVE.
   state MASTER
 
@@ -22,7 +22,7 @@ vrrp_instance mysql_pool {
 
   # Set the interface whose status to track to trigger a failover.  
   track_interface {
-    eth1
+    eth0
   }
 
   # Password for the loadbalancers to share.
@@ -33,7 +33,7 @@ vrrp_instance mysql_pool {
 
   # This is the IP address that floats between the loadbalancers.
   virtual_ipaddress {
-    127.0.0.1/24
+    10.0.0.10/24
   }
 }
 

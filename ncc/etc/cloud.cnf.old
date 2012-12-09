@@ -16,44 +16,38 @@
 </db>
 
 <db node10>
-	mode				master
-    ip                      10.0.0.102
+	mode				slave
+    ip                      192.168.0.100
     peer                    node11
     mysql_version           mariadb
     mysql_port		    5010 
-    mysql_cnf		    etc/my.template
-    mem_pct                 30
-    io_pct                  30
+    mysql_cnf		    etc/my.cnf
     datadir		    /var/lib/skysql
 </db>
 
 <db node11>
-	mode				slave
-    ip                      10.0.0.47
+	mode				master
+    ip                      192.168.0.101
     peer		    node10
     mysql_version	    mariadb
     mysql_port 		    5011
-    mysql_cnf		    etc/my.template
-    mem_pct                 30
-    io_pct                  30
+    mysql_cnf		    etc/my.cnf
     datadir		    /var/lib/skysql
 </db>
 
 
 <db node12>
 	mode				slave
-    ip                      10.0.0.48
+    ip                      192.168.0.102
     peer		    node10
     mysql_version	    mariadb
     mysql_port 		    5012
-    mem_pct		    30
-    io_pct		    30
-    mysql_cnf		    etc/my.template
+    mysql_cnf		    etc/my.cnf
     datadir		    /var/lib/skysql
 </db>
 
 #<db node20>
-#    ip                      10.0.0.102
+#    ip                      192.168.0.100
 #    mode                    monitor
 #    peer                    node10,node11
 #    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
@@ -65,44 +59,33 @@
 
 <proxy proxy1>
     mode                    mysql-proxy
-    ip                      10.0.0.102 
+    ip                      192.168.0.100 
     hosts                   node10
     peer		    node11	
     port 		    3307 
-    script                  rw-splitting.template
 </proxy>
 
 <proxy proxy2>
     mode                    mysql-proxy
-    ip                      10.0.0.47
+    ip                      192.168.0.101
     hosts                   node10
     peer                    node11
     port                    3307
-    script                  rw-splitting.template
 </proxy>
 
 <proxy proxy3>
     mode                    mysql-proxy
-    ip                      10.0.0.48
+    ip                      192.168.0.102
     hosts                   node10
     peer                    node11
     port                    3307
-    script                  rw-splitting.template
 </proxy>
 
-<nosql nosql1>
-    ip                      10.0.0.102
+<nosql node80>
+    ip                      192.168.0.100
     mode                    memcache
-    status                   master
     port              	    11211
-    mem                    16
-</nosql>
-<nosql nosql2>
-    ip                      10.0.0.48
-    mode                    memcache
-    status                  slave
-    port                    11211
-    mem                    16
+     mem                    16
 </nosql>
 
 
@@ -117,34 +100,31 @@
 </cloud>
 
 <lb lb1>
-    ip                      10.0.0.102
-    vip                     10.0.0.10
+    ip                      192.168.0.100
+    vip                     192.168.0.10
     port                    3306  
     peer                    lb2
-    status                  master	
     mode                    keepalived
-    device 		    eth0		
+    device 		    eth1		
     mysql_user		    skysql 
     mysql_password	    skyvodka
 </lb>
 
 <lb lb2>
-    ip                      10.0.0.47
-    vip                     10.0.0.10
+    ip                      192.168.0.101
+    vip                     192.168.0.101
     port                    3306  
-    status                  slave
     peer                    lb1
     mode                    keepalived
-    device		    eth0
+    device		    eth2
     mysql_user		    skysql 
     mysql_password	    skyvodka	
 </lb>
 
 <lb lb3>
-    ip                      10.0.0.102
+    ip                      192.168.0.100
     vip                     0.0.0.0 
     port                    3306  
-    status                  master
     mysql_user		    skysql 
     mysql_password	    skyvodka	
     peer                    lb4
@@ -153,11 +133,10 @@
 </lb>
 
 <lb lb4>
-    ip                      10.0.0.47
+    ip                      192.168.0.101
     vip                     0.0.0.0
     mysql_user		    skysql 
     mysql_password	    skyvodka	
-    status                  master	
     port                    3306  
     peer                    lb3
     mode                    haproxy
@@ -172,10 +151,3 @@
   duration                600
   datadir                 /var/lib/skysql/dbt2   
 </bench>
-<monitor mon1>
-    mode                  mycheckpoint
-    port                  8080
-    smtp-from             mon@skysql.com
-    smtp-to               stephane@skysql.com
-    smtp-host             localhost  
-</monitor>
