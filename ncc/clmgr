@@ -34,7 +34,7 @@ my $type=shift;
 if ( ! defined $type ) {$type='all';}
 if ( ! defined $group ) {$group='all';}
 
-my $command="{command:{action:'$action',group:'$group',type:'$type'}}";
+my $command='{"command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}}';
 
 print "$command\n";
 

@@ -166,6 +166,7 @@ our $RULESET = {
 	}}
         ,
          'bench'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+                'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
                 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench'] },
         	'peer'                        => { 'deprequired' => { 'mode' => ['keepalived', 'peacemaker','haproxy']}, 'refvalues' => 'lb'  },
                 'warehouse'			=> { 'default' => '10' },

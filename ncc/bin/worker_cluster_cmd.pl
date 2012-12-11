@@ -142,7 +142,7 @@ sub cluster_cmd {
     my $ddlallproxy    = 0;
     my $ret            = "true";
     my @cmd_console;
- @console=@cmd_console;
+    @console=@cmd_console;
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
 
@@ -187,7 +187,7 @@ sub cluster_cmd {
     }
     elsif ( $action eq "ping" ) {
         print STDERR "Entering :start monitoring\n";
-        $ret = ping_election();
+        $ret = ping_election($json_text);
 
     }
 
@@ -401,7 +401,7 @@ sub cluster_cmd {
    
 
   
-    return "{services:[" . join(',', @console) ."]}";
+    return '{"services":[' . join(',', @console) .']}';
 
 }
 
@@ -981,8 +981,11 @@ sub check_memcache_from_db($) {
             $host_info->{mysql_password},
            {RaiseError=>0,PrintError=>1}
         );
-       
-        my $sql="SELECT memc_set('test','test',0)";
+        if (!$dbh2)  { 
+          print STDERR "Error Memcqche UDF DB connect failed \n";
+          return 0;
+        }
+         my $sql="SELECT memc_set('test','test',0)";
         my $res = 0;
        
         my $sth2 = $dbh2->do($sql);
@@ -1037,8 +1040,7 @@ sub ping_election() {
     my $host_info;
     my $host_vip = get_master_host();
     my $command;
-    # worker_cluster_command($command,$host_info);
-
+    
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
@@ -1385,7 +1387,7 @@ sub worker_node_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    print STDOUT $ip . " " . $cmd . "\n";
+    print STDOUT $ip . ' ' . $cmd . '\n';
     #$client->set_timeout($gearman_timeout);
     #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
@@ -1416,7 +1418,7 @@ sub worker_config_command($$) {
     elsif ( !defined $result ) {
         return "ER0006";
     }
-    elsif ( $result eq "{result:{status:'00000'}}" ) {
+    elsif ( $result eq '{"result":{"status":"00000"}}' ) {
         return "000000";
     }
     else {
@@ -1464,19 +1466,19 @@ sub report_node($$$) {
     my $le_localtime = localtime;
     print $LOG $le_localtime . " $cmd\n";
     push(@console ,
-       "{time:'"
+       '{"time":"'
       . $le_localtime
-      . "',name:'"
+      . '","name":"'
       .  $host
-      . "',ip:'"
+      . '","ip":"'
       .  $self->{ip} 
-      . "',mode:'"
+      . '","mode":"'
       .  $self->{mode}  
-      . "',error:'"
+      . '","error":"'
       . $err
-      . "',state:'"
+      . '","state":"'
       . $ERRORMESSAGE{$err}  
-      . "'}"
+      . '"}'
    );
    
 

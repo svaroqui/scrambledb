@@ -161,10 +161,11 @@
     port                    3306  
     peer                    lb3
     mode                    haproxy
-    device                  eth2 
+    device                  eth1 
 </lb>
 
-<bench bench1> 
+<bench bench1>  
+  ip                      10.0.0.47
   mode                    dbt2
   peer                    lb1
   warehouse               100
