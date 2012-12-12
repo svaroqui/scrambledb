@@ -35,3 +35,10 @@ export PYTHONUSERBASE=/usr/local/skysql/MySQL-python
 CC='/usr/bin/gcc'  python setup.py build 
 python setup.py install --user
 
+
+
+wget http://boto.googlecode.com/files/boto-2.6.0.tar.gz
+tar -xzf boto-2.6.0.tar.gz 
+cd boto-2.6.0
+CC='/usr/bin/gcc'  python setup.py build
+ python setup.py install --user

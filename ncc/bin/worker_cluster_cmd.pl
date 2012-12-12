@@ -164,244 +164,259 @@ sub cluster_cmd {
     $type     = $json_text->{command}->{type};
     $query    = $json_text->{command}->{query};
     $database = $json_text->{command}->{database};
-
-    if ( $action eq "sql" ) {
-        $like       = "";
-        $ddlallnode = spider_is_ddl_all_node($query);
-        if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
-    }
-    elsif ( $action eq "start" ) {
-        $ret = bootstrap_config();
-    }
-    elsif ( $action eq "bootstrap_binaries" ) {
-        $ret = bootstrap_binaries();
-    }
-    elsif ( $action eq "bootstrap_ncc" ) {
-        $ret = bootstrap_ncc();
-    }
-    elsif ( $action eq "bootstrap_config" ) {
-        $ret = bootstrap_config();
-    }
-    elsif ( $action eq "rolling_restart" ) {
-        $ret = mysql_rolling_restart();
-    }
-    elsif ( $action eq "ping" ) {
-        print STDERR "Entering :start monitoring\n";
-        $ret = ping_election($json_text);
-
-    }
-
-    foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
-        my $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        add_ip_to_list($host_info->{ip});
-        if ( $host_info->{mode} ne "spider" ) {
-            $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
-        }
-        my $pass = 1;
-        print STDOUT $group . " vs " . $host;
-        if ( $group ne $host ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-            print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
-            if ( $action eq "install" ) {
-                $ret = install_sandbox( $host_info, $host, $host_info->{mode} );
-            }
-            if ( $action eq "stop" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "sync" ) {
-                $ret = node_sync( $host_info, $host, $peer_host_info );
-            }
-            if ( $action eq "start" ) {
-                $ret = node_cmd( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "remove" ) {
-                $ret = node_cmd( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "status" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "join" ) { $ret = spider_node_join( $host_info, $host ); }
-            if ( $action eq "switch" ) { $ret = mha_master_switch($host); }
-            if ( $action eq "sql" ) {
-                $ret = spider_node_sql( $host_info, $host, $action, $query, $database,
-                    $ddlallnode );
-            }
-        }
-    }
-    if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
-        spider_create_table_info( $query, $ddlallnode );
-    }
-
-    foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
-        my $host_info = $config->{nosql}->{default};
-        $host_info = $config->{nosql}->{$nosql};
-        add_ip_to_list($host_info->{ip});
-        my $pass = 1;
-        print STDOUT $group . " vs " . $nosql;
-        if ( $group ne $nosql ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-            if ( $action eq "stop" ) {
-                $ret = node_cmd( $host_info, $nosql, $action );
-            }
-            if ( $action eq "start" ) {
-                $ret = node_cmd( $host_info, $nosql, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $nosql, $action );
-            }
-            if ( $action eq "status" ) {
-                $ret = node_cmd( $host_info, $nosql, $action );
-            }
-        }
-
-    }
-
-    foreach my $host ( sort( keys( %{ $config->{proxy} } ) ) ) {
-        my $host_info = $config->{proxy}->{default};
-        $host_info = $config->{proxy}->{$host};
-        add_ip_to_list($host_info->{ip});
-        my $pass = 1;
-        print STDOUT $group . " vs " . $host;
-        if ( $group ne $host ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-            if ( $action eq "stop" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "start" ) {
-                $ret = node_cmd( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "status" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-        }
-
-    }
-    foreach my $host ( sort( keys( %{ $config->{lb} } ) ) ) {
-        my $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$host};
-        add_ip_to_list($host_info->{ip});
-        my $pass = 1;
-        print STDOUT $group . " vs " . $host;
-        if ( $group ne $host ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-            if ( $action eq "stop" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "start" ) {
-                $ret = node_cmd( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "status" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-        }
-
-    }
-
-    foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
-        my $host_info = $config->{bench}->{default};
-        $host_info = $config->{bench}->{$host};
-        my $pass = 1;
-        print STDOUT $group . " vs " . $host;
-        if ( $group ne $host ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-            if ( $action eq "install" ) {
-                $ret = install_bench( $host_info, $host, $action );
-            }
-            if ( $action eq "stop" ) {
-                $ret = stop_bench( $host_info, $host, $action );
-            }
-            if ( $action eq "start" ) {
-                $ret = start_bench( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-
-        }
-
-    }
-      foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
-        my $host_info = $config->{monitor}->{default};
-        $host_info = $config->{monitor}->{$host};
-        my $pass = 1;
-        print STDOUT $group . " vs " . $host;
-        if ( $group ne $host ) { $pass = 0 }
-
-        if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-            $pass = 1;
-        }
-        if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-        if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-        if ( $pass == 1 ) {
-            my $le_localtime = localtime;
-           
-            if ( $action eq "stop" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-            if ( $action eq "start" ) {
-                $ret = node_cmd( $host_info, $host, $action, $query );
-            }
-            if ( $action eq "restart" ) {
-                $ret = node_cmd( $host_info, $host, $action );
-            }
-
-        }
-
-    }
-
-
-    foreach my $key ( sort keys %ServiceIPs ) {
-        print $key;
-    }
+    my $level  = $json_text->{level};
+    my $cloud = get_master_cloud();
    
+       
+     if ( $level eq "instances" ){
+        my $json_cloud       = new JSON ;
+        my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
+        my $json_cmd       = new JSON ;
+        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
+        
+        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
+        print  STDERR $json_cloud_str;
+        worker_cloud_command($json_cloud_str,"localhost");
 
+     }  
+    else {
+        if ( $action eq "sql" ) {
+            $like       = "";
+            $ddlallnode = spider_is_ddl_all_node($query);
+            if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
+        }
+        elsif ( $action eq "start" ) {
+            $ret = bootstrap_config();
+        }
+        elsif ( $action eq "bootstrap_binaries" ) {
+            $ret = bootstrap_binaries();
+        }
+        elsif ( $action eq "bootstrap_ncc" ) {
+            $ret = bootstrap_ncc();
+        }
+        elsif ( $action eq "bootstrap_config" ) {
+            $ret = bootstrap_config();
+        }
+        elsif ( $action eq "rolling_restart" ) {
+            $ret = mysql_rolling_restart();
+        }
+        elsif ( $action eq "ping" ) {
+            print STDERR "Entering :start monitoring\n";
+            $ret = ping_election($json_text);
+
+        }
+
+        foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
+            my $host_info = $config->{db}->{default};
+            $host_info = $config->{db}->{$host};
+            add_ip_to_list($host_info->{ip});
+            if ( $host_info->{mode} ne "spider" ) {
+                $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
+            }
+            my $pass = 1;
+            print STDOUT $group . " vs " . $host;
+            if ( $group ne $host ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+                print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
+                if ( $action eq "install" ) {
+                    $ret = install_sandbox( $host_info, $host, $host_info->{mode} );
+                }
+                if ( $action eq "stop" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "sync" ) {
+                    $ret = node_sync( $host_info, $host, $peer_host_info );
+                }
+                if ( $action eq "start" ) {
+                    $ret = node_cmd( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "remove" ) {
+                    $ret = node_cmd( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "status" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "join" ) { $ret = spider_node_join( $host_info, $host ); }
+                if ( $action eq "switch" ) { $ret = mha_master_switch($host); }
+                if ( $action eq "sql" ) {
+                    $ret = spider_node_sql( $host_info, $host, $action, $query, $database,
+                        $ddlallnode );
+                }
+            }
+        }
+        if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
+            spider_create_table_info( $query, $ddlallnode );
+        }
+
+        foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
+            my $host_info = $config->{nosql}->{default};
+            $host_info = $config->{nosql}->{$nosql};
+            add_ip_to_list($host_info->{ip});
+            my $pass = 1;
+            print STDOUT $group . " vs " . $nosql;
+            if ( $group ne $nosql ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+                if ( $action eq "stop" ) {
+                    $ret = node_cmd( $host_info, $nosql, $action );
+                }
+                if ( $action eq "start" ) {
+                    $ret = node_cmd( $host_info, $nosql, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $nosql, $action );
+                }
+                if ( $action eq "status" ) {
+                    $ret = node_cmd( $host_info, $nosql, $action );
+                }
+            }
+
+        }
+
+        foreach my $host ( sort( keys( %{ $config->{proxy} } ) ) ) {
+            my $host_info = $config->{proxy}->{default};
+            $host_info = $config->{proxy}->{$host};
+            add_ip_to_list($host_info->{ip});
+            my $pass = 1;
+            print STDOUT $group . " vs " . $host;
+            if ( $group ne $host ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+                if ( $action eq "stop" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "start" ) {
+                    $ret = node_cmd( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "status" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+            }
+
+        }
+        foreach my $host ( sort( keys( %{ $config->{lb} } ) ) ) {
+            my $host_info = $config->{lb}->{default};
+            $host_info = $config->{lb}->{$host};
+            add_ip_to_list($host_info->{ip});
+            my $pass = 1;
+            print STDOUT $group . " vs " . $host;
+            if ( $group ne $host ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+                if ( $action eq "stop" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "start" ) {
+                    $ret = node_cmd( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "status" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+            }
+
+        }
+
+        foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
+            my $host_info = $config->{bench}->{default};
+            $host_info = $config->{bench}->{$host};
+            my $pass = 1;
+            print STDOUT $group . " vs " . $host;
+            if ( $group ne $host ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+                if ( $action eq "install" ) {
+                    $ret = install_bench( $host_info, $host, $action );
+                }
+                if ( $action eq "stop" ) {
+                    $ret = stop_bench( $host_info, $host, $action );
+                }
+                if ( $action eq "start" ) {
+                    $ret = start_bench( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+
+            }
+
+        }
+          foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
+            my $host_info = $config->{monitor}->{default};
+            $host_info = $config->{monitor}->{$host};
+            my $pass = 1;
+            print STDOUT $group . " vs " . $host;
+            if ( $group ne $host ) { $pass = 0 }
+
+            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+                $pass = 1;
+            }
+            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+            if ( $pass == 1 ) {
+                my $le_localtime = localtime;
+
+                if ( $action eq "stop" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+                if ( $action eq "start" ) {
+                    $ret = node_cmd( $host_info, $host, $action, $query );
+                }
+                if ( $action eq "restart" ) {
+                    $ret = node_cmd( $host_info, $host, $action );
+                }
+
+            }
+
+        }
+
+
+        foreach my $key ( sort keys %ServiceIPs ) {
+            print $key;
+        }
+
+   }
   
-    return '{"services":[' . join(',', @console) .']}';
+    return '{"'.$level.'":[' . join(',', @console) .']}';
 
 }
 
@@ -805,6 +820,19 @@ sub get_host_vip() {
    return 0; 
 }
 
+
+sub get_master_cloud() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
+        $host_info = $config->{cloud}->{default};
+        $host_info = $config->{cloud}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            return $host_info;
+        }
+    }
+   return 0; 
+}
+
 sub get_master_host() {
     my $host_info;
     foreach my $host ( keys( %{ $config->{db} } ) ) {
@@ -1035,12 +1063,20 @@ sub check_memcache_from_db($) {
 
 
 
-sub ping_election() {
+sub ping_election($) {
+    my $json_status = shift ;
+    my $json    = new JSON;
+    my $status =
+      $json->allow_nonref->utf8->relaxed->escape_slash->loose
+      ->allow_singlequote->allow_barekey->decode($json_status);
+   
     my $err = "000000";
     my $host_info;
     my $host_vip = get_master_host();
     my $command;
-    
+    foreach my $ip ( keys( %{ $status->{host}->{interfaces}->{IP} }) ) {
+        print $ip; 
+    }
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
@@ -1048,9 +1084,8 @@ sub ping_election() {
         
         # Check memcache_udf
         check_memcache_from_db($host_info);
-        
         mycheckpoint_create_master_db( $host_vip , "mon_" . $host);
-        mycheckpoint_cmd($host_vip,$host_info,$host)
+        mycheckpoint_cmd($host_vip,$host_info,$host);
         
     }
     return $err;
@@ -1391,6 +1426,26 @@ sub worker_node_command($$) {
     #$client->set_timeout($gearman_timeout);
     #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+        if ( $result eq "true" ) {
+            return "000000";
+        }
+        else { return "ER0003"; }
+
+    }
+    else { return "ER0002"; }
+}
+
+sub worker_cloud_command($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+    print STDOUT $ip . ' ' . $cmd . '\n';
+    #$client->set_timeout($gearman_timeout);
+    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
+    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
         if ( $result eq "true" ) {

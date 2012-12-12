@@ -131,9 +131,15 @@ our $RULESET = {
                 'driver'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['RACKSPACE', 'SLICEHOST','EC2','VCLOUD','BRIGHTBOX', 'CLOUDSIGMA', 'DREAMHOST',
                                 'ECP','ELASTICHOST','GOGRID', 'IBM_SBC','LINODE','OPENNEBULA','SOFTLAYER' , 'VOXEL', 'VPSNET'] },
                 'key'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
-                'ex_vdc'                        => { 'default' => 'none' }
+                'ex_vdc'                        => { 'default' => 'na' },
+                'instance_type'                 => {'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['t1.micro', 'c1.xlarge','m1.small'] },
+		'security_groups'               => { 'default' => 'na'},
+                'zone'                          => { 'default' => 'us-east-1b'},
+                'region'                        => { 'default' => 'us-east-1'},
+                'vpc'                           => { 'default' => 'na'},
+                'subnet'                           => { 'default' => 'na'},
+                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] }
                 
-		
 		 
 	}},
          'proxy'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
