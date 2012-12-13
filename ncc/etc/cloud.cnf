@@ -126,7 +126,7 @@
 <cloud cloud2>
     status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
-    password        	   2LU5gIQ8bbA8hhuaGBYDVvxCZikzuOyfTxDSQzSZ
+    password        	   xxx
     host            	   na
     version         	   1.5
     driver          	   EC2

@@ -1522,6 +1522,10 @@ sub report_node($$$) {
     print STDERR $cmd . '\n';
     my $le_localtime = localtime;
     print $LOG $le_localtime . " $cmd\n";
+    my $status ="na";
+    if ( $self->{status}) { 
+     $status=$self->{status};
+    }
     push(@console ,
        '{"time":"'
       . $le_localtime
@@ -1532,7 +1536,7 @@ sub report_node($$$) {
       . '","mode":"'
       .  $self->{mode}  
       . '","status":"'
-      .  $self->{status}
+      .  $status
       . '","code":"'
       . $err
       . '","state":"'
