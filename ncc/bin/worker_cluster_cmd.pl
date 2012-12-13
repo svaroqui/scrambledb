@@ -483,7 +483,7 @@ sub spider_rewrite_query_like() {
     my $host_info;
 
     foreach my $host ( keys( %{ $config->{db} } ) ) {
-        if ( $config->{db}->{$host}->{mode} eq "master" ) {
+        if ( $config->{db}->{$host}->{status} eq "master" ) {
             $host_info = $config->{db}->{default};
             $host_info = $config->{db}->{$host};
             my $dsn =
@@ -560,7 +560,7 @@ sub spider_node_join($$) {
     my $database = "";
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         if (   $host_joined_key ne $host
-            && $config->{db}->{$host}->{mode} eq "master" )
+            && $config->{db}->{$host}->{status} eq "master" )
         {
             $host_info = $config->{db}->{default};
             $host_info = $config->{db}->{$host};
@@ -628,8 +628,8 @@ sub spider_node_sql($$$$$$$) {
     }
     if (
         $self->{mode} ne "router"
-        && (   $self->{mode} eq "master"
-            || $self->{mode} eq "slave"
+        && (   $self->{status} eq "master"
+            || $self->{status} eq "slave"
             || $ddlallnode == 1 )
       )
     {
@@ -691,7 +691,7 @@ sub spider_create_table_info($$) {
         foreach my $host ( keys( %{ $config->{db} } ) ) {
             $host_info = $config->{db}->{default};
             $host_info = $config->{db}->{$host};
-            if ( $host_info->{mode} eq "master" ) {
+            if ( $host_info->{status} eq "master" ) {
                 if ( $cptpart ne 0 ) { $engine = $engine . ",\n"; }
                 my $peer_host_info = $host_info->{peer}[0];
                 $createtable =~ s/`//g;
@@ -838,7 +838,7 @@ sub get_master_host() {
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "master" ) {
+        if ( $host_info->{status} eq "master" ) {
             return $host_info;
         }
     }
@@ -849,7 +849,7 @@ sub get_master_host_hash() {
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "master" ) {
+        if ( $host_info->{status} eq "master" ) {
             return $host;
         }
     }
@@ -1109,7 +1109,7 @@ sub mysql_rolling_restart(){
  foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if  ( $host_info->{mode} eq "master" ){
+        if  ( $host_info->{status} eq "master" ){
            mha_master_switch($host_slave); 
            $ret = node_cmd( $host_info, $host, "stop" );
        }         
@@ -1213,8 +1213,8 @@ sub node_cmd($$$) {
     }
     elsif ( $cmd eq "status" ) {
 
-        if (   $self->{mode} eq "master"
-            || $self->{mode} eq "slave"
+        if (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
             || $self->{mode} eq "spider"
             || $self->{mode} eq "actif"
             || $self->{mode} eq "mysql-proxy"
@@ -1280,8 +1280,8 @@ sub node_cmd($$$) {
     }
     elsif (
         $cmd eq "start"
-        && (   $self->{mode} eq "master"
-            || $self->{mode} eq "slave"
+        && (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
             || $self->{mode} eq "spider"
             || $self->{mode} eq "actif" )
       )
@@ -1529,9 +1529,11 @@ sub report_node($$$) {
       .  $self->{ip} 
       . '","mode":"'
       .  $self->{mode}  
-      . '","error":"'
+       '","state":"'
+      .  $self->{status}  
+      . '","code":"'
       . $err
-      . '","state":"'
+      . '","error":"'
       . $ERRORMESSAGE{$err}  
       . '"}'
    );
@@ -1595,7 +1597,7 @@ sub list_masters() {
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "master" ) {
+        if ( $host_info->{status} eq "master" ) {
             push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
         }
     }
@@ -1656,11 +1658,11 @@ sub mha_master_switch($) {
         }
 
         if ( $drap == 1 ) {
-            $line =~ s/^(.*)mode(.*)slave(.*)$/\tmode\t\t\t\tmaster/gi;
+            $line =~ s/^(.*)status(.*)slave(.*)$/\status\t\t\t\tmaster/gi;
 
         }
         else {
-            $line =~ s/^(.*)mode(.*)(slave|master)(.*)$/\tmode\t\t\t\tslave/gi;
+            $line =~ s/^(.*)status(.*)(slave|master)(.*)$/\status\t\t\t\tslave/gi;
         }
         print $out $line;
         next;

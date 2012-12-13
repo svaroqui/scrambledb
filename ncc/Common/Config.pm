@@ -61,9 +61,11 @@ our $RULESET = {
 	},
 	'db'				=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
 		'ip'				=> { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
-		'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','proxy','spider','active','passive','monitor'] },
-		'peer'				=> { 'deprequired' => { 'mode' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
-		'agent_port'			=> { 'default' => 9989 },
+		
+                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','monitor'] },
+                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone'] }",
+                'peer'				=> { 'deprequired' => { 'state' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
+		'agent_port'			=> { 'default' => 9989 },                
 		'cluster_interface'		=> { 'required' => ['AGENT'] },
 		'datadir'                       => { 'default' => '/usr/lib/skysql' },
 		'mysql_cnf'			=> { 'default' => 'etc/my.cnf' },
