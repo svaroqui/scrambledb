@@ -137,9 +137,10 @@ our $RULESET = {
                 'zone'                          => { 'default' => 'us-east-1b'},
                 'region'                        => { 'default' => 'us-east-1'},
                 'vpc'                           => { 'default' => 'na'},
-                'subnet'                           => { 'default' => 'na'},
-                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] }
-                
+                'subnet'                        => { 'default' => 'na'},
+                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] },
+                'public_key'                    => { 'default' => 'na'},
+                'elastic_ip'                    => { 'default' => 'na'}
 		 
 	}},
          'proxy'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {

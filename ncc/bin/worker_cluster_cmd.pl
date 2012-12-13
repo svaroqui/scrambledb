@@ -67,8 +67,8 @@ $config->check('SANDBOX');
 
 my %ServiceIPs;
 my @console;
-
-
+my $cloud = get_master_cloud();
+my  $sshkey="/ncc/etc/" . $cloud->{public_key} ;
 
 
 open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
@@ -165,7 +165,7 @@ sub cluster_cmd {
     $query    = $json_text->{command}->{query};
     $database = $json_text->{command}->{database};
     my $level  = $json_text->{level};
-    my $cloud = get_master_cloud();
+    
    
        
      if ( $level eq "instances" ){
@@ -1695,7 +1695,7 @@ sub mha_master_switch($) {
 }
 
 sub bootstrap_config() {
-
+   
     my $my_home_user = $ENV{HOME};
     my $cmd =
         'string="`cat '
@@ -1709,7 +1709,7 @@ sub bootstrap_config() {
           "{command:{action:'write_config',group:'localhost',type:'all'}}";
         system( "scp -i "
               . $SKYBASEDIR
-              . "/ncc/etc/id_rsa "
+              . $sshkey." "
               . $SKYBASEDIR
               . "/ncc/etc/cloud.cnf "
               . $_ . ":"
@@ -1746,7 +1746,7 @@ sub bootstrap_binaries() {
             $command =
                 "scp -q -i  "
               . $SKYBASEDIR
-              . "/ncc/etc/id_rsa "
+              . $sshkey ." "
               . $SKYDATADIR
               . "/skystack.tar.gz "
               . $_ . ":/tmp";
@@ -1756,7 +1756,7 @@ sub bootstrap_binaries() {
               $command =
                 "ssh -q -i  "
               . $SKYBASEDIR
-              . "/ncc/etc/id_rsa "
+              . $sshkey. " "
               . $_
               . " \"tar -xvz -f /tmp/skystack.tar.gz -C "
               . join('/',@dest)
@@ -1787,7 +1787,7 @@ sub bootstrap_ncc() {
             $command =
                 "scp -q -i "
               . $SKYBASEDIR
-              . "/ncc/etc/id_rsa "
+              . $sshkey. " "
               . $SKYDATADIR
               . "/ncc.tar.gz "
               . $_ . ":/tmp";
@@ -1795,7 +1795,7 @@ sub bootstrap_ncc() {
             $command =
                 "ssh -q -i "
               . $SKYBASEDIR
-              . "/ncc/etc/id_rsa "
+              . $sshkey. " "
               . $_
               . " \"tar -xzv -f /tmp/ncc.tar.gz -C "
               . $SKYBASEDIR . " && "
