@@ -67,8 +67,8 @@ $config->check('SANDBOX');
 
 my %ServiceIPs;
 my @console;
-my $cloud = get_master_cloud();
-my  $sshkey="/ncc/etc/" . $cloud->{public_key} ;
+my $cloud;
+my  $sshkey;
 
 
 open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
@@ -145,6 +145,8 @@ sub cluster_cmd {
     @console=@cmd_console;
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
+    $cloud = get_master_cloud();
+    $sshkey ="/ncc/etc/" . $cloud->{public_key} ;
 
     my $json2       = new JSON;
     my $json_config = $json2->allow_blessed->convert_blessed->encode($config);
@@ -1529,11 +1531,11 @@ sub report_node($$$) {
       .  $self->{ip} 
       . '","mode":"'
       .  $self->{mode}  
-       '","state":"'
-      .  $self->{status}  
+      . '","status":"'
+      .  $self->{status}
       . '","code":"'
       . $err
-      . '","error":"'
+      . '","state":"'
       . $ERRORMESSAGE{$err}  
       . '"}'
    );
@@ -1658,11 +1660,11 @@ sub mha_master_switch($) {
         }
 
         if ( $drap == 1 ) {
-            $line =~ s/^(.*)status(.*)slave(.*)$/\status\t\t\t\tmaster/gi;
+            $line =~ s/^(.*)status(.*)slave(.*)$/\tstatus\t\t\t\tmaster/gi;
 
         }
         else {
-            $line =~ s/^(.*)status(.*)(slave|master)(.*)$/\status\t\t\t\tslave/gi;
+            $line =~ s/^(.*)status(.*)(slave|master)(.*)$/\tstatus\t\t\t\tslave/gi;
         }
         print $out $line;
         next;

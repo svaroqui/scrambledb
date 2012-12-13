@@ -16,7 +16,8 @@
 </db>
 
 <db node10>
-	mode				master
+    mode                    mariadb
+	status				master
     ip                      10.0.0.102
     peer                    node11
     mysql_version           mariadb
@@ -28,7 +29,8 @@
 </db>
 
 <db node11>
-	mode				slave
+    mode                    mariadb
+	status				slave
     ip                      10.0.0.47
     peer		    node10
     mysql_version	    mariadb
@@ -41,7 +43,8 @@
 
 
 <db node12>
-	mode				slave
+    mode                    mariadb
+	status 				slave
     ip                      10.0.0.48
     peer		    node10
     mysql_version	    mariadb
@@ -55,6 +58,7 @@
 #<db node20>
 #    ip                      10.0.0.102
 #    mode                    monitor
+#    state                   slave 
 #    peer                    node10,node11
 #    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
 #    mysql_port              5020
@@ -63,8 +67,8 @@
 #</db>
 
 
-<proxy proxy1>
-    mode                    mysql-proxy
+<proxy proxy1> 
+   mode                    mysql-proxy
     ip                      10.0.0.102 
     hosts                   node10
     peer		    node11	
@@ -107,6 +111,7 @@
 
 
 <cloud cloud1>
+    status                 slave
     user            	   skysql@David_CHANIAL_1001895
     password        	   !davixx#
     host            	   vcloud.hegerys.com
@@ -114,6 +119,27 @@
     driver          	   VCLOUD
     template        	   Centos6.2x86_64_SkySQL_Template   
     key             	   none
+    instance_type          t1.micro
+    
+</cloud>
+
+<cloud cloud2>
+    status                 master
+    user            	   AKIAJR7YEOZPXASJCYDQ
+    password        	   2LU5gIQ8bbA8hhuaGBYDVvxCZikzuOyfTxDSQzSZ
+    host            	   na
+    version         	   1.5
+    driver          	   EC2
+    template        	   ami-cb23a0a2   
+    key             	   SDS145000
+    zone                   us-east-1b
+    region                 us-east 
+    instance_type          t1.micro
+    security_groups        secure-group-vpc 
+    vpc                    vpc-7032621b
+    subnet                 subnet-49326222 
+    public_key             SDS145000.pem
+    elastic_ip             107.21.41.133
 </cloud>
 
 <lb lb1>
