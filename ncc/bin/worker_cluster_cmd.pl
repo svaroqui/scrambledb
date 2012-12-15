@@ -38,15 +38,15 @@ struct 'nosql' => {
 our %ERRORMESSAGE = (
     "000000" => "On",
     "ER0001" => "SQL command failure",
-    "ER0002" => "Remote manager communication failure ",
-    "ER0003" => "Database communication failure ",
-    "ER0004" => "Remote manager command failure ",
-    "ER0005" => "Memcache communication failure ",
-    "ER0006" => "Remote write configuration failure ",
-    "ER0007" => "Remote monitoring execution failure ",
+    "ER0002" => "Remote manager communication failure",
+    "ER0003" => "Database communication failure",
+    "ER0004" => "Remote manager command failure",
+    "ER0005" => "Memcache communication failure",
+    "ER0006" => "Remote write configuration failure",
+    "ER0007" => "Remote monitoring execution failure",
     "ER0008" => "Can't create remote monitoring db",
-    "ER0009" => "Database error in memc_set() ",
-    "ER0010" => "Database error in memc_servers_set() "
+    "ER0009" => "Database error in memc_set()",
+    "ER0010" => "Database error in memc_servers_set()"
 
 );
 
@@ -59,7 +59,7 @@ our $database              = "";
 our $gearman_timeout       = 2000;
 
 
-our $mysql_connect_timeout = 3;
+our $mysql_connect_timeout = 1;
 our $config                = new SKY::Common::Config::;
 $config->read("etc/cloud.cnf");
 $config->check('SANDBOX');
@@ -1016,7 +1016,7 @@ sub service_status_database($$) {
     }
     catch Error with {
         $err = "ER0003";
-    }
+    };
  return $err;
 }
 
@@ -1554,6 +1554,7 @@ sub node_cmd($$$) {
             || $self->{mode} eq "haproxy" )
         {
            $err=service_status_database($self,$node);
+           print  "service_status_database". $err ;
         }
         elsif ( $self->{mode} eq "memcache" ) {
            $err= service_status_memcache($self,$node);
@@ -1742,7 +1743,7 @@ sub report_status($$$) {
      $status=$self->{status};
     }
     push(@console ,
-       '{"time":"'
+       '{"'.$host .'":{"time":"'
       . $le_localtime
       . '","name":"'
       .  $host
@@ -1756,7 +1757,7 @@ sub report_status($$$) {
       . $err
       . '","state":"'
       . $ERRORMESSAGE{$err}  
-      . '"}'
+      . '"}}'
    ); 
 
 }
