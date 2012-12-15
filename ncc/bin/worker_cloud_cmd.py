@@ -23,7 +23,6 @@ def cloud_cmd(worker, job):
    config=json.loads(job.data) 
    print config
    res ='000000' 
-   print res
    print config['command'] 
  
    print config['command']['action'] 
@@ -33,57 +32,68 @@ def cloud_cmd(worker, job):
        res=launching_ec2_instances(config) 
  
    if config["command"]["action"] == "status": 
-      print "status instances .."  
-      res=status_ec2_instances(config) 
+       print "status instances .."  
+       res=status_ec2_instances(config) 
 
    if config["command"]["action"] == "start": 
-      print "start instance .."  + config["command"]["group"]
-      res=start_ec2_instances(config)
+       print "start instance .."  + config["command"]["group"]
+       res=start_ec2_instances(config)
 
    if config["command"]["action"] == "stop": 
-      print "stop instance .."  + config["command"]["group"]
-      res=status_ec2_instances(config) 
+       print "stop instance .."  + config["command"]["group"]
+       res=status_ec2_instances(config) 
 
    if config["command"]["action"] == "terminate": 
-      res=terminate_ec2_instances(config) 
+       res=terminate_ec2_instances(config) 
 
    print res   
    return res
 
 def stop_ec2_instances(config):
-   conn = conn = boto.connect_ec2()
+   import boto
+   conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1) 
    res=conn.stop_instances(instance_ids=[config["command"]["group"]]) 
    return json.dumps(res)
 
 
 def start_ec2_instances(config):
-   conn = conn = boto.connect_ec2()
+   import boto
+   conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)   
    res=conn.start_instances(instance_ids=[config["command"]["group"]]) 
    return json.dumps(res)
 
 
 def terminate_ec2_instances(config):
-   conn = conn = boto.connect_ec2()    
+   import boto
+   conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)   
    res=conn.terminate_instances(instance_ids=[config["command"]["group"]])  
    return json.dumps(res)
 
 
 def status_ec2_instances(config):
-   conn = boto.connect_ec2()
-   instances=conn.get_all_instances()
-   return  json.dumps(instances)
+   import boto
+   import simplejson as json
+   conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
+   reservations=conn.get_all_instances()
+   #d= {}
+   d= [] 
+   for reservation in reservations:
+      for i in reservation.instances:  
+          # d[ i.id ] = {'id' : i.id , 'ip' : i.private_ip_address, 'state' : i.state}
+          d.append({'id' : i.id , 'ip' : i.private_ip_address, 'state' : i.state})
+   return  json.dumps(d)
 
 
 def launching_ec2_instances(config):
-   
-   #    conn = EC2Connection(config["cloud"]["user"], config["cloud"]["password"])
    import boto
-   conn = conn = boto.connect_ec2()
+   conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
+   
    img = conn.run_instances( config["cloud"]["template"] ,
         key_name=config["cloud"]["key"],
         subnet_id=config["cloud"]["subnet"],
         instance_type=config["cloud"]["instance_type"],
-        placement=config["cloud"]["zone"])
+        placement=config["cloud"]["zone"],
+        instance_profile_arn=config["command"]["group"])
    #     security_groups=[ config["cloud"]["security_groups"]])
    return json.dumps(img)    
 

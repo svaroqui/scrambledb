@@ -42,3 +42,9 @@ tar -xzf boto-2.6.0.tar.gz
 cd boto-2.6.0
 CC='/usr/bin/gcc'  python setup.py build
  python setup.py install --user
+
+https://github.com/martinblech/xmltodict/archive/master.zip
+unzip master
+cd xmltodict-master
+CC='/usr/bin/gcc'  python setup.py build
+python setup.py install --user

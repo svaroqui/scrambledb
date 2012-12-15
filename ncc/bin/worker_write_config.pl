@@ -444,12 +444,24 @@ system("chmod 660 $file.$host.cnf" );
 # replace_config($file ,"proxy-backend-addresses","proxy-backend-addresses=".  $masters );
 }
 
+sub get_master_cloud() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
+        $host_info = $config->{cloud}->{default};
+        $host_info = $config->{cloud}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            return $host_info;
+        }
+    }
+   return 0; 
+}
+
 sub write_mha_config($){
   my $file = shift;
   my $host_info ;
   my $err = "000000";
   my $i=1;
-
+  my $cloud=get_master_cloud();
   open my $out, '>', "$file.new" or die "Can't write new file: $!";
   foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
@@ -465,7 +477,7 @@ sub write_mha_config($){
             print $out "password=$host_info->{mysql_password}\n";
             print $out "remote_workdir=$host_info->{datadir}/mha\n";
             print $out "master_binlog_dir=$host_info->{datadir}/sandboxes/$host/data\n";
-            print $out "ssh_options=\"-i $SKYBASEDIR/ncc/etc/id_rsa\"\n";
+            print $out "ssh_options=\"-i $SKYBASEDIR/ncc/etc/". $cloud->{public_key} . "\"\n";
             print $out "basedir=$SKYBASEDIR\n";
             print $out "\n";
             $i++;

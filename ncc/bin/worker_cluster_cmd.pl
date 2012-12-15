@@ -50,16 +50,17 @@ our %ERRORMESSAGE = (
 
 );
 
+our $SKYBASEDIR            = $ENV{SKYBASEDIR};
+our $SKYDATADIR            = $ENV{SKYDATADIR};
 our $hashcolumn;
 our $createtable           = "";
 our $like                  = "none";
 our $database              = "";
-our $SKYBASEDIR            = $ENV{SKYBASEDIR};
-our $SKYDATADIR            = $ENV{SKYDATADIR};
 our $gearman_timeout       = 2000;
+
+
 our $mysql_connect_timeout = 3;
 our $config                = new SKY::Common::Config::;
-
 $config->read("etc/cloud.cnf");
 $config->check('SANDBOX');
 
@@ -67,8 +68,9 @@ $config->check('SANDBOX');
 
 my %ServiceIPs;
 my @console;
+my @actions;
 my $cloud;
-my  $sshkey;
+my $sshkey;
 
 
 open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
@@ -126,10 +128,7 @@ sub add_ip_to_list($) {
 
 sub cluster_cmd {
     my ( $job, $options ) = @_;
-    my $action;
-    my $group;
-    my $type;
-    my $query;
+  
     my $table   = "";
     my $command = $job->workload();
     my $json    = new JSON;
@@ -142,10 +141,12 @@ sub cluster_cmd {
     my $ddlallproxy    = 0;
     my $ret            = "true";
     my @cmd_console;
+    my @cmd_action;
     @console=@cmd_console;
+    @actions = @cmd_action;
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
-    $cloud = get_master_cloud();
+    $cloud = get_active_cloud();
     $sshkey ="/ncc/etc/" . $cloud->{public_key} ;
 
     my $json2       = new JSON;
@@ -161,31 +162,28 @@ sub cluster_cmd {
     #  print  STDERR $json_config;
 
     print STDERR "Receive command : $command\n";
-    $action   = $json_text->{command}->{action};
-    $group    = $json_text->{command}->{group};
-    $type     = $json_text->{command}->{type};
-    $query    = $json_text->{command}->{query};
-    $database = $json_text->{command}->{database};
-    my $level  = $json_text->{level};
-    
-   
-       
-     if ( $level eq "instances" ){
-        my $json_cloud       = new JSON ;
-        my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
-        my $json_cmd       = new JSON ;
-        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
-        
-        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
-        print  STDERR $json_cloud_str;
-        worker_cloud_command($json_cloud_str,"localhost");
+    my $action   = $json_text->{command}->{action};
+    my $group    = $json_text->{command}->{group};
+    my $type     = $json_text->{command}->{type};
+    my $query    = $json_text->{command}->{query};
+    my $database = $json_text->{command}->{database};
+    my $level    = $json_text->{level};
+    if ( $level eq "instances" ){
+       my $json_cloud       = new JSON ;
+       my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
+       my $json_cmd       = new JSON ;
+       my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
 
-     }  
-    else {
+       $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
+       print  STDERR $json_cloud_str;
+       $ret= worker_cloud_command($json_cloud_str,"localhost");
+       return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
+    }  
+    if ( $level eq "services" ){
         if ( $action eq "sql" ) {
-            $like       = "";
-            $ddlallnode = spider_is_ddl_all_node($query);
-            if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
+               $like       = "";
+               $ddlallnode = spider_is_ddl_all_node($query);
+               if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
         }
         elsif ( $action eq "start" ) {
             $ret = bootstrap_config();
@@ -200,67 +198,69 @@ sub cluster_cmd {
             $ret = bootstrap_config();
         }
         elsif ( $action eq "rolling_restart" ) {
-            $ret = mysql_rolling_restart();
+           $ret = database_rolling_restart();
         }
         elsif ( $action eq "ping" ) {
-            print STDERR "Entering :start monitoring\n";
-            $ret = ping_election($json_text);
-
+          $ret = service_heartbeat_collector($json_text,$command);
         }
 
         foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
-            my $host_info = $config->{db}->{default};
-            $host_info = $config->{db}->{$host};
-            add_ip_to_list($host_info->{ip});
-            if ( $host_info->{mode} ne "spider" ) {
-                $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
-            }
-            my $pass = 1;
-            print STDOUT $group . " vs " . $host;
-            if ( $group ne $host ) { $pass = 0 }
+           my $host_info = $config->{db}->{default};
+           $host_info = $config->{db}->{$host};
+           add_ip_to_list($host_info->{ip});
+           if ( $host_info->{mode} ne "spider" ) {
+               $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
+           }
+           my $pass = 1;
+           print STDOUT $group . " vs " . $host;
+           if ( $group ne $host ) { $pass = 0 }
 
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
-                my $le_localtime = localtime;
-                print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
-                if ( $action eq "install" ) {
-                    $ret = install_sandbox( $host_info, $host, $host_info->{mode} );
-                }
-                if ( $action eq "stop" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
-                }
-                if ( $action eq "sync" ) {
-                    $ret = node_sync( $host_info, $host, $peer_host_info );
-                }
-                if ( $action eq "start" ) {
-                    $ret = node_cmd( $host_info, $host, $action, $query );
-                }
-                if ( $action eq "remove" ) {
-                    $ret = node_cmd( $host_info, $host, $action, $query );
-                }
-                if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
-                }
-                if ( $action eq "status" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
-                }
-                if ( $action eq "join" ) { $ret = spider_node_join( $host_info, $host ); }
-                if ( $action eq "switch" ) { $ret = mha_master_switch($host); }
-                if ( $action eq "sql" ) {
-                    $ret = spider_node_sql( $host_info, $host, $action, $query, $database,
-                        $ddlallnode );
-                }
-            }
-        }
-        if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
+           if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+               $pass = 1;
+           }
+           if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+           if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+           if ( $pass == 1 ) {
+               my $le_localtime = localtime;
+               print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
+               if ( $action eq "install" ) {
+                   $ret = service_install_database( $host_info, $host, $host_info->{mode} );
+               }
+               if ( $action eq "stop" ) {
+                   $ret = node_cmd( $host_info, $host, $action );
+               }
+               if ( $action eq "sync" ) {
+                   $ret = service_sync_database( $host_info, $host, $peer_host_info );
+               }
+               if ( $action eq "start" ) {
+                   $ret = node_cmd( $host_info, $host, $action, $query );
+               }
+               if ( $action eq "remove" ) {
+                   $ret = node_cmd( $host_info, $host, $action, $query );
+               }
+               if ( $action eq "restart" ) {
+                   $ret = node_cmd( $host_info, $host, $action );
+               }
+               if ( $action eq "status" ) {
+                   $ret = node_cmd( $host_info, $host, $action );
+               }
+               if ( $action eq "join" ) {
+                   $ret = spider_node_join( $host_info, $host ); 
+               }
+               if ( $action eq "switch" ) { 
+                   $ret = service_switch_database($host); 
+                  }
+               if ( $action eq "sql" ) {
+                   $ret = spider_node_sql( $host_info, $host, $action, $query, $database,
+                       $ddlallnode );
+               }
+           }
+       }
+       if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
             spider_create_table_info( $query, $ddlallnode );
-        }
+       }
 
-        foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
+       foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
             my $host_info = $config->{nosql}->{default};
             $host_info = $config->{nosql}->{$nosql};
             add_ip_to_list($host_info->{ip});
@@ -373,7 +373,7 @@ sub cluster_cmd {
                     $ret = stop_bench( $host_info, $host, $action );
                 }
                 if ( $action eq "start" ) {
-                    $ret = start_bench( $host_info, $host, $action, $query );
+                    $ret = service_start_bench( $host_info, $host, $action, $query );
                 }
                 if ( $action eq "restart" ) {
                     $ret = node_cmd( $host_info, $host, $action );
@@ -382,43 +382,42 @@ sub cluster_cmd {
             }
 
         }
-          foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
-            my $host_info = $config->{monitor}->{default};
-            $host_info = $config->{monitor}->{$host};
-            my $pass = 1;
-            print STDOUT $group . " vs " . $host;
-            if ( $group ne $host ) { $pass = 0 }
+        foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
+          my $host_info = $config->{monitor}->{default};
+          $host_info = $config->{monitor}->{$host};
+          my $pass = 1;
+          print STDOUT $group . " vs " . $host;
+          if ( $group ne $host ) { $pass = 0 }
 
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
-                my $le_localtime = localtime;
+          if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
+              $pass = 1;
+          }
+          if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
+          if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
+          if ( $pass == 1 ) {
+              my $le_localtime = localtime;
 
-                if ( $action eq "stop" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
-                }
-                if ( $action eq "start" ) {
-                    $ret = node_cmd( $host_info, $host, $action, $query );
-                }
-                if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
-                }
+              if ( $action eq "stop" ) {
+                  $ret = node_cmd( $host_info, $host, $action );
+              }
+              if ( $action eq "start" ) {
+                  $ret = node_cmd( $host_info, $host, $action, $query );
+              }
+              if ( $action eq "restart" ) {
+                  $ret = node_cmd( $host_info, $host, $action );
+              }
 
-            }
+          }
 
         }
-
-
         foreach my $key ( sort keys %ServiceIPs ) {
-            print $key;
+          print $key;
         }
-
    }
+   my $json_action      = new JSON; 
+   print  $json_action->allow_nonref->utf8->encode(\@actions);
   
-    return '{"'.$level.'":[' . join(',', @console) .']}';
+   return '{"'.$level.'":[' . join(',' , @console) .']}';
 
 }
 
@@ -447,9 +446,8 @@ sub spider_is_ddl_all_node($) {
                 if ( scalar(@tokens) >= $next_i + 2 ) {
                     if ( $tokens[ $next_i + 2 ] eq "." ) {
                         $createtable = $tokens[ $next_i + 3 ];
-
-#	$database = $tokens[$next_i+1];
-#	need to be unquited but useless as the table in token is comming with the db
+                        # $database = $tokens[$next_i+1];
+                        # need to be unquited but useless as the table in token is comming with the db
                     }
                 }
             }
@@ -752,12 +750,75 @@ sub spider_create_table_info($$) {
         }
     }
     if ( $ddlallnode == 2 ) {
-        sql_command_proxy($query);
+        service_sql_database($query);
     }
     return $err;
 }
 
-sub sql_command_proxy($) {
+
+sub get_vip_service() {
+    my $host_info;
+    foreach my $vip ( keys( %{ $config->{lb} } ) ) {
+        $host_info = $config->{lb}->{default};
+        $host_info = $config->{lb}->{$vip};
+        if ( $host_info->{mode} eq "keepalived" ) {
+            return $host_info;
+        }
+    }
+   return 0; 
+}
+
+
+sub get_active_cloud() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
+        $host_info = $config->{cloud}->{default};
+        $host_info = $config->{cloud}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            return $host_info;
+        }
+    }
+   return 0; 
+}
+
+sub get_active_master() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            return $host_info;
+        }
+    }
+   return 0; 
+}
+sub get_active_master_hash() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            return $host;
+        }
+    }
+   return 0; 
+}
+
+sub get_active_memcache() {
+    my $nosql_info; 
+    foreach my $nosql (keys(%{$config->{nosql}})) {
+        $nosql_info = $config->{nosql}->{default};
+        $nosql_info = $config->{nosql}->{$nosql};
+        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache" ){
+           return $nosql_info;
+        }
+    }    
+    return 0;
+}
+
+
+
+sub service_sql_database($) {
     my $query = shift;
     my $host_info;
     my $err = "000000";
@@ -807,163 +868,22 @@ sub sql_command_proxy($) {
     return $err;
 }
 
-
-
-
-sub get_host_vip() {
-    my $host_info;
-    foreach my $vip ( keys( %{ $config->{lb} } ) ) {
-        $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$vip};
-        if ( $host_info->{mode} eq "keepalived" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
-
-
-sub get_master_cloud() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
-        $host_info = $config->{cloud}->{default};
-        $host_info = $config->{cloud}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
-
-sub get_master_host() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
-sub get_master_host_hash() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host;
-        }
-    }
-   return 0; 
-}
-
-sub get_memcache_director() {
-    my $nosql_info; 
-    foreach my $nosql (keys(%{$config->{nosql}})) {
-        $nosql_info = $config->{nosql}->{default};
-        $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache" ){
-           return $nosql_info;
-        }
-    }    
-    return 0;
-}
-
-
-sub start_bench($$$$) {
-    my $self = shift;
-    my $node = shift;
-    my $type = shift;
-    my $bench_info;
-    my $host_info;
-    my $err = "000000";
-    foreach my $bench ( keys( %{ $config->{lb} } ) ) {
-
-#  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
-#   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
-        $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$bench};
-        if ( $host_info->{mode} eq "haproxy" ) {
-            $bench_info = $host_info;
-        }
-    }
-
-# my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
-    my $cmd =
-        "/bin/client -u "
-      . $bench_info->{mysql_user} . " -h "
-      . $bench_info->{vip} . " -a "
-      . $bench_info->{mysql_user}
-      . " -f -c 10 -s 10 -d dbt2 -l "
-      . $bench_info->{port} . "  -o";
-    $err = worker_node_command( $cmd, $self->{ip} );
-
-}
-
-sub mycheckpoint_create_master_db($$) {
-  my $host_info=shift;
-  my $db_name =shift;
-    my $sql = "CREATE DATABASE if not exists ".$db_name ;
-        my $dsn =
-            "DBI:mysql:host="
-          . $host_info->{ip}
-          . ";port="
-          . $host_info->{mysql_port}
-          . ";mysql_connect_timeout="
-          . $mysql_connect_timeout;
-
-        my $dbh = DBI->connect(
-            $dsn,
-            $host_info->{mysql_user},
-            $host_info->{mysql_password},
-            {RaiseError=>1}
-        );
-        try {
-        
-            my $sth = $dbh->do($sql);
-           
-            
-        }
-        catch Error with {
-            print STDERR "Mon connect Master failed\n";
-            return 0;
-        };
-        $dbh->disconnect;
-        return 1;  
-}
-
-sub mycheckpoint_start($) {
+sub service_remove_database($$) {
   my $self = shift;
-  my $host=get_master_host_hash();
-  my $host_info = $config->{db}->{$host};  
+  my $node = shift;
   my $err = "000000";
-  
-  my $cmd =
-            $SKYBASEDIR
-          . "/mycheckpoint/bin/mycheckpoint http "
-          . " --user="
-          . $host_info->{mysql_user}
-          . " --password="
-          . $host_info->{mysql_password}
-          . " --host="
-          . $host_info->{ip}
-          . " --port="
-          . $host_info->{mysql_port}
-          . " --database=mon_"
-          . $host
-          . " --http-port=80 &";
-   $err = worker_node_command( $cmd , $self->{ip} );
-  
-     return $err;
-
+  my $param = "$self->{datadir}/sandboxes/$node/stop";
+        $err   = worker_node_command( $param, $self->{ip} );
+        $param = "rm -rf $self->{datadir}/sandboxes/$node";
+        $err   = worker_node_command( $param, $self->{ip} );
+  return $err;
 }
 
-sub mycheckpoint_cmd($$$) {
+sub service_status_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
   my $host=shift;
-   my $err; 
+  my $err; 
   my $cmd =
             $SKYBASEDIR
           . "/mycheckpoint/bin/mycheckpoint -o  --database=mon_"
@@ -994,7 +914,7 @@ sub mycheckpoint_cmd($$$) {
         } 
 }
 
-sub check_memcache_from_db($) {
+sub service_status_memcache_fromdb($) {
      
       my $host_info=shift;
       my  $dsn2 =
@@ -1043,14 +963,11 @@ sub check_memcache_from_db($) {
           
         if ($res == 0 ) {
              print STDERR "Setting UDF Memcache server\n";
-            my $mem_info=get_memcache_director();
+            my $mem_info=get_active_memcache();
             $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
             print STDERR "'". $mem_info->{ip} .":". $mem_info->{port}."'";
             try {
-
-                my $sth = $dbh2->do($sql);
-               
-
+             my $sth = $dbh2->do($sql);
             }
             catch Error with {
                  print STDERR "Mon connect memc_servers_set\n";
@@ -1062,71 +979,316 @@ sub check_memcache_from_db($) {
         return 1;
 }
 
+sub service_status_database($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  my $port = "3306";
+    if (   $self->{mode} eq "mysql-proxy"
+        || $self->{mode} eq "keepalived"
+        || $self->{mode} eq "haproxy" )
+    {
+        $port = $self->{port};
+    }
+    else {
+        $port = $self->{mysql_port};
+    }
+    my $theip = $self->{ip};
+    if ( $self->{mode} eq "keepalived" ) {
+        $theip = $self->{vip};
+    }
+    my $dsn =
+        "DBI:mysql:database=mysql;host="
+      . $theip
+      . ";port="
+      . $port
+      . ";mysql_connect_timeout="
+      . $mysql_connect_timeout;
+    print STDERR $dsn;
+    use Error qw(:try);
+    try {
 
+        my $dbh =
+          DBI->connect( $dsn, $self->{mysql_user},
+            $self->{mysql_password} );
+        my $param = "select 1";
+        $dbh->do($param);
+    }
+    catch Error with {
+        $err = "ER0003";
+    }
+ return $err;
+}
 
+sub service_status_memcache($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  use Error qw(:try);
+  print STDERR "connecting to memcache \n";
+  try {
 
-sub ping_election($) {
-    my $json_status = shift ;
-    my $json    = new JSON;
-    my $status =
-      $json->allow_nonref->utf8->relaxed->escape_slash->loose
-      ->allow_singlequote->allow_barekey->decode($json_status);
-   
+    my $memd = new Cache::Memcached {
+        'servers' => [ $self->{ip} . ":" . $self->{port} ],
+        'debug'   => 0,
+        'compress_threshold' => 10_000,
+    };
+
+    $memd->set( "key_test", "test" );
+    my $val = $memd->get("key_test");
+    $err = "ER0005";
+    if ( $val eq "test" ) { $err = "000000"; }
+  }  catch Error with {
+    $err = "ER0005";
+  }
+  return $err;
+}
+
+sub service_start_memcache($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+
+    # delete_pid_if_exists($SKYBASEDIR."/ncc/tmp/memcached.". $node .".pid",$self->{ip});
+  my $param =
+        $SKYBASEDIR
+      . "/ncc/init.d/start-memcached "
+      . $SKYBASEDIR
+      . "/ncc/etc/memcached."
+      . $node . ".cnf";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_start_database($$) {
+    my $self = shift;
+    my $node = shift;
     my $err = "000000";
-    my $host_info;
-    my $host_vip = get_master_host();
-    my $command;
-    foreach my $ip ( keys( %{ $status->{host}->{interfaces}->{IP} }) ) {
-        print $ip; 
-    }
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        print STDERR "connect to db: " . $host . "\n";
-        
-        # Check memcache_udf
-        check_memcache_from_db($host_info);
-        mycheckpoint_create_master_db( $host_vip , "mon_" . $host);
-        mycheckpoint_cmd($host_vip,$host_info,$host);
-        
-    }
+
+    my $param = "$self->{datadir}/sandboxes/$node/send_kill";
+    $err = worker_node_command( $param, $self->{ip} );
+
+    $param = "$self->{datadir}/sandboxes/$node/start";
+    $err = worker_node_command( $param, $self->{ip} );
+    
+    my $memcaches = get_all_memcaches();
+    $param =
+"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+          . "SELECT memc_servers_set('"
+          . $memcaches . "');\"";
+    $err = worker_node_command( $param, $self->{ip} );
     return $err;
-
 }
 
-sub mysql_rolling_restart(){ 
- my $host_info;
- my $host_slave;
- foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if  ( $host_info->{mode} eq "slave" ){
-                $ret = node_cmd( $host_info, $host, "stop" );
-                $host_slave=$host_info;
-        }         
-       
-  }
-
-
- foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if  ( $host_info->{status} eq "master" ){
-           mha_master_switch($host_slave); 
-           $ret = node_cmd( $host_info, $host, "stop" );
-       }         
-       
-  }
- 
+sub service_start_mycheckpoint($$) {
+  my $self = shift;
+  my $node = shift;
+  my $host=get_active_master_hash();
+  my $host_info = $config->{db}->{$host};  
+  my $err = "000000";
+  
+  my $cmd =
+            $SKYBASEDIR
+          . "/mycheckpoint/bin/mycheckpoint http "
+          . " --user="
+          . $host_info->{mysql_user}
+          . " --password="
+          . $host_info->{mysql_password}
+          . " --host="
+          . $host_info->{ip}
+          . " --port="
+          . $host_info->{mysql_port}
+          . " --database=mon_"
+          . $host
+          . " --http-port=80 &";
+   $err = worker_node_command( $cmd , $self->{ip} );
+   return $err;
 }
 
+sub service_start_mysqlproxy($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";  
+  my $param =
+            $SKYBASEDIR
+          . "/mysql-proxy/bin/mysql-proxy --daemon --defaults-file=$SKYBASEDIR/ncc/etc/mysql-proxy."
+          . $node
+          . ".cnf --pid-file="
+          . $SKYBASEDIR
+          . "/ncc/tmp/mysql-proxy."
+          . $node
+          . ".pid --log-file="
+          . $SKYDATADIR
+          . "/log/mysql-proxy."
+          . $node . ".log  1>&2 ";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
 
-sub install_bench() {
+sub service_start_keepalived($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";  
+  my $param =
+            $SKYBASEDIR
+          . "/keepalived/sbin/keepalived -f  "
+          . $SKYBASEDIR
+          . "/ncc/etc/keepalived."
+          . $node . ".cnf";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_start_haproxy($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";  
+  my $param =
+            $SKYBASEDIR
+          . "/haproxy/sbin/haproxy -f "
+          . $SKYBASEDIR
+          . "/ncc/etc/haproxy."
+          . $node
+          . ".cnf -p "
+          . $SKYBASEDIR
+          . "/ncc/tmp/haproxy."
+          . $node . ".pid ";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_start_bench($$$$) {
+    my $self = shift;
+    my $node = shift;
+    my $type = shift;
+    my $bench_info;
+    my $host_info;
+    my $err = "000000";
+    foreach my $bench ( keys( %{ $config->{lb} } ) ) {
+
+    #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
+    #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
+        $host_info = $config->{lb}->{default};
+        $host_info = $config->{lb}->{$bench};
+        if ( $host_info->{mode} eq "haproxy" ) {
+            $bench_info = $host_info;
+        }
+    }
+    # my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
+    my $cmd =
+        "/bin/client -u "
+      . $bench_info->{mysql_user} . " -h "
+      . $bench_info->{vip} . " -a "
+      . $bench_info->{mysql_user}
+      . " -f -c 10 -s 10 -d dbt2 -l "
+      . $bench_info->{port} . "  -o";
+    $err = worker_node_command( $cmd, $self->{ip} );
+    return $err;
+}
+
+sub service_stop_database($$) {
+    my $self = shift;
+    my $node = shift;
+    my $err = "000000";
+
+    my $param = "$self->{datadir}/sandboxes/$node/send_kill";
+    $err = worker_node_command( $param, $self->{ip} );
+
+    return $err;
+}
+sub service_stop_mysqlproxy($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "kill -9 `cat "
+          . $SKYBASEDIR
+          . "/ncc/tmp/mysql-proxy."
+          . $name . ".pid`";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_stop_memcache($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "kill -9 `cat "
+          . $SKYBASEDIR
+          . "/ncc/tmp/memcached."
+          . $name . ".pid`";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_stop_keepalived($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param = "killall keepalived ";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_stop_haproxy($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+          "kill -9 `cat " . $SKYBASEDIR . "/ncc/tmp/haproxy." . $name . ".pid`";
+ $err = worker_node_command( $param, $self->{ip} );
+ return $err;
+}
+
+sub service_stop_mycheckpoint($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "kill -9 `cat "
+          . $SKYBASEDIR
+          . "/ncc/tmp/mycheckpoint."
+          . $name . ".pid`";
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+sub service_install_bench() {
 
 # /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/  -h 192.168.0.100 -u skysql  -pskyvodka -e INNODB
 }
 
-sub install_sandbox($$$) {
+sub service_install_mycheckpoint($$) {
+  my $host_info=shift;
+  my $db_name =shift;
+    my $sql = "CREATE DATABASE if not exists ".$db_name ;
+        my $dsn =
+            "DBI:mysql:host="
+          . $host_info->{ip}
+          . ";port="
+          . $host_info->{mysql_port}
+          . ";mysql_connect_timeout="
+          . $mysql_connect_timeout;
+
+        my $dbh = DBI->connect(
+            $dsn,
+            $host_info->{mysql_user},
+            $host_info->{mysql_password},
+            {RaiseError=>1}
+        );
+        try {      
+            my $sth = $dbh->do($sql);           
+        }
+        catch Error with {
+            print STDERR "Mon connect Master failed\n";
+            return 0;
+        };
+        $dbh->disconnect;
+        return 1;  
+}
+
+sub service_install_database($$$) {
     my $self = shift;
     my $node = shift;
     my $type = shift;
@@ -1188,7 +1350,7 @@ sub install_sandbox($$$) {
     my $GTTID =
 "$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
     $err = worker_node_command( $GTTID, $self->{ip} );
-    my $memcaches = list_memcaches();
+    my $memcaches = get_all_memcaches();
 
     $param =
 "$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
@@ -1196,358 +1358,11 @@ sub install_sandbox($$$) {
       . $memcaches . "');\"";
     $err = worker_node_command( $param, $self->{ip} );
 
-    report_node( $self, "Install node", $err, $node );
+    report_status( $self, "Install node", $err, $node );
     return $err;
 }
 
-sub node_cmd($$$) {
-    my $self = shift;
-    my $node = shift;
-    my $cmd  = shift;
-    chop( my $my_arch = `arch` );
-    my $param = "";
-    my $err   = "000000";
-    if ( $cmd eq "remove" ) {
-        $param = "$self->{datadir}/sandboxes/$node/stop";
-        $err   = worker_node_command( $param, $self->{ip} );
-        $param = "rm -rf $self->{datadir}/sandboxes/$node";
-        $err   = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "status" ) {
-
-        if (   $self->{mode} eq "mariadb"
-            || $self->{mode} eq "mysql"
-            || $self->{mode} eq "spider"
-            || $self->{mode} eq "actif"
-            || $self->{mode} eq "mysql-proxy"
-            || $self->{mode} eq "keepalived"
-            || $self->{mode} eq "haproxy" )
-        {
-            my $port = "3306";
-            if (   $self->{mode} eq "mysql-proxy"
-                || $self->{mode} eq "keepalived"
-                || $self->{mode} eq "haproxy" )
-            {
-                $port = $self->{port};
-            }
-            else {
-                $port = $self->{mysql_port};
-            }
-            my $theip = $self->{ip};
-            if ( $self->{mode} eq "keepalived" ) {
-                $theip = $self->{vip};
-            }
-            my $dsn =
-                "DBI:mysql:database=mysql;host="
-              . $theip
-              . ";port="
-              . $port
-              . ";mysql_connect_timeout="
-              . $mysql_connect_timeout;
-            print STDERR $dsn;
-            use Error qw(:try);
-            try {
-
-                my $dbh =
-                  DBI->connect( $dsn, $self->{mysql_user},
-                    $self->{mysql_password} );
-                $param = "select 1";
-                $dbh->do($param);
-            }
-            catch Error with {
-                $err = "ER0003";
-            }
-        }
-        elsif ( $self->{mode} eq "memcache" ) {
-            use Error qw(:try);
-            print STDERR "connecting to memcache \n";
-            try {
-
-                my $memd = new Cache::Memcached {
-                    'servers' => [ $self->{ip} . ":" . $self->{port} ],
-                    'debug'   => 0,
-                    'compress_threshold' => 10_000,
-                };
-
-                $memd->set( "key_test", "test" );
-                my $val = $memd->get("key_test");
-                $err = "ER0005";
-                if ( $val eq "test" ) { $err = "000000"; }
-            }
-            catch Error with {
-                $err = "ER0005";
-            }
-
-        }
-    }
-    elsif (
-        $cmd eq "start"
-        && (   $self->{mode} eq "mariadb"
-            || $self->{mode} eq "mysql"
-            || $self->{mode} eq "spider"
-            || $self->{mode} eq "actif" )
-      )
-    {
-
-        $param = "$self->{datadir}/sandboxes/$node/send_kill";
-        $err = worker_node_command( $param, $self->{ip} );
-
-        $param = "$self->{datadir}/sandboxes/$node/$cmd";
-        $err = worker_node_command( $param, $self->{ip} );
-        $param =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
-          . "SELECT gman_servers_set('127.0.0.1');\"";
-        $err = worker_node_command( $param, $self->{ip} );
-        my $memcaches = list_memcaches();
-        $param =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
-          . "SELECT memc_servers_set('"
-          . $memcaches . "');\"";
-
-        $err = worker_node_command( $param, $self->{ip} );
-
-    }
-    elsif ( $cmd eq "start" && $self->{mode} eq "mysql-proxy" ) {
-        $param =
-            $SKYBASEDIR
-          . "/mysql-proxy/bin/mysql-proxy --daemon --defaults-file=$SKYBASEDIR/ncc/etc/mysql-proxy."
-          . $node
-          . ".cnf --pid-file="
-          . $SKYBASEDIR
-          . "/ncc/tmp/mysql-proxy."
-          . $node
-          . ".pid --log-file="
-          . $SKYDATADIR
-          . "/log/mysql-proxy."
-          . $node . ".log  1>&2 ";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "stop" && $self->{mode} eq "mysql-proxy" ) {
-        $param =
-            "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/mysql-proxy."
-          . $node . ".pid`";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "start" && $self->{mode} eq "keepalived" ) {
-        $param =
-            $SKYBASEDIR
-          . "/keepalived/sbin/keepalived -f  "
-          . $SKYBASEDIR
-          . "/ncc/etc/keepalived."
-          . $node . ".cnf";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "stop" && $self->{mode} eq "keepalived" ) {
-        $param = "killall keepalived ";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "start" && $self->{mode} eq "haproxy" ) {
-        $param =
-            $SKYBASEDIR
-          . "/haproxy/sbin/haproxy -f "
-          . $SKYBASEDIR
-          . "/ncc/etc/haproxy."
-          . $node
-          . ".cnf -p "
-          . $SKYBASEDIR
-          . "/ncc/tmp/haproxy."
-          . $node . ".pid ";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "stop" && $self->{mode} eq "haproxy" ) {
-        $param =
-          "kill -9 `cat " . $SKYBASEDIR . "/ncc/tmp/haproxy." . $node . ".pid`";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "start" && $self->{mode} eq "memcache" ) {
-
-# delete_pid_if_exists($SKYBASEDIR."/ncc/tmp/memcached.". $node .".pid",$self->{ip});
-        $param =
-            $SKYBASEDIR
-          . "/ncc/init.d/start-memcached "
-          . $SKYBASEDIR
-          . "/ncc/etc/memcached."
-          . $node . ".cnf";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "stop" && $self->{mode} eq "memcache" ) {
-        $param =
-            "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/memcached."
-          . $node . ".pid`";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    elsif ( $cmd eq "start" && $self->{mode} eq "mycheckpoint" ) {
-
-        $err = mycheckpoint_start($self);
-        
-    }
-    elsif ( $cmd eq "stop" && $self->{mode} eq "mycheckpoint" ) {
-        $param =
-            "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/memcached."
-          . $node . ".pid`";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    else {
-        $param = "$self->{datadir}/sandboxes/$node/$cmd";
-        $err = worker_node_command( $param, $self->{ip} );
-    }
-    print STDOUT $param;
-    report_node( $self, $param, $err, $node );
-    return $err;
-}
-
-sub delete_pid_if_exists($$) {
-    my $pidfile = shift;
-    my $ip      = shift;
-    my $err     = "000000";
-
-    if ( -e $pidfile ) {
-        open PIDHANDLE, "$pidfile";
-        my $localpid = <PIDHANDLE>;
-        close PIDHANDLE;
-        chomp $localpid;
-        $err =
-          worker_node_command( "tail -f /dev/null --pid " . $localpid, $ip );
-    }
-    return $err;
-}
-
-
-sub worker_node_command($$) {
-    my $cmd    = shift;
-    my $ip     = shift;
-    my $client = Gearman::XS::Client->new();
-    $client->add_servers($ip);
-    print STDOUT $ip . ' ' . $cmd . '\n';
-    #$client->set_timeout($gearman_timeout);
-    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
-    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
-
-    if ( $ret == GEARMAN_SUCCESS ) {
-        if ( $result eq "true" ) {
-            return "000000";
-        }
-        else { return "ER0003"; }
-
-    }
-    else { return "ER0002"; }
-}
-
-sub worker_cloud_command($$) {
-    my $cmd    = shift;
-    my $ip     = shift;
-    my $client = Gearman::XS::Client->new();
-    $client->add_servers($ip);
-    print STDOUT $ip . ' ' . $cmd . '\n';
-    #$client->set_timeout($gearman_timeout);
-    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
-    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
-
-    if ( $ret == GEARMAN_SUCCESS ) {
-        if ( $result eq "true" ) {
-            return "000000";
-        }
-        else { return "ER0003"; }
-
-    }
-    else { return "ER0002"; }
-
-}
-
-sub worker_config_command($$) {
-    my $cmd    = shift;
-    my $ip     = shift;
-    my $client = Gearman::XS::Client->new();
-    $client->add_servers($ip);
-
-    #$client->set_timeout($gearman_timeout);
-    ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
-
-    if ( $ret == GEARMAN_SUCCESS ) {
-        return "ER0006";
-    }
-    elsif ( !defined $result ) {
-        return "ER0006";
-    }
-    elsif ( $result eq '{"result":{"status":"00000"}}' ) {
-        return "000000";
-    }
-    else {
-        return "000000";
-    }
-
-}
-
-sub worker_cluster_command($$) {
-    my $cmd    = shift;
-    my $ip     = shift;
-    my $client = Gearman::XS::Client->new();
-    $client->add_servers($ip);
-
-    #$client->set_timeout($gearman_timeout);
-    ( my $ret, my $result ) = $client->do( 'cluster_cmd', $cmd );
-
-    if ( $ret == GEARMAN_SUCCESS ) {
-        return "ER0006";
-    }
-    elsif ( !defined $result ) {
-        return "ER0006";
-    }
-    else {
-        return $result;
-    }
-
-}
-
-sub RPad($$$) {
-
-    my $str = shift;
-    my $len = shift;
-    my $chr = shift;
-    $chr = " " unless ( defined($chr) );
-    return substr( $str . ( $chr x $len ), 0, $len );
-}    
-
-sub report_node($$$) {
-    my $self = shift;
-    my $cmd  = shift;
-    my $err  = shift;
-    my $host = shift;
-    print STDERR $cmd . '\n';
-    my $le_localtime = localtime;
-    print $LOG $le_localtime . " $cmd\n";
-    my $status ="na";
-    if ( $self->{status}) { 
-     $status=$self->{status};
-    }
-    push(@console ,
-       '{"time":"'
-      . $le_localtime
-      . '","name":"'
-      .  $host
-      . '","ip":"'
-      .  $self->{ip} 
-      . '","mode":"'
-      .  $self->{mode}  
-      . '","status":"'
-      .  $status
-      . '","code":"'
-      . $err
-      . '","state":"'
-      . $ERRORMESSAGE{$err}  
-      . '"}'
-   );
-   
-
-}
-
-sub node_sync($$$) {
+sub service_sync_database($$$) {
     my $self   = shift;
     my $node   = shift;
     my $master = shift;
@@ -1561,83 +1376,98 @@ sub node_sync($$$) {
     worker_node_command( $param, $self->{ip} );
 }
 
-sub replace_config_line($$$) {
-    my $file   = shift;
-    my $strin  = shift;
-    my $strout = shift;
 
-    open my $in,  '<', $file       or die "Can't read old file: $!";
-    open my $out, '>', "$file.new" or die "Can't write new file: $!";
 
-    while (<$in>) {
-        s/^$strin(.*)$/$strout/gi;
-        print $out $_;
-    }
 
-    close $out;
-    system("rm -f $file.old");
-    system("mv $file $file.old");
-    system("mv $file.new $file");
-    system("chmod 660 $file");
-}
 
-sub list_slaves() {
-    my $host_info;
+sub service_heartbeat_collector($$) {
+    my $status =shift;
+    my $json_status = shift ;
+    
+    my $json    = new JSON;
+    print STDERR "jsoon receive from ping:" . $json_status;
+    #my $status =
+    #  $json->allow_nonref->utf8->relaxed->escape_slash->loose
+    #  ->allow_singlequote->allow_barekey->decode($json_status);
+   
     my $err = "000000";
-    my @slaves;
+    my $host_info;
+    my $host_vip = get_active_master();
+    
+
+    
+    
+   foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
+    foreach my $key (keys %$interface) {
+       
+      print STDERR $interface->{$key}->{IP};   
+    }
+}
+    print STDERR "storing status ping in memcache \n";
+    my $mem_info=get_active_memcache();
+    use Error qw(:try);
+    
+   
+     try {
+       
+        my $memd = new Cache::Memcached {
+           'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
+           'debug'   => 0,
+           'compress_threshold' => 10_000,
+        };
+       if ( my $previous_status = $memd->get( "status". $mem_info->{ip} , $json_status ))
+       { 
+           print " comparing with previous status "; 
+
+       }     
+        $memd->set( "status ".  $mem_info->{ip}, $json_status );
+    }  catch Error with {
+        $err = "ER0005";
+    };
+  
+
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "slave" ) {
-            push( @slaves, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
+        print STDERR "connect to db: " . $host . "\n";
+        
+        # Check memcache_udf
+        service_status_memcache_fromdb($host_info);
+        service_install_mycheckpoint( $host_vip , "mon_" . $host);
+        service_status_mycheckpoint($host_vip,$host_info,$host);
+        
     }
-
-    return join( ',', @slaves );
+    return $err;
+    
 }
 
-sub list_masters() {
-    my $host_info;
-    my $err = "000000";
-    my @masters;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
+
+sub database_rolling_restart(){ 
+ my $host_info;
+ my $host_slave;
+ foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @masters );
-}
+        if  ( $host_info->{mode} eq "slave" ){
+                $ret = node_cmd( $host_info, $host, "stop" );
+                $host_slave=$host_info;
+        }         
+       
+  }
 
-sub list_memcaches() {
-    my $host_info;
-    my $err = "000000";
-    my @memcaches;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
+
+ foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "memcache" ) {
-            push( @memcaches,
-                $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @memcaches );
+        if  ( $host_info->{status} eq "master" ){
+           service_switch_database($host_slave); 
+           $ret = node_cmd( $host_info, $host, "stop" );
+       }         
+       
+  }
+ 
 }
-
-sub list_cluster_ips() {
-    my $host_info;
-    my $err = "000000";
-    my @ips;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-    return uniq(@ips);
-}
-
-sub mha_master_switch($) {
+sub service_switch_database($) {
     my $switchhost = shift;
     my $host_info;
     my $err = "000000";
@@ -1702,6 +1532,342 @@ sub mha_master_switch($) {
     return $err;
 }
 
+
+
+sub node_cmd($$$) {
+    my $self = shift;
+    my $node = shift;
+    my $cmd  = shift;
+    chop( my $my_arch = `arch` );
+    my $param = "";
+    my $err   = "000000";
+    if ( $cmd eq "remove" ) {
+        $err=service_remove_database($self,$node);
+    }
+    elsif ( $cmd eq "status" ) {
+
+        if (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
+            || $self->{mode} eq "spider"
+            || $self->{mode} eq "mysql-proxy"
+            || $self->{mode} eq "keepalived"
+            || $self->{mode} eq "haproxy" )
+        {
+           $err=service_status_database($self,$node);
+        }
+        elsif ( $self->{mode} eq "memcache" ) {
+           $err= service_status_memcache($self,$node);
+        }
+    }
+    elsif (
+        $cmd eq "start"
+        && (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
+            || $self->{mode} eq "spider"
+           )
+          ) {
+        $err=service_start_database($self,$node);
+    }
+    elsif (
+        $cmd eq "stop"
+        && (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
+            || $self->{mode} eq "spider"
+           )
+          ) {
+        service_stop_database($self,$node);
+    }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+    elsif ( $cmd eq "start" && $self->{mode} eq "mysql-proxy" ) {
+      $err=service_start_mysqlproxy($self,$node);   
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "mysql-proxy" ) {
+      $err=sevice_stop_mysqlproxy($self,$node);  
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "keepalived" ) {
+      $err=service_start_keepalived($self,$node); 
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "keepalived" ) {
+      $err=service_stop_keepalived($self,$node); 
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "haproxy" ) {
+      $err=service_start_haproxy($self,$node);     
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "haproxy" ) {
+      $err=service_stop_haproxy($self,$node);         
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "memcache" ) {
+        $err=service_start_memcache($self,$node);   
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "memcache" ) {
+        $err = service_stop_memcache($self,$node);
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "mycheckpoint" ) {
+        $err = service_start_mycheckpoint($self,$node);
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "mycheckpoint" ) {
+        $err = service_stop_mycheckpoint($self,$node); 
+    }
+    
+   
+    report_status( $self, $param, $err, $node );
+    return $err;
+}
+
+sub delete_pid_if_exists($$) {
+    my $pidfile = shift;
+    my $ip      = shift;
+    my $err     = "000000";
+
+    if ( -e $pidfile ) {
+        open PIDHANDLE, "$pidfile";
+        my $localpid = <PIDHANDLE>;
+        close PIDHANDLE;
+        chomp $localpid;
+        $err =
+          worker_node_command( "tail -f /dev/null --pid " . $localpid, $ip );
+    }
+    return $err;
+}
+
+
+sub worker_node_command($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    my $res ="000000";
+    $client->add_servers($ip);
+    print STDOUT $ip . ' ' . $cmd . '\n';
+    
+    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+        if ( $result eq "true" ) {
+            $res = "000000";
+        }
+        else { $res = "ER0003"; }
+
+    }
+    else { $res = "ER0002"; }
+    report_action($ip,$cmd,$res);
+    return $res;
+
+}
+
+sub worker_cloud_command($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+    print STDOUT $ip . ' ' . $cmd . '\n';
+    #$client->set_timeout($gearman_timeout);
+    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
+    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+      if ( !defined $result ) {
+        return "ER0006";
+     } else { 
+        return $result; 
+     }
+    }  
+
+   return "ER0006";
+    
+}
+
+sub worker_config_command($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+
+    #$client->set_timeout($gearman_timeout);
+    ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+        return "ER0006";
+    }
+    elsif ( !defined $result ) {
+        return "ER0006";
+    }
+    elsif ( $result eq '{"result":{"status":"00000"}}' ) {
+        return "000000";
+    }
+    else {
+        return "000000";
+    }
+
+}
+
+sub worker_cluster_command($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+
+    #$client->set_timeout($gearman_timeout);
+    ( my $ret, my $result ) = $client->do( 'cluster_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+        return "ER0006";
+    }
+    elsif ( !defined $result ) {
+        return "ER0006";
+    }
+    else {
+        return $result;
+    }
+
+}
+
+sub RPad($$$) {
+
+    my $str = shift;
+    my $len = shift;
+    my $chr = shift;
+    $chr = " " unless ( defined($chr) );
+    return substr( $str . ( $chr x $len ), 0, $len );
+}    
+
+sub report_status($$$) {
+    my $self = shift;
+    my $cmd  = shift;
+    my $err  = shift;
+    my $host = shift;
+    print STDERR $cmd . '\n';
+    my $le_localtime = localtime;
+    print $LOG $le_localtime . " $cmd\n";
+    my $status ="na";
+    if ( $self->{status}) { 
+     $status=$self->{status};
+    }
+    push(@console ,
+       '{"time":"'
+      . $le_localtime
+      . '","name":"'
+      .  $host
+      . '","ip":"'
+      .  $self->{ip} 
+      . '","mode":"'
+      .  $self->{mode}  
+      . '","status":"'
+      .  $status
+      . '","code":"'
+      . $err
+      . '","state":"'
+      . $ERRORMESSAGE{$err}  
+      . '"}'
+   ); 
+
+}
+sub report_action($$$) {
+    my $ip = shift;
+    my $cmd  = shift;
+    my $err  = shift;
+    my $le_localtime = localtime;
+    print '{"time":"'
+      . $le_localtime
+      . '","ip":"'
+      . $ip 
+      . '","code":"'
+      . $err
+      . '","command":"'
+      . $cmd  
+      . '"}';
+    push(@actions ,
+       '{"time":"'
+      . $le_localtime
+      . '","ip":"'
+      . $ip 
+      . '","code":"'
+      . $err
+      . '","command":"'
+      . $cmd  
+      . '"}'
+   );
+   
+}
+
+
+
+
+sub replace_config_line($$$) {
+    my $file   = shift;
+    my $strin  = shift;
+    my $strout = shift;
+
+    open my $in,  '<', $file       or die "Can't read old file: $!";
+    open my $out, '>', "$file.new" or die "Can't write new file: $!";
+
+    while (<$in>) {
+        s/^$strin(.*)$/$strout/gi;
+        print $out $_;
+    }
+
+    close $out;
+    system("rm -f $file.old");
+    system("mv $file $file.old");
+    system("mv $file.new $file");
+    system("chmod 660 $file");
+}
+
+sub get_all_slaves() {
+    my $host_info;
+    my $err = "000000";
+    my @slaves;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "slave" ) {
+            push( @slaves, $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+
+    return join( ',', @slaves );
+}
+
+sub get_all_masters() {
+    my $host_info;
+    my $err = "000000";
+    my @masters;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+    return join( ',', @masters );
+}
+
+sub get_all_memcaches() {
+    my $host_info;
+    my $err = "000000";
+    my @memcaches;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "memcache" ) {
+            push( @memcaches,
+                $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+    return join( ',', @memcaches );
+}
+
+sub get_all_sercive_ips() {
+    my $host_info;
+    my $err = "000000";
+    my @ips;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        push( @ips, $host_info->{ip} );
+    }
+    return uniq(@ips);
+}
+
+
 sub bootstrap_config() {
    
     my $my_home_user = $ENV{HOME};
@@ -1711,7 +1877,7 @@ sub bootstrap_config() {
       . '/ncc/etc/id_rsa.pub`"; sed -e "\|$string|h; \${x;s|$string||;{g;t};a\\" -e "$string" -e "}" $HOME/.ssh/authorized_keys > $HOME/.ssh/authorized_keys2 ;mv $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys_old;mv $HOME/.ssh/authorized_keys2 $HOME/.ssh/authorized_keys';
     my $err = "000000";
 
-    my @ips = list_cluster_ips();
+    my @ips = get_all_sercive_ips();
     foreach (@ips) {
         my $command =
           "{command:{action:'write_config',group:'localhost',type:'all'}}";
@@ -1727,13 +1893,6 @@ sub bootstrap_config() {
 
     }
 
-    #$cms="cat <<EOF_LO0 > /etc/sysconfig/network-scripts/ifcfg-lo:1
-    #DEVICE=lo:1
-    #IPADDR=192.168.0.10
-    #NETMASK=255.255.255.255
-    #NAME=loopback
-    #ONBOOT=yes
-    #EOF_LO0";
     return $err;
 }
 
@@ -1747,7 +1906,7 @@ sub bootstrap_binaries() {
       . "/skystack.tar.gz  ./skysql";
     system($command);
     my $err = "000000";
-    my @ips = list_cluster_ips();
+    my @ips = get_all_sercive_ips();
     foreach (@ips) {
         if ( is_ip_localhost($_) == 1 ) {
             
@@ -1788,7 +1947,7 @@ sub bootstrap_ncc() {
     my $err          = "000000";
 
 
-    my @ips = list_cluster_ips();
+    my @ips = get_all_sercive_ips();
     foreach (@ips) {
         if ( is_ip_localhost($_) == 1 ) {
 
