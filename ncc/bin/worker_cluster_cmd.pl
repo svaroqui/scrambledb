@@ -46,7 +46,8 @@ our %ERRORMESSAGE = (
     "ER0007" => "Remote monitoring execution failure",
     "ER0008" => "Can't create remote monitoring db",
     "ER0009" => "Database error in memc_set()",
-    "ER0010" => "Database error in memc_servers_set()"
+    "ER0010" => "Database error in memc_servers_set()",
+    "ER0011" => "No Memcached in heartbeat ping"
 
 );
 
@@ -113,17 +114,19 @@ sub is_ip_localhost($) {
 
     foreach my $key ( sort keys %IPs ) {
         if ( $IPs{$key}->{IP} eq $testIP ) {
-            return 0;
+            return 1;
         }
     }
-    return 1;
+    return 0;
 }
 
 sub add_ip_to_list($) {
     my $testIP = shift;
-    $ServiceIPs{$testIP}=0;
+    $ServiceIPs{$testIP}=1;
     return 1;
 }
+
+
 
 
 sub cluster_cmd {
@@ -161,8 +164,9 @@ sub cluster_cmd {
     #  print  STDERR Dumper($config);
     #  print  STDERR $json_config;
 
-    print STDERR "Receive command : $command\n";
+   
     my $action   = $json_text->{command}->{action};
+    if ($action ne "ping" )  {print STDERR "Receive command : $command\n";}
     my $group    = $json_text->{command}->{group};
     my $type     = $json_text->{command}->{type};
     my $query    = $json_text->{command}->{query};
@@ -265,7 +269,7 @@ sub cluster_cmd {
             $host_info = $config->{nosql}->{$nosql};
             add_ip_to_list($host_info->{ip});
             my $pass = 1;
-            print STDOUT $group . " vs " . $nosql;
+            #print STDOUT $group . " vs " . $nosql;
             if ( $group ne $nosql ) { $pass = 0 }
 
             if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
@@ -296,7 +300,7 @@ sub cluster_cmd {
             $host_info = $config->{proxy}->{$host};
             add_ip_to_list($host_info->{ip});
             my $pass = 1;
-            print STDOUT $group . " vs " . $host;
+            #print STDOUT $group . " vs " . $host;
             if ( $group ne $host ) { $pass = 0 }
 
             if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
@@ -326,7 +330,7 @@ sub cluster_cmd {
             $host_info = $config->{lb}->{$host};
             add_ip_to_list($host_info->{ip});
             my $pass = 1;
-            print STDOUT $group . " vs " . $host;
+            #print STDOUT $group . " vs " . $host;
             if ( $group ne $host ) { $pass = 0 }
 
             if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
@@ -356,7 +360,7 @@ sub cluster_cmd {
             my $host_info = $config->{bench}->{default};
             $host_info = $config->{bench}->{$host};
             my $pass = 1;
-            print STDOUT $group . " vs " . $host;
+            #print STDOUT $group . " vs " . $host;
             if ( $group ne $host ) { $pass = 0 }
 
             if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
@@ -386,7 +390,7 @@ sub cluster_cmd {
           my $host_info = $config->{monitor}->{default};
           $host_info = $config->{monitor}->{$host};
           my $pass = 1;
-          print STDOUT $group . " vs " . $host;
+          #print STDOUT $group . " vs " . $host;
           if ( $group ne $host ) { $pass = 0 }
 
           if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
@@ -804,6 +808,93 @@ sub get_active_master_hash() {
    return 0; 
 }
 
+sub get_all_ip_from_status($) {
+  my $status =shift;
+   my @serviceips;  
+  foreach  my $service (  @{ $status->{services_status}->{services}} ) {
+    foreach my $key (keys %$service) {
+     push (@serviceips,$service->{$key}->{ip} );
+   }
+   }
+
+  return @serviceips; 
+}
+
+sub get_source_ip_from_status($) {
+  my $status =shift;
+   my @serviceips;  
+   foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
+    foreach my $attr (keys %$interface) {
+          foreach  my $service (  @{ $status->{services_status}->{services}} ) {
+               foreach my $key (keys %$service) {
+                    if ($service->{$key}->{ip} eq $interface->{$attr}->{IP} ){
+                        return $interface->{$attr}->{IP};
+                    }
+          } 
+        }
+         
+      }
+    }  
+  return "0.0.0.0"; 
+}
+
+sub get_status_diff($$) {
+  my $previous_status =shift;
+  my $status =shift;
+  my $i=0;
+  my @status;   
+  foreach  my $service (  @{ $status->{services_status}->{services}} ) {
+    
+    foreach my $key (keys %$service) {
+        
+      if ($service->{$key}->{status} ne $previous_status->{services_status}->{services}[$i]->{$key}->{status}
+            || $service->{$key}->{code} ne $previous_status->{services_status}->{services}[$i]->{$key}->{code}
+         )    
+      {
+            print STDERR "trigger";
+          push @status, {
+         name     => $key ,
+         type     => "service",
+         state    => $service->{$key}->{status} ,
+         code     => $service->{$key}->{code} , 
+         previous_state =>$previous_status->{services_status}->{services}[$i]->{$key}->{status},
+         previous_code =>$previous_status->{services_status}->{services}[$i]->{$key}->{code}
+        };  
+        
+       }
+       
+     }
+   $i++;
+  }
+   $i=0;
+   foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+     foreach my $attr (keys %$instance) {
+     print STDERR "icice";
+      
+      if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
+          (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
+
+        )    
+      {
+         print STDERR "trigger";
+         push @status, {
+         name     => $instance->{$attr}->{id} ,
+         type     => "instance",
+         state    => defined($instance->{$attr}->{state} ) ? $instance->{$attr}->{state} : "" ,
+         code     => "0" , 
+         previous_state =>$previous_status->{instances_status}->{instances}[$i]->{$attr}->{state},
+         previous_code =>0
+        };  
+       }
+       }
+       $i++;
+     }  
+ 
+    my $json       = new JSON;
+    my $json_status_diff = $json->allow_blessed->convert_blessed->encode(\@status);
+    print STDERR '{"trigger":' . $json_status_diff .'}' ;
+    return $json_status_diff;
+}
 sub get_active_memcache() {
     my $nosql_info; 
     foreach my $nosql (keys(%{$config->{nosql}})) {
@@ -851,11 +942,11 @@ sub service_sql_database($) {
                   . $host_info->{mysql_password} . " : "
                   . $query . "\n";
 
-# my $dbh = DBI->connect($dsn, $host_info->{mysql_user}, $host_info->{mysql_password});
-# my $sth = $dbh->do($query);
-# $sth->execute();
-# $sth->finish();
-# $dbh->disconnect();
+                # my $dbh = DBI->connect($dsn, $host_info->{mysql_user}, $host_info->{mysql_password});
+                # my $sth = $dbh->do($query);
+                # $sth->execute();
+                # $sth->finish();
+                # $dbh->disconnect();
 
             }
             catch Error with {
@@ -932,7 +1023,7 @@ sub service_status_memcache_fromdb($) {
            {RaiseError=>0,PrintError=>1}
         );
         if (!$dbh2)  { 
-          print STDERR "Error Memcqche UDF DB connect failed \n";
+          print STDERR "Error Memcache UDF DB connect failed \n";
           return 0;
         }
          my $sql="SELECT memc_set('test','test',0)";
@@ -1040,7 +1131,7 @@ sub service_status_memcache($$) {
     if ( $val eq "test" ) { $err = "000000"; }
   }  catch Error with {
     $err = "ER0005";
-  }
+  };
   return $err;
 }
 
@@ -1385,7 +1476,7 @@ sub service_heartbeat_collector($$) {
     my $json_status = shift ;
     
     my $json    = new JSON;
-    print STDERR "jsoon receive from ping:" . $json_status;
+    print STDERR "Receive heartbeat..\n";
     #my $status =
     #  $json->allow_nonref->utf8->relaxed->escape_slash->loose
     #  ->allow_singlequote->allow_barekey->decode($json_status);
@@ -1393,43 +1484,55 @@ sub service_heartbeat_collector($$) {
     my $err = "000000";
     my $host_info;
     my $host_vip = get_active_master();
-    
-
-    
-    
-   foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
-    foreach my $key (keys %$interface) {
-       
-      print STDERR $interface->{$key}->{IP};   
-    }
-}
-    print STDERR "storing status ping in memcache \n";
-    my $mem_info=get_active_memcache();
-    use Error qw(:try);
+    my $source_ip = get_source_ip_from_status($status) ;
+  print STDERR "heratbeat from ". $source_ip;
+   my $mem_info=get_active_memcache();
+ 
+    print STDERR "Process the ping with memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
     
    
-     try {
-       
-        my $memd = new Cache::Memcached {
+      my $memd = new Cache::Memcached {
            'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
-           'debug'   => 0,
+           'debug'   => 1,
            'compress_threshold' => 10_000,
         };
-       if ( my $previous_status = $memd->get( "status". $mem_info->{ip} , $json_status ))
+        
+        use Error qw(:try);
+        try {
+   
+          my $previous_json_status = $memd->get( "status".  $source_ip);
+        
+       
+        if ($previous_json_status )
        { 
-           print " comparing with previous status "; 
-
+          
+            my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+            ->allow_singlequote->allow_barekey->decode($previous_json_status);
+         
+           get_status_diff($previous_status,$status);
+          
        }     
-        $memd->set( "status ".  $mem_info->{ip}, $json_status );
+       
     }  catch Error with {
-        $err = "ER0005";
+         print STDERR "\nbogus get bogus\n";
+        $err = "ER0011";
+    };
+
+    try {
+        print STDERR "\nStoring hearbeat to memcache..\n";
+       
+        $memd->set( "status".   $source_ip, $json_status );
+        
+       }  catch Error with {
+         print STDERR "bogus set memcache\n";
+        $err = "ER00012";
     };
   
 
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        print STDERR "connect to db: " . $host . "\n";
+        print STDERR "Connect to db: " . $host . "\n";
         
         # Check memcache_udf
         service_status_memcache_fromdb($host_info);
@@ -1909,7 +2012,7 @@ sub bootstrap_binaries() {
     my $err = "000000";
     my @ips = get_all_sercive_ips();
     foreach (@ips) {
-        if ( is_ip_localhost($_) == 1 ) {
+        if ( is_ip_localhost($_) == 0 ) {
             
             $command =
                 "scp -q -i  "
@@ -1950,7 +2053,7 @@ sub bootstrap_ncc() {
 
     my @ips = get_all_sercive_ips();
     foreach (@ips) {
-        if ( is_ip_localhost($_) == 1 ) {
+        if ( is_ip_localhost($_) ==0) {
 
             $command =
                 "scp -q -i "
@@ -1966,7 +2069,7 @@ sub bootstrap_ncc() {
               . $sshkey. " "
               . $_
               . " \"tar -xzv -f /tmp/ncc.tar.gz -C "
-              . $SKYBASEDIR . " && "
+              . $SKYBASEDIR . " ; "
               . $SKYBASEDIR
               . "/ncc/init.d/clusterd stop && "
               . $SKYBASEDIR

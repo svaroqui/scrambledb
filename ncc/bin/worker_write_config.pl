@@ -466,7 +466,7 @@ sub write_mha_config($){
   foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "master" || $host_info->{mode} eq "slave") {
+        if ($host_info->{status} eq "master" || $host_info->{status} eq "slave") {
             print $out "[server$i]\n";
             print $out "hostname=$host_info->{ip}\n";
             print $out "ip=$host_info->{ip}\n";
@@ -497,14 +497,14 @@ sub get_lua_connection_pool_server_id(){
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "master") {
+        if ($host_info->{status} eq "master") {
               push(@backend  , $host_info->{mysql_port});
          }
     }
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "slave") {
+        if ($host_info->{status} eq "slave") {
               push(@backend ,  $host_info->{mysql_port});
          }
     }
@@ -521,7 +521,7 @@ sub list_slaves(){
   foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "slave") {
+        if ($host_info->{status} eq "slave") {
               push(@slaves  , $host_info->{ip}.":". $host_info->{mysql_port});
          }
     }
@@ -535,7 +535,7 @@ sub list_masters(){
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "master") {
+        if ($host_info->{status} eq "master") {
               push(@masters  , $host_info->{ip}.":". $host_info->{mysql_port});
          }
     }
@@ -549,7 +549,7 @@ sub get_master_host(){
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "master") {
+        if ($host_info->{status} eq "master") {
             return $host_info;
         }
     }

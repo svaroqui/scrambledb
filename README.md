@@ -1,4 +1,6 @@
-scrambledb
+ScrambleDB
 ==========
 
-ScambleDB is an open source cluster stack based on Proxying and MariaDB asynchronous replication 
+ScambleDB is a database cluster open source solution based on proxying and MariaDB that provide advanced data flow and SQL routing to users 
+The requirement from day one will be high availability, enable advanced automatic cloud deployements and user oriented elastic SQL distribution
+

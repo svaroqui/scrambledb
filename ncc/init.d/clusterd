@@ -104,13 +104,14 @@ start()
 stop()
 {
   kill `cat $PIDFILE`
+  killall gearmand   
   rm -f $PIDFILE
   _dfiles="$SKYBASEDIR/ncc/tmp/wrk*.pid"
  
 for f in $_dfiles
 do
-
-  kill `cat $f`
+  echo "killing `cat $f`"
+  kill `cat $f`  
   rm -f $f
 done  
 
