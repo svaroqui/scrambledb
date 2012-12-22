@@ -92,14 +92,17 @@ def launching_ec2_instances(config):
    import boto
    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
    
-   img = conn.run_instances( config["cloud"]["template"] ,
+   reservations = conn.run_instances( config["cloud"]["template"] ,
         key_name=config["cloud"]["key"],
         subnet_id=config["cloud"]["subnet"],
         instance_type=config["cloud"]["instance_type"],
-        placement=config["cloud"]["zone"],
-        instance_profile_arn=config["command"]["group"])
+        placement=config["cloud"]["zone"])
+   for reservation in reservations:
+      for i in reservation.instances: 
+         conn.create_tags([i.id], {"name":config["command"]["group"]})
    #     security_groups=[ config["cloud"]["security_groups"]])
-   return json.dumps(img)    
+   
+   return json.dumps(reservations)    
 
 # Establish a connection with the job server on localhost--like the client,
 # multiple job servers can be used.
