@@ -92,17 +92,29 @@ def launching_ec2_instances(config):
    import boto
    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
    
-   reservations = conn.run_instances( config["cloud"]["template"] ,
+   reservation = conn.run_instances( config["cloud"]["template"] ,
         key_name=config["cloud"]["key"],
         subnet_id=config["cloud"]["subnet"],
         instance_type=config["cloud"]["instance_type"],
+        security_group_ids=[ config["cloud"]["security_groups"]], 
+        private_ip_address=config["command"]["ip"],
         placement=config["cloud"]["zone"])
-   for reservation in reservations:
-      for i in reservation.instances: 
-         conn.create_tags([i.id], {"name":config["command"]["group"]})
+   i = reservation.instances[0] 
+   status = i.update()
+   while status == 'pending':
+      time.sleep(10)
+      print('waiting 10s... ')
+      status = i.update()
+   if status == 'running':
+      print('running adding tag... ')
+      conn.create_tags([i.id], {"Name": config["command"]["group"]})
+      # i.add_tag("Name","{{ScambleDB}}")
+   else:
+      print('Instance status: ' + status)
+    
    #     security_groups=[ config["cloud"]["security_groups"]])
    
-   return json.dumps(reservations)    
+   return json.dumps(reservation)    
 
 # Establish a connection with the job server on localhost--like the client,
 # multiple job servers can be used.

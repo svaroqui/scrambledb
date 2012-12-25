@@ -47,7 +47,7 @@ our %ERRORMESSAGE = (
     "ER0008" => "Can't create remote monitoring db",
     "ER0009" => "Database error in memc_set()",
     "ER0010" => "Database error in memc_servers_set()",
-    "ER0011" => "No Memcached in heartbeat ping"
+    "ER0011" => "No Memcached for heartbeat"
 
 );
 
@@ -96,6 +96,49 @@ while (1) {
     if ( $ret != GEARMAN_SUCCESS ) {
         printf( STDERR "%s\n", $worker->error() );
     }
+}
+
+
+sub is_ip_from_status_present($$) {
+  my $status =shift;
+  my $ip =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+      if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
+        return 1;
+      }
+    }
+   }
+  return 0; 
+}
+sub is_ip_from_status_running($$) {
+  my $status =shift;
+  my $ip =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+       if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
+      
+        if($instance->{$key}->{state} eq "running" ) {
+            return 1;
+        }
+      }    
+    }
+   }
+  return 0; 
+}
+
+
+sub get_instance_id_from_status_ip($$){
+my $status =shift;
+ my $ip =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+     if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
+            return $instance->{$key}->{id};
+       }     
+    }
+   }
+  return 0; 
 }
 
 sub is_ip_localhost($) {
@@ -205,7 +248,7 @@ sub cluster_cmd {
            $ret = database_rolling_restart();
         }
         elsif ( $action eq "ping" ) {
-          $ret = service_heartbeat_collector($json_text,$command);
+          $ret = instance_heartbeat_collector($json_text,$command);
         }
 
         foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
@@ -231,22 +274,22 @@ sub cluster_cmd {
                    $ret = service_install_database( $host_info, $host, $host_info->{mode} );
                }
                if ( $action eq "stop" ) {
-                   $ret = node_cmd( $host_info, $host, $action );
+                   $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "sync" ) {
                    $ret = service_sync_database( $host_info, $host, $peer_host_info );
                }
                if ( $action eq "start" ) {
-                   $ret = node_cmd( $host_info, $host, $action, $query );
+                   $ret = service_do_command( $host_info, $host, $action, $query );
                }
                if ( $action eq "remove" ) {
-                   $ret = node_cmd( $host_info, $host, $action, $query );
+                   $ret = service_do_command( $host_info, $host, $action, $query );
                }
                if ( $action eq "restart" ) {
-                   $ret = node_cmd( $host_info, $host, $action );
+                   $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "status" ) {
-                   $ret = node_cmd( $host_info, $host, $action );
+                   $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "join" ) {
                    $ret = spider_node_join( $host_info, $host ); 
@@ -280,16 +323,16 @@ sub cluster_cmd {
             if ( $pass == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
-                    $ret = node_cmd( $host_info, $nosql, $action );
+                    $ret = service_do_command( $host_info, $nosql, $action );
                 }
                 if ( $action eq "start" ) {
-                    $ret = node_cmd( $host_info, $nosql, $action, $query );
+                    $ret = service_do_command( $host_info, $nosql, $action, $query );
                 }
                 if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $nosql, $action );
+                    $ret = service_do_command( $host_info, $nosql, $action );
                 }
                 if ( $action eq "status" ) {
-                    $ret = node_cmd( $host_info, $nosql, $action );
+                    $ret = service_do_command( $host_info, $nosql, $action );
                 }
             }
 
@@ -311,16 +354,16 @@ sub cluster_cmd {
             if ( $pass == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
                 if ( $action eq "start" ) {
-                    $ret = node_cmd( $host_info, $host, $action, $query );
+                    $ret = service_do_command( $host_info, $host, $action, $query );
                 }
                 if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
                 if ( $action eq "status" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
             }
 
@@ -341,16 +384,16 @@ sub cluster_cmd {
             if ( $pass == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
                 if ( $action eq "start" ) {
-                    $ret = node_cmd( $host_info, $host, $action, $query );
+                    $ret = service_do_command( $host_info, $host, $action, $query );
                 }
                 if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
                 if ( $action eq "status" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
             }
 
@@ -380,7 +423,7 @@ sub cluster_cmd {
                     $ret = service_start_bench( $host_info, $host, $action, $query );
                 }
                 if ( $action eq "restart" ) {
-                    $ret = node_cmd( $host_info, $host, $action );
+                    $ret = service_do_command( $host_info, $host, $action );
                 }
 
             }
@@ -402,13 +445,13 @@ sub cluster_cmd {
               my $le_localtime = localtime;
 
               if ( $action eq "stop" ) {
-                  $ret = node_cmd( $host_info, $host, $action );
+                  $ret = service_do_command( $host_info, $host, $action );
               }
               if ( $action eq "start" ) {
-                  $ret = node_cmd( $host_info, $host, $action, $query );
+                  $ret = service_do_command( $host_info, $host, $action, $query );
               }
               if ( $action eq "restart" ) {
-                  $ret = node_cmd( $host_info, $host, $action );
+                  $ret = service_do_command( $host_info, $host, $action );
               }
 
           }
@@ -758,6 +801,64 @@ sub spider_create_table_info($$) {
     }
     return $err;
 }
+
+
+sub get_all_slaves() {
+    my $host_info;
+    my $err = "000000";
+    my @slaves;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "slave" ) {
+            push( @slaves, $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+
+    return join( ',', @slaves );
+}
+
+sub get_all_masters() {
+    my $host_info;
+    my $err = "000000";
+    my @masters;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{status} eq "master" ) {
+            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+    return join( ',', @masters );
+}
+
+sub get_all_memcaches() {
+    my $host_info;
+    my $err = "000000";
+    my @memcaches;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{mode} eq "memcache" ) {
+            push( @memcaches,
+                $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+    }
+    return join( ',', @memcaches );
+}
+
+sub get_all_sercive_ips() {
+    my $host_info;
+    my $err = "000000";
+    my @ips;
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        push( @ips, $host_info->{ip} );
+    }
+    return uniq(@ips);
+}
+
 
 
 sub get_vip_service() {
@@ -1154,8 +1255,10 @@ sub service_start_memcache($$) {
 sub service_start_database($$) {
     my $self = shift;
     my $node = shift;
+   
     my $err = "000000";
 
+    
     my $param = "$self->{datadir}/sandboxes/$node/send_kill";
     $err = worker_node_command( $param, $self->{ip} );
 
@@ -1471,7 +1574,7 @@ sub service_sync_database($$$) {
 
 
 
-sub service_heartbeat_collector($$) {
+sub instance_heartbeat_collector($$) {
     my $status =shift;
     my $json_status = shift ;
     
@@ -1485,15 +1588,15 @@ sub service_heartbeat_collector($$) {
     my $host_info;
     my $host_vip = get_active_master();
     my $source_ip = get_source_ip_from_status($status) ;
-  print STDERR "heratbeat from ". $source_ip;
-   my $mem_info=get_active_memcache();
+    print STDERR "heratbeat from ". $source_ip;
+    my $mem_info=get_active_memcache();
  
     print STDERR "Process the ping with memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
     
    
       my $memd = new Cache::Memcached {
            'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
-           'debug'   => 1,
+           'debug'   => 0,
            'compress_threshold' => 10_000,
         };
         
@@ -1522,6 +1625,8 @@ sub service_heartbeat_collector($$) {
         print STDERR "\nStoring hearbeat to memcache..\n";
        
         $memd->set( "status".   $source_ip, $json_status );
+        $memd->set( "status", $json_status );
+        
         
        }  catch Error with {
          print STDERR "bogus set memcache\n";
@@ -1535,9 +1640,9 @@ sub service_heartbeat_collector($$) {
         print STDERR "Connect to db: " . $host . "\n";
         
         # Check memcache_udf
-        service_status_memcache_fromdb($host_info);
-        service_install_mycheckpoint( $host_vip , "mon_" . $host);
-        service_status_mycheckpoint($host_vip,$host_info,$host);
+       # service_status_memcache_fromdb($host_info);
+       # service_install_mycheckpoint( $host_vip , "mon_" . $host);
+       # service_status_mycheckpoint($host_vip,$host_info,$host);
         
     }
     return $err;
@@ -1552,7 +1657,7 @@ sub database_rolling_restart(){
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
         if  ( $host_info->{mode} eq "slave" ){
-                $ret = node_cmd( $host_info, $host, "stop" );
+                $ret = service_do_command( $host_info, $host, "stop" );
                 $host_slave=$host_info;
         }         
        
@@ -1564,7 +1669,7 @@ sub database_rolling_restart(){
         $host_info = $config->{db}->{$host};
         if  ( $host_info->{status} eq "master" ){
            service_switch_database($host_slave); 
-           $ret = node_cmd( $host_info, $host, "stop" );
+           $ret = service_do_command( $host_info, $host, "stop" );
        }         
        
   }
@@ -1637,13 +1742,66 @@ sub service_switch_database($) {
 
 
 
-sub node_cmd($$$) {
+sub service_do_command($$$) {
     my $self = shift;
     my $node = shift;
     my $cmd  = shift;
     chop( my $my_arch = `arch` );
     my $param = "";
     my $err   = "000000";
+      print STDERR "Service Do command \n";
+
+    if ( $cmd eq "start" ) {
+    # get the instances status from memcache 
+        my $mem_info=get_active_memcache();
+
+        print STDERR "Get the status in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
+
+
+        my $memd = new Cache::Memcached {
+               'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
+               'debug'   => 0,
+               'compress_threshold' => 10_000,
+        };
+
+        use Error qw(:try);
+        #try {
+           my $cloud = get_active_cloud();
+           my $json_cloud       = new JSON ;
+           my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
+            
+           my $json_status = $memd->get("status");
+           if (!$json_status )
+           {
+              print STDERR "No instance status in memcache \n";
+              return "ERR000014";  
+           }
+           my $status = $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
+            ->allow_singlequote->allow_barekey->decode($json_status);
+         
+          if ( is_ip_from_status_present($status,$self->{ip})==1) {
+             print STDERR "Service Ip is found in status \n";   
+             if ( is_ip_from_status_running($status,$self->{ip})==0) {
+                my $instance=get_instance_id_from_status_ip($status,$self->{ip});
+                # not running but present need to start 
+                my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
+                worker_cloud_command($start_instance,"localhost");
+              }
+         } else 
+         {
+              print STDERR "Service Ip is not found in status \n";
+             my $launch_instance='{"level":"instances","command":{"action":"launch","group":"ScrambleDB","type":"all","ip":"'.$self->{ip}.'"},"cloud":'. $json_cloud_str. '}';
+             worker_cloud_command($launch_instance,"localhost");
+             #wait_until_ssh() 
+             #launch new instance with given ip  
+         } 
+    #}  
+    #catch Error with {
+    #     print STDERR "\nbogus get bogus\n";
+    #    $err = "ER0011";
+    #    return $err;
+    #};      
+    } 
     if ( $cmd eq "remove" ) {
         $err=service_remove_database($self,$node);
     }
@@ -1742,7 +1900,7 @@ sub worker_node_command($$) {
     $client->add_servers($ip);
     print STDOUT $ip . ' ' . $cmd . '\n';
     
-    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
+    ( my $ret, my $result ) = $client->do( 'service_do_command', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
         if ( $result eq "true" ) {
@@ -1764,7 +1922,7 @@ sub worker_cloud_command($$) {
     $client->add_servers($ip);
     print STDOUT $ip . ' ' . $cmd . '\n';
     #$client->set_timeout($gearman_timeout);
-    #(my $ret,my $result) = $client->do_background('node_cmd', $cmd);
+    #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
     ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
@@ -1784,7 +1942,7 @@ sub worker_config_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-
+    print STDERR "Worker_config_command for ip :". $ip ."\n";
     #$client->set_timeout($gearman_timeout);
     ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
 
@@ -1915,65 +2073,8 @@ sub replace_config_line($$$) {
     system("chmod 660 $file");
 }
 
-sub get_all_slaves() {
-    my $host_info;
-    my $err = "000000";
-    my @slaves;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "slave" ) {
-            push( @slaves, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-
-    return join( ',', @slaves );
-}
-
-sub get_all_masters() {
-    my $host_info;
-    my $err = "000000";
-    my @masters;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @masters );
-}
-
-sub get_all_memcaches() {
-    my $host_info;
-    my $err = "000000";
-    my @memcaches;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "memcache" ) {
-            push( @memcaches,
-                $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @memcaches );
-}
-
-sub get_all_sercive_ips() {
-    my $host_info;
-    my $err = "000000";
-    my @ips;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-    return uniq(@ips);
-}
-
-
 sub bootstrap_config() {
-   
+    print STDERR "bootstrap_config\n"; 
     my $my_home_user = $ENV{HOME};
     my $cmd =
         'string="`cat '
@@ -1994,9 +2095,9 @@ sub bootstrap_config() {
               . $SKYBASEDIR
               . "/ncc/etc" );
         $err = worker_config_command( $command, $_ );
-
+        
     }
-
+    print STDERR "End bootstrap_config\n";
     return $err;
 }
 
@@ -2088,7 +2189,7 @@ sub stop_all_proxy() {
         $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
         if ( $host_info->{mode} eq "mysql-proxy" ) {
-            node_cmd( $host_info, $host, "stop" );
+            service_do_command( $host_info, $host, "stop" );
         }
     }
 
@@ -2102,7 +2203,7 @@ sub start_all_proxy() {
         $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
         if ( $host_info->{mode} eq "mysql-proxy" ) {
-            node_cmd( $host_info, $host, "start" );
+            service_do_command( $host_info, $host, "start" );
         }
     }
 }

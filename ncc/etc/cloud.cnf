@@ -126,7 +126,7 @@
 <cloud cloud2>
     status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
-    password        	   xxxx
+    password        	   xxx
     host            	   na
     version         	   1.5
     driver          	   EC2
@@ -135,7 +135,7 @@
     zone                   us-east-1b
     region                 us-east 
     instance_type          t1.micro
-    security_groups        secure-group-vpc 
+    security_groups        sg-2128c74e 
     vpc                    vpc-7032621b
     subnet                 subnet-49326222 
     public_key             SDS145000.pem
