@@ -47,7 +47,10 @@ our %ERRORMESSAGE = (
     "ER0008" => "Can't create remote monitoring db",
     "ER0009" => "Database error in memc_set()",
     "ER0010" => "Database error in memc_servers_set()",
-    "ER0011" => "No Memcached for heartbeat"
+    "ER0011" => "No Memcached for heartbeat",
+    "ER0014" => "No Memcached status for action",
+    "ER0015" => "No Memcached actions ",
+    "ER0016" => "Delayed start until instance start"
 
 );
 
@@ -58,14 +61,12 @@ our $createtable           = "";
 our $like                  = "none";
 our $database              = "";
 our $gearman_timeout       = 2000;
-
+our $gearman_ip            ="localhost";
 
 our $mysql_connect_timeout = 1;
 our $config                = new SKY::Common::Config::;
 $config->read("etc/cloud.cnf");
 $config->check('SANDBOX');
-
-
 
 my %ServiceIPs;
 my @console;
@@ -97,6 +98,7 @@ while (1) {
         printf( STDERR "%s\n", $worker->error() );
     }
 }
+
 
 
 sub is_ip_from_status_present($$) {
@@ -223,7 +225,7 @@ sub cluster_cmd {
 
        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
        print  STDERR $json_cloud_str;
-       $ret= worker_cloud_command($json_cloud_str,"localhost");
+       $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
        return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
     }  
     if ( $level eq "services" ){
@@ -941,10 +943,10 @@ sub get_source_ip_from_status($) {
 
 sub get_status_diff($$) {
   my $previous_status =shift;
-  my $status =shift;
+  my $status_r =shift;
   my $i=0;
-  my @status;   
-  foreach  my $service (  @{ $status->{services_status}->{services}} ) {
+  my @diff;   
+  foreach  my $service (  @{ ${$status_r}->{services_status}->{services}} ) {
     
     foreach my $key (keys %$service) {
         
@@ -953,9 +955,10 @@ sub get_status_diff($$) {
          )    
       {
             print STDERR "trigger";
-          push @status, {
+          push @diff, {
          name     => $key ,
-         type     => "service",
+         type     => "services",
+         ip    => $service->{$key}->{ip} ,
          state    => $service->{$key}->{status} ,
          code     => $service->{$key}->{code} , 
          previous_state =>$previous_status->{services_status}->{services}[$i]->{$key}->{status},
@@ -968,34 +971,49 @@ sub get_status_diff($$) {
    $i++;
   }
    $i=0;
-   foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+   foreach  my $instance (  @{ ${$status_r}->{instances_status}->{instances}} ) {
      foreach my $attr (keys %$instance) {
-     print STDERR "icice";
-      
-      if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
+       my $skip=0; 
+       print STDERR "ici test ssh\n"; 
+       if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
           (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
 
         )    
-      {
-         print STDERR "trigger";
-         push @status, {
-         name     => $instance->{$attr}->{id} ,
-         type     => "instance",
-         state    => defined($instance->{$attr}->{state} ) ? $instance->{$attr}->{state} : "" ,
-         code     => "0" , 
-         previous_state =>$previous_status->{instances_status}->{instances}[$i]->{$attr}->{state},
-         previous_code =>0
-        };  
+       {
+           
+            if ((defined($instance->{$attr}->{state}) ? $instance->{$attr}->{state} : "" ) eq "running"){
+             if( instance_check_ssh($instance->{$attr}->{ip}) ==0 ) {
+                  print STDERR "skipping because ssh failed\n";
+                  ${$status_r}->{instances_status}->{instances}[$i]->{$attr}->{state}="pending";
+                     $skip=1;  
+               
+`   `         } 
+
+         } 
+         if ($skip==0 )   {
+           print STDERR "trigger";
+          
+           push @diff, {
+            name     => $instance->{$attr}->{id} ,
+            type     => "instances",
+            ip       => defined($instance->{$attr}->{ip}) ?  $instance->{$attr}->{ip} : "",
+            state    => defined($instance->{$attr}->{state} ) ? $instance->{$attr}->{state} : "" ,
+            code     => "0" , 
+            previous_state =>$previous_status->{instances_status}->{instances}[$i]->{$attr}->{state},
+            previous_code =>0
+          };  
+        }
+
        }
        }
        $i++;
      }  
- 
-    my $json       = new JSON;
-    my $json_status_diff = $json->allow_blessed->convert_blessed->encode(\@status);
-    print STDERR '{"trigger":' . $json_status_diff .'}' ;
-    return $json_status_diff;
+     my $json       = new JSON;
+     my $json_status_diff = '{"events":' . $json->allow_blessed->convert_blessed->encode(\@diff).'}';
+     print STDERR   $json_status_diff . "\n";
+     return $json_status_diff;
 }
+
 sub get_active_memcache() {
     my $nosql_info; 
     foreach my $nosql (keys(%{$config->{nosql}})) {
@@ -1248,6 +1266,7 @@ sub service_start_memcache($$) {
       . $SKYBASEDIR
       . "/ncc/etc/memcached."
       . $node . ".cnf";
+  print STDERR  "service_start_memcache : " . $param  ." on: ". $self->{ip};   
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1571,8 +1590,22 @@ sub service_sync_database($$$) {
 }
 
 
-
-
+sub instance_check_ssh($){
+    my $ip =shift;
+    my $command="ssh -q -i "
+    . $SKYBASEDIR
+    . $sshkey. " "
+    . ' -o "BatchMode=yes"  -o "StrictHostKeyChecking=no" '
+    . $ip
+    .' "echo 2>&1" && echo "OK" || echo "NOK"';
+  my  $result = `$command`;
+  print STDERR "\nsortie du ssh test :".$command. " : " . $result . "test\n";
+   $result =~ s/\n//g; 
+     if ( $result eq "OK"){ 
+        return 1;
+    }
+  return 0;
+}
 
 sub instance_heartbeat_collector($$) {
     my $status =shift;
@@ -1600,8 +1633,8 @@ sub instance_heartbeat_collector($$) {
            'compress_threshold' => 10_000,
         };
         
-        use Error qw(:try);
-        try {
+   #     use Error qw(:try);
+   #     try {
    
           my $previous_json_status = $memd->get( "status".  $source_ip);
         
@@ -1611,15 +1644,17 @@ sub instance_heartbeat_collector($$) {
           
             my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
             ->allow_singlequote->allow_barekey->decode($previous_json_status);
-         
-           get_status_diff($previous_status,$status);
-          
+            # pass a reference as the status need to be change in case of ssh failed 
+            my $json_triggers = get_status_diff($previous_status,\$status);
+            worker_doctor_command($json_triggers,$gearman_ip);
+            $json_status= $json->allow_blessed->convert_blessed->encode($status);
+            print STDERR "after diff: ". $json_status;
        }     
        
-    }  catch Error with {
-         print STDERR "\nbogus get bogus\n";
-        $err = "ER0011";
-    };
+    #}  catch Error with {
+    #     print STDERR "\nbogus get bogus\n";
+    #    $err = "ER0011";
+    #};
 
     try {
         print STDERR "\nStoring hearbeat to memcache..\n";
@@ -1632,7 +1667,12 @@ sub instance_heartbeat_collector($$) {
          print STDERR "bogus set memcache\n";
         $err = "ER00012";
     };
-  
+    my $json_todo = $memd->get("actions");
+    if (!$json_todo )
+    {
+              print STDERR "No actions in memcache heartbeat setting empty json  \n";
+              $memd->set( "actions", '{"actions":[]}' );
+    }
 
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
@@ -1640,7 +1680,7 @@ sub instance_heartbeat_collector($$) {
         print STDERR "Connect to db: " . $host . "\n";
         
         # Check memcache_udf
-       # service_status_memcache_fromdb($host_info);
+        service_status_memcache_fromdb($host_info);
        # service_install_mycheckpoint( $host_vip , "mon_" . $host);
        # service_status_mycheckpoint($host_vip,$host_info,$host);
         
@@ -1751,13 +1791,13 @@ sub service_do_command($$$) {
     my $err   = "000000";
       print STDERR "Service Do command \n";
 
-    if ( $cmd eq "start" ) {
-    # get the instances status from memcache 
+    if ( $cmd eq "start" && is_ip_localhost($self->{ip})==0) {
+        # get the instances status from memcache 
         my $mem_info=get_active_memcache();
 
         print STDERR "Get the status in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
 
-
+        
         my $memd = new Cache::Memcached {
                'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
                'debug'   => 0,
@@ -1773,25 +1813,61 @@ sub service_do_command($$$) {
            my $json_status = $memd->get("status");
            if (!$json_status )
            {
-              print STDERR "No instance status in memcache \n";
-              return "ERR000014";  
+              print STDERR "No status in memcache \n";
+              report_status( $self, $param,  "ER0014", $node );
+              return "ER0014";  
            }
+           my $json_todo = $memd->get("actions");
+           if (!$json_todo )
+           {
+              print STDERR "No actions in memcache \n";
+              report_status( $self, $param,  "ER0015", $node );
+              return "ER0015";  
+           }
+           
            my $status = $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
             ->allow_singlequote->allow_barekey->decode($json_status);
-         
+           
+           my $todo =  $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
+            ->allow_singlequote->allow_barekey->decode($json_todo);
+                
+            
           if ( is_ip_from_status_present($status,$self->{ip})==1) {
              print STDERR "Service Ip is found in status \n";   
              if ( is_ip_from_status_running($status,$self->{ip})==0) {
                 my $instance=get_instance_id_from_status_ip($status,$self->{ip});
                 # not running but present need to start 
                 my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
-                worker_cloud_command($start_instance,"localhost");
+                worker_cloud_command($start_instance,$gearman_ip);
+                
+                 push  @{$todo->{actions}} , {
+                    event_ip       => $self->{ip},
+                    event_type     => "instances",
+                    event_state    => "running" ,
+                    do_level       => "services" ,
+                    do_group       => $node,
+                    do_action      => "bootstrap_ncc" 
+                  };     
+                   push  @{$todo->{actions}} , {
+                    event_ip       => $self->{ip},
+                    event_type     => "instances",
+                    event_state    => "running" ,
+                    do_level       => "services" ,
+                    do_group       => $node,
+                    do_action      => $cmd 
+                  };       
+                  
+                  $json_todo =  $json_cloud->allow_blessed->convert_blessed->encode($todo);
+                  print STDERR "Delayed actions :" . $json_todo ."\n";     
+                  $memd->set( "actions",  $json_todo);
+                  report_status( $self, $param,  "ER0016", $node );
+                  return "ER0016";
               }
          } else 
          {
               print STDERR "Service Ip is not found in status \n";
              my $launch_instance='{"level":"instances","command":{"action":"launch","group":"ScrambleDB","type":"all","ip":"'.$self->{ip}.'"},"cloud":'. $json_cloud_str. '}';
-             worker_cloud_command($launch_instance,"localhost");
+             worker_cloud_command($launch_instance,$gearman_ip);
              #wait_until_ssh() 
              #launch new instance with given ip  
          } 
@@ -1900,7 +1976,7 @@ sub worker_node_command($$) {
     $client->add_servers($ip);
     print STDOUT $ip . ' ' . $cmd . '\n';
     
-    ( my $ret, my $result ) = $client->do( 'service_do_command', $cmd );
+    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
         if ( $result eq "true" ) {
@@ -1961,14 +2037,16 @@ sub worker_config_command($$) {
 
 }
 
-sub worker_cluster_command($$) {
+
+
+sub worker_doctor_command($$) {
     my $cmd    = shift;
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
 
     #$client->set_timeout($gearman_timeout);
-    ( my $ret, my $result ) = $client->do( 'cluster_cmd', $cmd );
+    ( my $ret, my $result ) = $client->do( 'consult_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
         return "ER0006";

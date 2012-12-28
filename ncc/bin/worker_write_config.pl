@@ -139,7 +139,7 @@ sub write_cmd {
     print STDOUT "write memcached config\n"; 
     write_lua_script();
     print STDOUT "write lua script from config\n"; 
-    write_mysql_config();
+  #  write_mysql_config();
 
     return  $console ;
 
@@ -400,7 +400,7 @@ sub write_mysql_config(){
         if (is_ip_localhost ($host_info->{ip})) {
            system(`cat /proc/meminfo |  grep "MemTotal" | awk '{print \$2}'`); 
            my $ram =$? ;
-             replace_config("$SKYBASEDIR/sandboxes/$host/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
+             replace_config("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
              if ($ram eq "0") {
             
              }    

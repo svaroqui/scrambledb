@@ -72,6 +72,7 @@ WORKER=$SKYBASEDIR/ncc/bin/worker_node_cmd.pl
 WORKERCLUSTER=$SKYBASEDIR/ncc/bin/worker_cluster_cmd.pl 
 WORKERCONFIG=$SKYBASEDIR/ncc/bin/worker_write_config.pl
 WORKERHEARBEAT=$SKYBASEDIR/ncc/bin/worker_heartbeat.pl
+WORKERDOCTOR=$SKYBASEDIR/ncc/bin/worker_cluster_doctor.pl
 WORKERCLOUD=$SKYBASEDIR/ncc/bin/worker_cloud_cmd.py
 
 start()
@@ -98,6 +99,11 @@ start()
   nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid 
+
+  nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
+  procid=$!
+  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid 
+
 
 }
 
