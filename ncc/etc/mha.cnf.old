@@ -1,6 +1,6 @@
 [server1]
-hostname=10.0.0.102
-ip=10.0.0.102
+hostname=127.0.0.1
+ip=127.0.0.1
 port=5010
 repl_user=skysql
 repl_password=skyvodka
@@ -12,8 +12,8 @@ ssh_options="-i /usr/local/skysql/ncc/etc/id_rsa"
 basedir=/usr/local/skysql
 
 [server2]
-hostname=10.0.0.48
-ip=10.0.0.48
+hostname=127.0.0.1
+ip=127.0.0.1
 port=5012
 repl_user=skysql
 repl_password=skyvodka
@@ -25,8 +25,8 @@ ssh_options="-i /usr/local/skysql/ncc/etc/id_rsa"
 basedir=/usr/local/skysql
 
 [server3]
-hostname=10.0.0.47
-ip=10.0.0.47
+hostname=127.0.0.1
+ip=127.0.0.1
 port=5011
 repl_user=skysql
 repl_password=skyvodka

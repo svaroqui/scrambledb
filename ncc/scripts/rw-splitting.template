@@ -476,7 +476,7 @@ function read_query( packet )
       elseif (proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then
           if  (not (tokens == nil)) then    
             tbls = get_sql_tables(tokens)
-            local memcache= Memcached.Connect({memcache_host , memcache_port}) 
+            local memcache= Memcached.Connect({memcache_master , memcache_port}) 
             local slaveGTID=0  
             local masterGTID=0  
             for tbl,v in pairs(tbls) do

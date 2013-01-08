@@ -2,7 +2,7 @@
 pid-file = mysql-proxy.pid
 log-file = /usr/local/skysql/ncc/log/mysql-proxy.log
 log-level = debug
-proxy-address =10.0.0.48:3307
-proxy-backend-addresses=10.0.0.102:5010
-proxy-read-only-backend-addresses=10.0.0.48:5012,10.0.0.47:5011
+proxy-address =127.0.0.1:3309
+proxy-backend-addresses=127.0.0.1:5010
+proxy-read-only-backend-addresses=127.0.0.1:5012,127.0.0.1:5011
 proxy-lua-script = /usr/local/skysql/ncc/scripts/proxy3.lua

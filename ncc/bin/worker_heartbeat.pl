@@ -53,8 +53,10 @@ sub gearman_client() {
         $interface = $1 if /^(\S+?):?\s/;
         next unless defined $interface;
         $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
-        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
-  }
+        $IPs{$interface}->{STATE} =defined( $IPs{$interface}->{STATE}) ?  $IPs{$interface}->{STATE} : "na";
+        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i; 
+        $IPs{$interface}->{IP} =defined( $IPs{$interface}->{IP}) ?  $IPs{$interface}->{IP} : "na";
+    }
   my $json       = new JSON ;
   my $json_interfaces = $json->allow_nonref->utf8->encode(\%IPs);
   

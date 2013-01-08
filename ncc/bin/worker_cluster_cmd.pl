@@ -36,7 +36,7 @@ struct 'nosql' => {
 };
 
 our %ERRORMESSAGE = (
-    "000000" => "On",
+    "000000" => "running",
     "ER0001" => "SQL command failure",
     "ER0002" => "Remote manager communication failure",
     "ER0003" => "Database communication failure",
@@ -154,8 +154,11 @@ sub is_ip_localhost($) {
         $interface = $1 if /^(\S+?):?\s/;
         next unless defined $interface;
         $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
-        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
+        $IPs{$interface}->{STATE} =defined( $IPs{$interface}->{STATE}) ?  $IPs{$interface}->{STATE} : "na";
+        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i; 
+        $IPs{$interface}->{IP} =defined( $IPs{$interface}->{IP}) ?  $IPs{$interface}->{IP} : "na";
     }
+   
 
     foreach my $key ( sort keys %IPs ) {
         if ( $IPs{$key}->{IP} eq $testIP ) {
@@ -217,16 +220,22 @@ sub cluster_cmd {
     my $query    = $json_text->{command}->{query};
     my $database = $json_text->{command}->{database};
     my $level    = $json_text->{level};
-    if ( $level eq "instances" ){
+    if ( $level eq "instances"  ){
        my $json_cloud       = new JSON ;
        my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
        my $json_cmd       = new JSON ;
        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
 
        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
-       print  STDERR $json_cloud_str;
-       $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
-       return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
+      
+         print  STDERR $json_cloud_str;
+       if ($cloud->{driver} ne "LOCAL") {
+            $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
+       } 
+       else {
+          $ret= get_local_instances_status();
+       }   
+        return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
     }  
     if ( $level eq "services" ){
         if ( $action eq "sql" ) {
@@ -863,16 +872,28 @@ sub get_all_sercive_ips() {
 
 
 
-sub get_vip_service() {
+
+sub get_local_instances_status() {
+    
+    my @ips=get_all_sercive_ips();
+    my @interfaces;
+    my $i=0;
     my $host_info;
-    foreach my $vip ( keys( %{ $config->{lb} } ) ) {
-        $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$vip};
-        if ( $host_info->{mode} eq "keepalived" ) {
-            return $host_info;
-        }
+    
+    foreach my $ip ( @ips)  {
+        push @interfaces, {"instance". $i=>  {
+            id     => "instance". $i,
+            ip       => $ip,
+            state       => "running"
+           }     
+        };
+
+     $i++;    
     }
-   return 0; 
+    my $json       = new JSON;
+     my $json_instances_status =  $json->allow_blessed->convert_blessed->encode(\@interfaces);
+   
+   return $json_instances_status ; 
 }
 
 
@@ -1113,7 +1134,10 @@ sub service_status_mycheckpoint($$$) {
           . " --host="
           . $host_vip->{ip}
           . " --port="
-          . $host_vip->{mysql_port};
+          . $host_vip->{mysql_port}
+          . " --disable-bin-log"
+          . " --purge-days="
+          . $host_info->{purge-days};
 
         $err = worker_node_command( $cmd, $host_info->{ip} );
         if(  $err eq "00000" ){
@@ -1151,7 +1175,7 @@ sub service_status_memcache_fromdb($) {
         my $sth2 = $dbh2->do($sql);
         if (!$sth2)  {    
              print STDERR "Error Mon connect memc_set \n";
-             return 0;
+            
         }
         $sql="SELECT memc_get('test') as c1";
           
@@ -1413,11 +1437,13 @@ sub service_stop_mysqlproxy($$) {
   my $self = shift;
   my $name = shift;
   my $err = "000000";
+    
   my $param =
             "kill -9 `cat "
           . $SKYBASEDIR
           . "/ncc/tmp/mysql-proxy."
           . $name . ".pid`";
+ print STDERR  $param ."\n";
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1681,8 +1707,8 @@ sub instance_heartbeat_collector($$) {
         
         # Check memcache_udf
         service_status_memcache_fromdb($host_info);
-       # service_install_mycheckpoint( $host_vip , "mon_" . $host);
-       # service_status_mycheckpoint($host_vip,$host_info,$host);
+        service_install_mycheckpoint( $host_vip , "mon_" . $host);
+        service_status_mycheckpoint($host_vip,$host_info,$host);
         
     }
     return $err;
@@ -1919,7 +1945,7 @@ sub service_do_command($$$) {
       $err=service_start_mysqlproxy($self,$node);   
     }
     elsif ( $cmd eq "stop" && $self->{mode} eq "mysql-proxy" ) {
-      $err=sevice_stop_mysqlproxy($self,$node);  
+      $err=service_stop_mysqlproxy($self,$node);  
     }
     elsif ( $cmd eq "start" && $self->{mode} eq "keepalived" ) {
       $err=service_start_keepalived($self,$node); 

@@ -145,10 +145,10 @@ rm -rf libmemcached-0.34
 
 tar xzf memcached_functions_mysql-1.1.tar.gz
 cd memcached_functions_mysql-1.1
-./configure --with-mysql=$SKYDESTDIR/mariadb/bin/mysql_config --libdir=$SKYDESTDIR/mariadb/lib/plugin/
+./configure --with-mysql=$SKYDESTDIR/mariadb/bin/mysql_config --libdir=$SKYDESTDIR/mariadb/lib/plugin/ --with-libmemcached=$SKYDESTDIR/memcached-client/
 make 
 make install 
-./configure --with-mysql=$SKYDESTDIR/mysql/bin/mysql_config 
+./configure --with-mysql=$SKYDESTDIR/mysql/bin/mysql_config --with-libmemcached=$SKYDESTDIR/memcached-client/
 make
 make install
 

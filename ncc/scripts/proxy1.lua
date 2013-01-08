@@ -29,7 +29,7 @@ local auto_config = require("proxy.auto-config")
 
 
 local backend_id_server = { 5010,5012,5011}
-local memcache_master="10.0.0.102"
+local memcache_master="127.0.0.1"
 local memcache_port = 11211
 -- insert here --	    
 

@@ -20,7 +20,7 @@ export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/si
 export SANDBOX_AS_ROOT=1
 export PYTHONUSERBASE=$SKYBASEDIR/MySQL-python
 export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
-export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/
+export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/:$SKYBASEDIR/boost/lib/
 
 cd $SKYBASEDIR/ncc
 

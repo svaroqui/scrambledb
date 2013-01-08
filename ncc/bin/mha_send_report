@@ -24,4 +24,7 @@ GetOptions(
 'subject=s' => \$subject,
 'body=s' => \$body,
 );
+my $emails='stephane@skysql.com';
+system("echo '$body' | mail -s '$subject' '$emails'");
+
 exit 0;

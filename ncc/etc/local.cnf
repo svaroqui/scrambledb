@@ -2,7 +2,8 @@
     topology                MASTERSLAVE
 </architecture>
 
-<cloud vcloud1>
+<cloud cloud1>
+    status          slave
     user            xxxx
     password        xxxx
     host            vcloud.hegerys.com
@@ -11,22 +12,36 @@
     template        Centos6.2x86_64_SkySQL_Template   
     key             none
     ex_vdc          vApp_skysql_1
+    instance_type   na
+</cloud>
+
+<cloud cloud2>
+    status          master
+    user            xxxx
+    password        xxxx
+    host            na
+    version         1.5
+    driver          LOCAL
+    template        na   
+    key             na
+    ex_vdc          na
+    instance_type   na
+    public_key      id_rsa
 </cloud>
 
 <db default>
     cluster_interface       eth0
     replication_user        repl
     replication_password    repl
-   
     mysql_user		    skysql 
     mysql_password	    skyvodka		
     agent_user              skysql
     agent_password          skyvodka
-  	
 </db>
 
 <db node10>
-    mode                    master
+    status                    master
+    mode                    mariadb
     ip                      127.0.0.1
     peer                    node11
     mysql_version           mariadb
@@ -37,7 +52,8 @@
 </db>
 
 <db node11>
-    mode                    slave 
+    mode                    mariadb 
+    status                    slave 
     ip                      127.0.0.1
     peer		    node10
     mysql_version	    mariadb
@@ -49,7 +65,8 @@
 
 
 <db node12>
-    mode                    slave 
+    status                  slave 
+    mode                    mariadb 
     ip                      127.0.0.1
     peer		    node10
     mysql_version	    mariadb
@@ -159,7 +176,7 @@
 
 <bench bench1> 
   mode                    dbt2
-  peer                    lb1
+  ip                    127.0.0.1  
   warehouse               100
   concurrency             16 
   duration                600
@@ -168,6 +185,7 @@
 
 <monitor mon1>
     mode                  mycheckpoint
+    ip                    127.0.0.1  
     port                  8080
     smtp-from             mon@skysql.com
     smtp-to               stephane@skysql.com
