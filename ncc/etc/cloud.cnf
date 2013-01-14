@@ -1,8 +1,3 @@
-<architecture>
-    topology                MASTERSLAVE
-</architecture>
-
-
 
 <db default>
     cluster_interface       eth0
@@ -12,12 +7,13 @@
     mysql_password	    skyvodka		
     agent_user              skysql
     agent_password          skyvodka
-    datadir		    /var/lib/skysql  	
+  	
 </db>
 
 <db node10>
     mode                    mariadb
 	status				master
+    cloud                   cloud2
     ip                      10.0.0.102
     peer                    node11
     mysql_version           mariadb
@@ -31,6 +27,7 @@
 <db node11>
     mode                    mariadb
 	status				slave
+    cloud                   cloud2    
     ip                      10.0.0.47
     peer		    node10
     mysql_version	    mariadb
@@ -45,6 +42,7 @@
 <db node12>
     mode                    mariadb
 	status 				slave
+    cloud                   cloud2
     ip                      10.0.0.49
     peer		    node10
     mysql_version	    mariadb
@@ -58,6 +56,7 @@
 #<db node20>
 #    ip                      10.0.0.102
 #    mode                    monitor
+#    cloud                   cloud2
 #    state                   slave 
 #    peer                    node10,node11
 #    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
@@ -70,6 +69,7 @@
 <proxy proxy1> 
    mode                    mysql-proxy
     ip                      10.0.0.102 
+    cloud                   cloud2
     hosts                   node10
     peer		    node11	
     port 		    3307 
@@ -79,6 +79,7 @@
 <proxy proxy2>
     mode                    mysql-proxy
     ip                      10.0.0.47
+    cloud                   cloud2
     hosts                   node10
     peer                    node11
     port                    3307
@@ -88,6 +89,7 @@
 <proxy proxy3>
     mode                    mysql-proxy
     ip                      10.0.0.48
+    cloud                   cloud2
     hosts                   node10
     peer                    node11
     port                    3307
@@ -97,17 +99,45 @@
 <nosql nosql1>
     ip                      10.0.0.102
     mode                    memcache
+    cloud                   cloud2
     status                   master
     port              	    11211
     mem                    16
 </nosql>
+
 <nosql nosql2>
     ip                      10.0.0.48
+    cloud                   cloud2
     mode                    memcache
     status                  slave
     port                    11211
-    mem                    16
+    mem                     16
 </nosql>
+
+<nosql nosql3>
+    ip                      10.0.0.48
+    mode                    tarantool 
+    cloud                   cloud2
+    status                  master
+    port                    33013
+    mem                     16
+    secondary_port          33014
+    admin_port              33015
+    rows_per_wal            50000
+</nosql>
+
+<nosql nosql4>
+    ip                      10.0.0.49
+    mode                    tarantool
+    cloud                   cloud2
+    status                  slave
+    port                    33023
+    mem                     16
+    secondary_port          33024
+    admin_port              33025
+    rows_per_wal            50000
+</nosql>
+
 
 
 <cloud cloud1>
@@ -130,7 +160,7 @@
     host            	   na
     version         	   1.5
     driver          	   EC2
-    template        	   ami-cb23a0a2   
+    template        	   ami-45f8702c   
     key             	   SDS145000
     zone                   us-east-1b
     region                 us-east 
@@ -161,6 +191,7 @@
     ip                      10.0.0.102
     vip                     10.0.0.10
     port                    3306  
+    cloud                   cloud2
     peer                    lb2
     status                  master	
     mode                    keepalived
@@ -172,6 +203,7 @@
 <lb lb2>
     ip                      10.0.0.47
     vip                     10.0.0.10
+    cloud                   cloud2
     port                    3306  
     status                  slave
     peer                    lb1
@@ -183,7 +215,8 @@
 
 <lb lb3>
     ip                      10.0.0.102
-    vip                     0.0.0.0 
+    vip                     0.0.0.0
+    cloud                   cloud2 
     port                    3306  
     status                  master
     mysql_user		    skysql 
@@ -196,6 +229,7 @@
 <lb lb4>
     ip                      10.0.0.47
     vip                     0.0.0.0
+    cloud                   cloud2
     mysql_user		    skysql 
     mysql_password	    skyvodka	
     status                  master	
@@ -208,6 +242,7 @@
 <bench bench1>  
   ip                      10.0.0.47
   mode                    dbt2
+  cloud                   cloud2  
   peer                    lb1
   warehouse               100
   concurrency             16 
@@ -218,9 +253,10 @@
 <monitor mon1>
     mode                  mycheckpoint
     port                  8080
-    smtp-from             mon@skysql.com
-    smtp-to               stephane@skysql.com
-    smtp-host             localhost  
+    cloud                 cloud2
+    smtp_from             mon@skysql.com
+    smtp_to               stephane@skysql.com
+    smtp_host             localhost  
     ip                    10.0.0.102
-    purge-days            1  
+    purge_days            1  
 </monitor>

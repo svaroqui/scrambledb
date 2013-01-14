@@ -20,7 +20,7 @@ tmp_table_size = 64M
 expire_logs_days=7
 
 sort_buffer_size =  512K
-join_buffer_size =  2M 
+join_buffer_size =  1M 
 
 innodb_flush_method=O_DIRECT
 innodb_io_capacity=1024
@@ -28,7 +28,7 @@ innodb_read_io_thread = 4
 innodb_thread_concurrency= 1024
 innodb_doublewrite=0   
 innodb_old_blocks_time=2
-innodb_buffer_pool_size =1G
+innodb_buffer_pool_size =200M
 innodb_open_files=1024
 innodb_max_dirty_pages_pct=30
 innodb_flush_log_at_trx_commit = 1

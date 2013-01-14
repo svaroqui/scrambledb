@@ -59,9 +59,9 @@ our $RULESET = {
 		'true_copy'			=> { 'default' => 0, 'boolean' => 1 },
 		}
 	},
-	'db'				=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+	'db' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
 		'ip'				=> { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
-		
+		'cloud'                         => { 'refvalues' => 'cloud'  },
                 'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','monitor'] },
                 'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone'] },
                 'peer'				=> { 'deprequired' => { 'state' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
@@ -101,7 +101,7 @@ our $RULESET = {
 		'lvm_mount_opts'		=> { 'required' => ['TOOLS'] },
 		}
 	},
-	'check'				=> { 'create_if_empty' => ['MONITOR'], 'multiple' => 1, 'template' => 'default', 'values' => ['ping', 'mysql', 'rep_backlog', 'rep_threads'], 'section' => {
+	'check'	=> { 'create_if_empty' => ['MONITOR'], 'multiple' => 1, 'template' => 'default', 'values' => ['ping', 'mysql', 'rep_backlog', 'rep_threads'], 'section' => {
 		'check_period'			=> { 'default' => 5 },
 		'trap_period'			=> { 'default' => 10 },
 		'timeout'			=> { 'default' => 2 },
@@ -109,18 +109,17 @@ our $RULESET = {
 		'max_backlog'			=> { 'default' => 60 }		# XXX ugly
 		}
 	},
-        'architecture'                  => { 'required' => 1,  'template' => 'default', 'section' => {
-            'topology'                          => { 'required' => ['MASTERSLAVE', 'NDBCLUSTER', 'GALERACLUSTER','SPIDERCLUSTER'] } 
-            }
-	},
-        'nosql'                         => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
-
+        
+        'nosql' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+              	 'cloud'                        => { 'refvalues' => 'cloud'  },
                  'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
 		 'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['memcache', 'tarantool','mongodb','cassandra','hbase'] },
                  'status'			=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] },
                  'mem'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'default' => 16  },
-                 'port'                         => { 'default' => 11211 }
-		 
+                 'port'                         => { 'default' => 11211 },
+                 'secondary_port'               => { 'default' => 33014 }, 
+                 'admin_port'                   => { 'default' => 33015 }, 
+                 'rows_per_wal'                 => { 'default' => 50000 }
 	}}
         ,
         'cloud'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
@@ -146,10 +145,9 @@ our $RULESET = {
 		 
 	}},
          'proxy'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
-
+         	 'cloud'                        => { 'refvalues' => 'cloud'  },
                  'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
 		 'mode'                         => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql-proxy', 'skygate'] },
-        	 'peer'                         => { 'deprequired' => { 'mode' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
                  'hosts'                        => { 'refvalues' => 'db', 'multiple' => 1 },       
                  'mysql_user'			=> { 'default' => 'skysql' },
 		 'mysql_password'		=> { 'default' => 'skyvodka' },
@@ -161,6 +159,7 @@ our $RULESET = {
 		 
 	}},
          'lb'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+                 'cloud'                        => { 'refvalues' => 'cloud'  },
                  'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                  'vip'                         => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
 		 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['keepalived', 'peacemaker','haproxy'] },
@@ -177,7 +176,7 @@ our $RULESET = {
          'bench'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
                 'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
                 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench'] },
-        	'peer'                        => { 'deprequired' => { 'mode' => ['keepalived', 'peacemaker','haproxy']}, 'refvalues' => 'lb'  },
+        	'cloud'                        => { 'refvalues' => 'cloud'  },
                 'warehouse'			=> { 'default' => '10' },
                 'duration'			=> { 'default' => '100' },
                 'concurrency'			=> { 'default' => '10' },
@@ -186,11 +185,13 @@ our $RULESET = {
 	}} ,
          'monitor'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
                 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mycheckpoint', 'cacti','mulin', "monyog"] },
-        	'smtp-from'			=> { 'default' => '' },
-                'smtp-to'			=> { 'default' => '' },
-                'smtp-host'			=> { 'default' => '' },
+        	'smtp_from'			=> { 'default' => '' },
+                'smtp_to'			=> { 'default' => '' },
+                'smtp_host'			=> { 'default' => '' },
                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
-                'port'                         => { 'default' => 8080  }
+                'port'                         => { 'default' => 8080  },
+        	'cloud'                        => { 'refvalues' => 'cloud'  },
+                'purge_days'                         => { 'default' => 1 }
 		
 	}}
 };

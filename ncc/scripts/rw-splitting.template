@@ -169,15 +169,15 @@ function get_sql_tables(tokens)
 		elseif sql_stmt == "INSERT" then
 			-- INSERT INTO ...
 
-                        -- print ( "We are in insert into and token :" .. token["token_name"])      
+                       -- print ( "We are in insert into and token :" .. token["token_name"] .. "token value :" )      
                        if ( token["token_name"] == "TK_SQL_INSERT") then  
                             in_tablelist = true
                         elseif  in_tablelist then
-				if token["token_name"] == "TK_LITERAL" and in_tablelist  then
+				if (token["token_name"] == "TK_LITERAL"  or token["token_name"] == "TK_FUNCTION" )and in_tablelist  then
                                     if not db_name and tokens[i + 1] and tokens[i + 1].token_name == "TK_DOT" then
 						db_name = token.text
 				    else
-                                     --   print ("Found table_name : " .. token.text) 
+                                        print ("Found insert table_name : " .. token.text) 
 					tables[tablename_expand(token.text, db_name)] = (sql_stmt == "SELECT" and "read" or "write")
                                         in_tablelist = false
                                     end    
@@ -187,15 +187,15 @@ function get_sql_tables(tokens)
 			end
 		elseif sql_stmt == "UPDATE" then
 			-- UPDATE <tbl> SET ..
-                        if ( token["token_name"] == "TK_SQL_UPDATE") then  
+                        if ( token["token_name"] == "TK_SQL_UPDATE" ) then  
                             in_tablelist = true
                         end        
 			if in_tablelist then
-				if token["token_name"] == "TK_LITERAL" then
+				if token["token_name"] == "TK_LITERAL"  then
                                    if not db_name and tokens[i + 1] and tokens[i + 1].token_name == "TK_DOT" then
 						db_name = token.text
 				    else
-                                     --   print ("Found table_name : " .. token.text) 
+                                        print ("Found update table_name : " .. token.text  ) 
 					tables[tablename_expand(token.text, db_name)] = (sql_stmt == "SELECT" and "read" or "write")
                                         in_tablelist = false
     
@@ -238,12 +238,12 @@ function connect_server()
 		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
 		
 		if is_debug then
-			print("  [".. i .."].connected_clients = " .. s.connected_clients)
-			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
-			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
-			print("  [".. i .."].type = " .. s.type)
-			print("  [".. i .."].state = " .. s.state)
+		--	print("  [".. i .."].connected_clients = " .. s.connected_clients)
+		--	print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
+		--	print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
+		--	print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
+		--	print("  [".. i .."].type = " .. s.type)
+		--	print("  [".. i .."].state = " .. s.state)
 		end
 
 		-- prefer connections to the master 
@@ -280,7 +280,7 @@ function connect_server()
 
 	if proxy.connection.server then 
 		if is_debug then
-			print("  using pooled connection from: " .. proxy.connection.backend_ndx)
+		--	print("  using pooled connection from: " .. proxy.connection.backend_ndx)
 		end
 
 		-- stay with it
@@ -288,7 +288,7 @@ function connect_server()
 	end
 
 	if is_debug then
-		print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
+	--	print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
 	end
 
 	-- open a new connection 
@@ -299,12 +299,12 @@ end
 
 function read_auth_result( auth )
 	if is_debug then
-		print("[read_auth_result] " .. proxy.connection.client.src.name)
+	--	print("[read_auth_result] " .. proxy.connection.client.src.name)
 	end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
 		proxy.connection.backend_ndx = 0
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
-		print("(read_auth_result) ... not ok yet");
+	--	print("(read_auth_result) ... not ok yet");
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
 		-- auth failed
 	end
@@ -332,7 +332,7 @@ function read_query( packet )
 		}
 	
 		if is_debug then
-			print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
+			-- print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
 		end
 
 		return proxy.PROXY_SEND_RESULT
@@ -466,8 +466,8 @@ function read_query( packet )
              local i=4
             for tbl,v in pairs(tbls) do 
                 print (tbl)
-                print ("INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)") 
-                proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)",{ resultset_is_needed = true } )
+                print ("INSERT into  mysql.TBLGTID select CRC32(\"" .. tbl .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)") 
+                proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "INSERT into mysql.TBLGTID select CRC32(\"" .. tbl .. "\"), 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)",{ resultset_is_needed = true } )
                 i=i+1
              end 
              proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
@@ -476,7 +476,7 @@ function read_query( packet )
       elseif (proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then
           if  (not (tokens == nil)) then    
             tbls = get_sql_tables(tokens)
-            local memcache= Memcached.Connect({memcache_master , memcache_port}) 
+            local memcache= Memcached.Connect(memcache_master , memcache_port) 
             local slaveGTID=0  
             local masterGTID=0  
             for tbl,v in pairs(tbls) do
@@ -488,6 +488,7 @@ function read_query( packet )
                 proxy.connection.backend_ndx = lb.idle_failsafe_rw()
                 if is_debug then
                   print ("   Fail back to master : No memcache entry in master")
+                  proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
                 end
                 memcache:disconnect_all()   
                 break
@@ -500,6 +501,7 @@ function read_query( packet )
                 proxy.connection.backend_ndx = lb.idle_failsafe_rw()
                 if is_debug then
                  print ("   Fail back to master : No memcache entry in slave")
+                 proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
                 end
                 memcache:disconnect_all()   
                 break

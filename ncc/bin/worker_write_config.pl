@@ -1,4 +1,22 @@
 #!/usr/bin/env perl
+#  Copyright (C) 2012 SkySQL AB Co.,Ltd.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#  Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+## Note: This is a sample script and is not complete. Modify the script based on your environment.
+
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
@@ -43,7 +61,7 @@ or die "can't create 'worker_write_config.log'\n";
 
 
 
-my $worker = new Gearman::XS::Worker;
+        my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server('',0);
 if ($ret != GEARMAN_SUCCESS) {
 		printf(STDERR "%s\n", $worker->error());
@@ -275,7 +293,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
         foreach my $nosql (keys(%{$config->{nosql}})) {
         $nosql_info = $config->{nosql}->{default};
         $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master"){
+        if  ( $nosql_info->{status} eq "master" && $nosql_info->{mode} eq "memcache" ){
          print $out  get_lua_connection_pool_server_id() ."\n";
          print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
          print $out "local memcache_port = " . $nosql_info->{port} ."\n";

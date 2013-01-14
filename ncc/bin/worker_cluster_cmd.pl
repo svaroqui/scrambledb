@@ -1,4 +1,21 @@
 #!/usr/bin/env perl
+#  Copyright (C) 2012 SkySQL AB.,Ltd.
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#  Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
@@ -24,8 +41,8 @@ struct 'host' => {
     mysql_user           => '$',
     mysql_password       => '$',
     mysql_version        => '$',
-    mysql_cnf            => '$',
-    datadir              => '$'
+    mysql_cnf            => '$'
+  
 };
 
 struct 'nosql' => {
@@ -76,7 +93,7 @@ my $sshkey;
 
 
 open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
-  or die "can't create 'worker_cluster_cmd.log'\n";
+  or die "can't c   reate 'worker_cluster_cmd.log'\n";
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server( '', 0 );
@@ -113,6 +130,7 @@ sub is_ip_from_status_present($$) {
    }
   return 0; 
 }
+
 sub is_ip_from_status_running($$) {
   my $status =shift;
   my $ip =shift;
@@ -173,6 +191,7 @@ sub add_ip_to_list($) {
     $ServiceIPs{$testIP}=1;
     return 1;
 }
+
 
 
 
@@ -282,7 +301,7 @@ sub cluster_cmd {
                my $le_localtime = localtime;
                print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
                if ( $action eq "install" ) {
-                   $ret = service_install_database( $host_info, $host, $host_info->{mode} );
+                   $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "stop" ) {
                    $ret = service_do_command( $host_info, $host, $action );
@@ -479,6 +498,13 @@ sub cluster_cmd {
 
 }
 
+sub init_gttid(){
+
+  my $sql ="replace into TBLGTID select CRC32(concat(table_schema, table_name)), 0,1  from information_schema.tables;";
+
+}
+
+ 
 sub lookup_table_name($) {
     my $lquery = shift;
     my @tokens = tokenize_sql($lquery);
@@ -674,7 +700,6 @@ sub spider_node_sql($$$$$$$) {
     my $query      = shift;
     my $database   = shift;
     my $ddlallnode = shift;
-    chop( my $my_arch = `arch` );
     my $param  = "";
     my $err    = "000000";
     my $result = "";
@@ -867,6 +892,22 @@ sub get_all_sercive_ips() {
         $host_info = $config->{db}->{$host};
         push( @ips, $host_info->{ip} );
     }
+    foreach my $host ( keys( %{ $config->{nosql} } ) ) {
+        $host_info = $config->{nosql}->{default};
+        $host_info = $config->{nosql}->{$host};
+        push( @ips, $host_info->{ip} );
+    }
+    foreach my $host ( keys( %{ $config->{proxy} } ) ) {
+        $host_info = $config->{proxy}->{default};
+        $host_info = $config->{proxy}->{$host};
+        push( @ips, $host_info->{ip} );
+    }
+     foreach my $host ( keys( %{ $config->{lb} } ) ) {
+        $host_info = $config->{lb}->{default};
+        $host_info = $config->{lb}->{$host};
+        push( @ips, $host_info->{ip} );
+    }
+
     return uniq(@ips);
 }
 
@@ -905,6 +946,18 @@ sub get_active_cloud() {
         if ( $host_info->{status} eq "master" ) {
             return $host_info;
         }
+    }
+   return 0; 
+}
+
+sub get_active_monitor() {
+    my $host_info;
+    foreach my $host ( keys( %{ $config->{monitor} } ) ) {
+        $host_info = $config->{monitor}->{default};
+        $host_info = $config->{monitor}->{$host};
+      #  if ( $host_info->{status} eq "master" ) {
+            return $host_info;
+      #  }
     }
    return 0; 
 }
@@ -968,9 +1021,9 @@ sub get_status_diff($$) {
   my $i=0;
   my @diff;   
   foreach  my $service (  @{ ${$status_r}->{services_status}->{services}} ) {
-    
+   
     foreach my $key (keys %$service) {
-        
+      print STDERR $key . "\n";    
       if ($service->{$key}->{status} ne $previous_status->{services_status}->{services}[$i]->{$key}->{status}
             || $service->{$key}->{code} ne $previous_status->{services_status}->{services}[$i]->{$key}->{code}
          )    
@@ -1114,6 +1167,7 @@ sub service_status_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
   my $host=shift;
+  my $mon=get_active_monitor();
   my $err; 
   my $cmd =
             $SKYBASEDIR
@@ -1136,8 +1190,8 @@ sub service_status_mycheckpoint($$$) {
           . " --port="
           . $host_vip->{mysql_port}
           . " --disable-bin-log"
-          . " --purge-days="
-          . $host_info->{purge-days};
+          . " --purge-days=" 
+          . $mon->{purge_days};
 
         $err = worker_node_command( $cmd, $host_info->{ip} );
         if(  $err eq "00000" ){
@@ -1190,6 +1244,7 @@ sub service_status_memcache_fromdb($) {
                 $stm->finish(); 
            }  
          else {
+             $dbh2->disconnect;
              return 0;
              print STDERR "Error Mon connect memc_GET\n";
           }
@@ -1205,6 +1260,7 @@ sub service_status_memcache_fromdb($) {
             }
             catch Error with {
                  print STDERR "Mon connect memc_servers_set\n";
+                 $dbh2->disconnect;
                 return 0;
 
             };  
@@ -1295,6 +1351,25 @@ sub service_start_memcache($$) {
   return $err;
 }
 
+sub service_start_tarantool($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+
+   
+  my $param =
+        $SKYBASEDIR
+      . "/tarantool/bin/tarantool_box -B -c "
+      . $SKYBASEDIR
+      . "/ncc/etc/tarantool."
+      . $node . ".cnf";
+  print STDERR  "service_start_tarantool : " . $param  ." on: ". $self->{ip};   
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
+}
+
+
+
 sub service_start_database($$) {
     my $self = shift;
     my $node = shift;
@@ -1302,15 +1377,15 @@ sub service_start_database($$) {
     my $err = "000000";
 
     
-    my $param = "$self->{datadir}/sandboxes/$node/send_kill";
+    my $param = "$SKYDATADIR/sandboxes/$node/send_kill";
     $err = worker_node_command( $param, $self->{ip} );
 
-    $param = "$self->{datadir}/sandboxes/$node/start";
+    $param = "$SKYDATADIR/sandboxes/$node/start";
     $err = worker_node_command( $param, $self->{ip} );
     
     my $memcaches = get_all_memcaches();
     $param =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
           . "SELECT memc_servers_set('"
           . $memcaches . "');\"";
     $err = worker_node_command( $param, $self->{ip} );
@@ -1404,22 +1479,31 @@ sub service_start_bench($$$$) {
     foreach my $bench ( keys( %{ $config->{lb} } ) ) {
 
     #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
-    #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
-        $host_info = $config->{lb}->{default};
+       $host_info = $config->{lb}->{default};
         $host_info = $config->{lb}->{$bench};
-        if ( $host_info->{mode} eq "haproxy" ) {
+        if ( $host_info->{mode} eq "keepalived" ) {
             $bench_info = $host_info;
         }
     }
     # my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
     my $cmd =
-        "/bin/client -u "
+      $SKYBASEDIR
+      . "/dbt2/bin/client -u "
       . $bench_info->{mysql_user} . " -h "
       . $bench_info->{vip} . " -a "
-      . $bench_info->{mysql_user}
-      . " -f -c 10 -s 10 -d dbt2 -l "
-      . $bench_info->{port} . "  -o";
+      . $bench_info->{mysql_password}
+      . " -f -c "
+      . $self->{concurrency}."  -s "
+      . " 10 -d dbt2 -l "
+      . $bench_info->{port} . "  -o &";
     $err = worker_node_command( $cmd, $self->{ip} );
+     #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
+    $cmd =
+      $SKYBASEDIR
+      . "/src/driver -u "
+      . "-d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 1  -outdir "
+      . $SKYDATADIR."/" . $node ; 
+
     return $err;
 }
 
@@ -1428,7 +1512,7 @@ sub service_stop_database($$) {
     my $node = shift;
     my $err = "000000";
 
-    my $param = "$self->{datadir}/sandboxes/$node/send_kill";
+    my $param = "$SKYDATADIR/sandboxes/$node/send_kill";
     $err = worker_node_command( $param, $self->{ip} );
 
     return $err;
@@ -1493,9 +1577,40 @@ sub service_stop_mycheckpoint($$) {
   return $err;
 }
 
-sub service_install_bench() {
+sub service_install_bench($$) {
+ my $self=shift;
+ my $name = shift;
+ my $cmd="mkdir ". $SKYDATADIR ."/".$name;
+ worker_node_command( $cmd, $self->{ip} );
+ 
+ $cmd=$SKYBASEDIR. "/dbt2/bin/datagen  -w 3 -d ". $SKYDATADIR ."/".$name." --mysql";
+ worker_node_command( $cmd, $self->{ip} );
+ my $master= get_active_master();
+ $cmd=$SKYBASEDIR. "/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f". $SKYDATADIR ."/".$name." -s /tmp/mysql_sandbox" .$master->{mysql_port}.".sock -u " .$master->{mysql_user}." -p".$master->{mysql_password}." -e INNODB"; ;
+ worker_node_command( $cmd, $self->{ip} );
+ 
+# "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
+# /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/ -s /tmp/mysql_sandbox5010.sock -u skysql  -pskyvodka -e INNODB
+}
 
-# /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/  -h 192.168.0.100 -u skysql  -pskyvodka -e INNODB
+sub service_install_tarantool($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  my $param =
+        "mkdir "
+      .  $SKYDATADIR 
+      . "/"
+      . $node ;
+  print STDERR  "service_start_tarantool : " . $param  ." on: ". $self->{ip};   
+  $err = worker_node_command( $param, $self->{ip} );
+  $param =
+        "chown skysql:skysql "
+      . $SKYDATADIR 
+      . "/"
+      . $node;
+  $err = worker_node_command( $param, $self->{ip});
+  return $err;
 }
 
 sub service_install_mycheckpoint($$) {
@@ -1532,7 +1647,6 @@ sub service_install_database($$$) {
     my $node = shift;
     my $type = shift;
     my $err  = "000000";
-    chop( my $my_arch = `arch` );
     if ( $type eq 'router' ) {
 
         my $param = "$SKYBASEDIR/ncc/init.d/routerd start";
@@ -1546,7 +1660,7 @@ sub service_install_database($$$) {
       . " --db_password=$self->{mysql_password} "
       . " -d $node "
       . " --sandbox_port=$self->{mysql_port} "
-      . " --upper_directory=$self->{datadir}/sandboxes "
+      . " --upper_directory=$SKYDATADIR/sandboxes "
       . " --install_version=5.5 --no_ver_after_name "
       . " --basedir=$SKYBASEDIR/$self->{mysql_version} "
       . " --my_file=$self->{mysql_cnf}";
@@ -1556,7 +1670,7 @@ sub service_install_database($$$) {
     print STDOUT $le_localtime . " $SANDBOX\n";
     $err = worker_node_command( $SANDBOX, $self->{ip} );
     my $GRANT =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "GRANT replication slave ON *.* to \'$self->{replication_user}\'@\'%\' IDENTIFIED BY \'$self->{replication_password}\';"
       . "GRANT ALL ON *.* to \'$self->{mysql_user}\'@\'%\' IDENTIFIED BY \'$self->{mysql_password}\';"
       . "\"";
@@ -1564,35 +1678,35 @@ sub service_install_database($$$) {
 
     if ( $type eq 'spider' || $type eq 'monitor' ) {
         my $SPIDER =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
         $err = worker_node_command( $SPIDER, $self->{ip} );
 
     }
     else {
         my $HANDLERSOCKET =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\"INSTALL PLUGIN handlersocket SONAME \'handlersocket.so\';\"";
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\"INSTALL PLUGIN handlersocket SONAME \'handlersocket.so\';\"";
         $err = worker_node_command( $HANDLERSOCKET, $self->{ip} );
     }
     my $GEARMANUDF =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gearmanudf.sql";
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gearmanudf.sql";
     $err = worker_node_command( $GEARMANUDF, $self->{ip} );
 
     my $param =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "SELECT gman_servers_set('127.0.0.1');\"";
     $err = worker_node_command( $param, $self->{ip} );
 
     my $MEMCACHEUDF =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_memcacheudf.sql";
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_memcacheudf.sql";
     $err = worker_node_command( $MEMCACHEUDF, $self->{ip} );
 
     my $GTTID =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
     $err = worker_node_command( $GTTID, $self->{ip} );
     my $memcaches = get_all_memcaches();
 
     $param =
-"$self->{datadir}/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "SELECT memc_servers_set('"
       . $memcaches . "');\"";
     $err = worker_node_command( $param, $self->{ip} );
@@ -1605,7 +1719,7 @@ sub service_sync_database($$$) {
     my $self   = shift;
     my $node   = shift;
     my $master = shift;
-    chop( my $my_arch = `arch` );
+  
     print STDERR "mysql -h$master->{ip} ";
 
 #	my $param =   "mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'stop slave;change master to master_host=\\\"$master->{ip}\\\", master_user=\\\"$master->{replication_user}\\\", master_password=\\\"$master->{replication_password}\\\", master_port=$master->{mysql_port};\';mysqldump -u $self->{mysql_user} -p$self->{mysql_password} -h $master->{ip} -P$master->{mysql_port} --single-transaction --master-data --all-databases | mysql -u $self->{mysql_user} -p$self->{mysql_password} -h$self->{ip} -P$self->{mysql_port};mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'start slave;\' ";
@@ -1812,7 +1926,6 @@ sub service_do_command($$$) {
     my $self = shift;
     my $node = shift;
     my $cmd  = shift;
-    chop( my $my_arch = `arch` );
     my $param = "";
     my $err   = "000000";
       print STDERR "Service Do command \n";
@@ -1830,7 +1943,7 @@ sub service_do_command($$$) {
                'compress_threshold' => 10_000,
         };
 
-        use Error qw(:try);
+        #use Error qw(:try);
         #try {
            my $cloud = get_active_cloud();
            my $json_cloud       = new JSON ;
@@ -1904,8 +2017,26 @@ sub service_do_command($$$) {
     #    return $err;
     #};      
     } 
-    if ( $cmd eq "remove" ) {
-        $err=service_remove_database($self,$node);
+    if ( $cmd eq "install" ) {
+         if (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
+            || $self->{mode} eq "spider")
+            {
+                $ret = service_install_database( $self, $node, $self->{mode} );
+            } elsif ( $self->{mode} eq "dbt2" ) {
+                $ret = service_install_bench( $self, $node)
+            
+            } elsif ( $self->{mode} eq "tarantool" ) {
+                $ret = service_install_tarantool( $self, $node)
+            }
+    }
+    elsif ( $cmd eq "remove" ) {
+         if (   $self->{mode} eq "mariadb"
+            || $self->{mode} eq "mysql"
+            || $self->{mode} eq "spider")
+        {
+            $err=service_remove_database($self,$node);
+        }
     }
     elsif ( $cmd eq "status" ) {
 
@@ -1971,8 +2102,19 @@ sub service_do_command($$$) {
     elsif ( $cmd eq "stop" && $self->{mode} eq "mycheckpoint" ) {
         $err = service_stop_mycheckpoint($self,$node); 
     }
+    elsif ( $cmd eq "start" && $self->{mode} eq "tarantool" ) {
+        $err = service_start_tarantool($self,$node); 
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "tarantool" ) {
+        $err = service_stop_tarantool($self,$node); 
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "sphinx" ) {
+        $err = service_stop_sphinx($self,$node); 
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "sphinx" ) {
+        $err = service_stop_sphinx($self,$node); 
+    }
     
-   
     report_status( $self, $param, $err, $node );
     return $err;
 }
@@ -2124,7 +2266,7 @@ sub report_status($$$) {
       . $ERRORMESSAGE{$err}  
       . '"}}'
    ); 
-
+ 
 }
 sub report_action($$$) {
     my $ip = shift;
@@ -2190,14 +2332,17 @@ sub bootstrap_config() {
     foreach (@ips) {
         my $command =
           "{command:{action:'write_config',group:'localhost',type:'all'}}";
-        system( "scp -i "
+         my $action =  
+        "scp -i "
               . $SKYBASEDIR
               . $sshkey." "
               . $SKYBASEDIR
               . "/ncc/etc/cloud.cnf "
               . $_ . ":"
               . $SKYBASEDIR
-              . "/ncc/etc" );
+              . "/ncc/etc" ;  
+        system( $action);
+        print STDERR $action;    
         $err = worker_config_command( $command, $_ );
         
     }
