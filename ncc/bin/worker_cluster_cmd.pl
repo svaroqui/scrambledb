@@ -67,7 +67,8 @@ our %ERRORMESSAGE = (
     "ER0011" => "No Memcached for heartbeat",
     "ER0014" => "No Memcached status for action",
     "ER0015" => "No Memcached actions ",
-    "ER0016" => "Delayed start until instance start"
+    "ER0016" => "Delayed start until instance start",
+    "ER0017" => "Delayed start until instance creation"
 
 );
 
@@ -2217,8 +2218,6 @@ sub service_do_command($$$) {
                'compress_threshold' => 10_000,
         };
 
-        #use Error qw(:try);
-        #try {
            my $cloud = get_active_cloud();
            my $json_cloud       = new JSON ;
            my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
@@ -2281,15 +2280,30 @@ sub service_do_command($$$) {
               print STDERR "Service Ip is not found in status \n";
              my $launch_instance='{"level":"instances","command":{"action":"launch","group":"ScrambleDB","type":"all","ip":"'.$self->{ip}.'"},"cloud":'. $json_cloud_str. '}';
              worker_cloud_command($launch_instance,$gearman_ip);
-             #wait_until_ssh() 
-             #launch new instance with given ip  
+              push  @{$todo->{actions}} , {
+                    event_ip       => $self->{ip},
+                    event_type     => "instances",
+                    event_state    => "running" ,
+                    do_level       => "services" ,
+                    do_group       => $node,
+                    do_action      => "bootstrap_ncc" 
+                  };     
+                   push  @{$todo->{actions}} , {
+                    event_ip       => $self->{ip},
+                    event_type     => "instances",
+                    event_state    => "running" ,
+                    do_level       => "services" ,
+                    do_group       => $node,
+                    do_action      => $cmd 
+                  };       
+                  
+                  $json_todo =  $json_cloud->allow_blessed->convert_blessed->encode($todo);
+                  print STDERR "Delayed actions :" . $json_todo ."\n";     
+                  $memd->set( "actions",  $json_todo);
+                  report_status( $self, $param,  "ER0017", $node );
+                  return "ER0017";
+            
          } 
-    #}  
-    #catch Error with {
-    #     print STDERR "\nbogus get bogus\n";
-    #    $err = "ER0011";
-    #    return $err;
-    #};      
     } 
     if ( $cmd eq "install" ) {
          if (   $self->{mode} eq "mariadb"
