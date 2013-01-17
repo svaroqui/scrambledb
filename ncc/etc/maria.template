@@ -1,5 +1,6 @@
 [mysqld]
 
+enable-local-infile
 skip_name_resolv
 back_log=128  
 max_connections = 1024

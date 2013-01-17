@@ -66,6 +66,7 @@ sub consult_cmd() {
                'compress_threshold' => 10_000,
      };
       my $json_todo = $memd->get("actions");
+      
         if (!$json_todo )
         {
            print STDERR "No actions in memcache \n";
@@ -101,7 +102,7 @@ sub consult_cmd() {
                  
                   my $command= '{"level":"'.$action->{do_level}. '","command":{"action":"'.$action->{do_action}.'","group":"'.$action->{do_group}.'","type":"all"} } ';
                   print STDERR "Test pass runing action : ". $command ."\n";
-                  worker_cloud_command($command,$gearman_ip);   
+                  worker_cloud_command($command,$gearman_ip);  
                   $memd->set( "actions", '{"actions":[]}' );
             }   
 
@@ -114,18 +115,23 @@ sub worker_cloud_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    print STDOUT $ip . ' ' . $cmd . '\n';
+    print STDERR $ip . ' ' . $cmd . '\n';
     #$client->set_timeout($gearman_timeout);
     #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
-    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
+    ( my $ret, my $result ) = $client->do( 'cluster_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
       if ( !defined $result ) {
         return "ER0006";
+        print STDERR "Print no result ";
      } else { 
         return $result; 
      }
-    }  
+    } 
+    else
+    {
+      print STDERR "Call to worker failed  ";
+    }
 
    return "ER0006";
     

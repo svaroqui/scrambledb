@@ -148,18 +148,6 @@ sub is_ip_from_status_running($$) {
 }
 
 
-sub get_instance_id_from_status_ip($$){
-my $status =shift;
- my $ip =shift;
-  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
-    foreach my $key (keys %$instance) {
-     if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
-            return $instance->{$key}->{id};
-       }     
-    }
-   }
-  return 0; 
-}
 
 sub is_ip_localhost($) {
     
@@ -191,6 +179,7 @@ sub add_ip_to_list($) {
     $ServiceIPs{$testIP}=1;
     return 1;
 }
+
 
 
 
@@ -231,7 +220,7 @@ sub cluster_cmd {
     #  print  STDERR Dumper($config);
     #  print  STDERR $json_config;
 
-   
+   my $retjson="";
     my $action   = $json_text->{command}->{action};
     if ($action ne "ping" )  {print STDERR "Receive command : $command\n";}
     my $group    = $json_text->{command}->{group};
@@ -428,7 +417,7 @@ sub cluster_cmd {
             }
 
         }
-
+        
         foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
             my $host_info = $config->{bench}->{default};
             $host_info = $config->{bench}->{$host};
@@ -444,17 +433,15 @@ sub cluster_cmd {
             if ( $pass == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "install" ) {
-                    $ret = install_bench( $host_info, $host, $action );
+                    $ret = service_install_bench( $host_info, $host, $action );
                 }
                 if ( $action eq "stop" ) {
-                    $ret = stop_bench( $host_info, $host, $action );
+                    $ret = service_stop_bench( $host_info, $host, $action );
                 }
                 if ( $action eq "start" ) {
-                    $ret = service_start_bench( $host_info, $host, $action, $query );
+                    $retjson = service_start_bench( $host_info, $host, $action, $query );
                 }
-                if ( $action eq "restart" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
-                }
+                
 
             }
 
@@ -493,15 +480,16 @@ sub cluster_cmd {
    }
    my $json_action      = new JSON; 
    print  $json_action->allow_nonref->utf8->encode(\@actions);
-  
-   return '{"'.$level.'":[' . join(',' , @console) .']}';
+   
+   return '{"'.$level.'":[' . join(',' , @console) .']'. $retjson .' }';
 
 }
 
-sub init_gttid(){
+sub gttid_reinit(){
 
-  my $sql ="replace into TBLGTID select CRC32(concat(table_schema, table_name)), 0,1  from information_schema.tables;";
-
+  my $sql ="replace into mysql.TBLGTID select CRC32(concat(table_schema, table_name)), 0,1  from information_schema.tables;";
+  my $master_host=get_active_master();
+  mysql_do_command($master_host,$sql); 
 }
 
  
@@ -517,6 +505,230 @@ sub lookup_table_name($) {
     }
 }
 
+sub dbt2_parse_mix($) {
+    
+    my $filename = shift;
+    my $self ;
+    my $current_time;
+    my $previous_time;
+    my $elapsed_time = 1;
+    my $total_transaction_count = 0;
+    my %transaction_count;
+    my %error_count;
+    my %rollback_count;
+    my %transaction_response_time;
+
+    my @delivery_response_time = ();
+    my @new_order_response_time = ();
+    my @order_status_response_time = ();
+    my @payement_response_time = ();
+    my @stock_level_response_time = ();
+    #
+    # Zero out the data.
+    #
+    $rollback_count{ 'd' } = 0;
+    $rollback_count{ 'n' } = 0;
+    $rollback_count{ 'o' } = 0;
+    $rollback_count{ 'p' } = 0;
+    $rollback_count{ 's' } = 0;
+    #
+    # Transaction counts for the steady state portion of the test.
+    #
+    $transaction_count{ 'd' } = 0;
+    $transaction_count{ 'n' } = 0;
+    $transaction_count{ 'o' } = 0;
+    $transaction_count{ 'p' } = 0;
+    $transaction_count{ 's' } = 0;
+
+    $self->{data}->{errors} = 0;
+    $self->{data}->{steady_state_start_time} = undef;
+    $self->{data}->{start_time} = undef;
+
+    open(FILE, "< $filename");
+    while (defined(my $line = <FILE>)) {
+        chomp $line;
+        my @word = split /,/, $line;
+
+        if (scalar(@word) == 4) {
+            $current_time = $word[0];
+            my $transaction = $word[1];
+            my $response_time = $word[2];
+            my $tid = $word[3];
+
+            #
+            # Transform mix.log into XML data.
+            #
+            push @{$self->{data}->{mix}->{data}},
+                    {ctime => $current_time, transaction => $transaction,
+                    response_time => $response_time, thread_id => $tid};
+
+            unless ($self->{data}->{start_time}) {
+                $self->{data}->{start_time} = $previous_time = $current_time;
+            }
+            #
+            # Count transactions per second based on transaction type only
+            # during the steady state phase.
+            #
+            if ($self->{data}->{steady_state_start_time}) {
+                if ($transaction eq 'd') {
+                    ++$transaction_count{$transaction};
+                    $transaction_response_time{$transaction} += $response_time;
+                    push @delivery_response_time, $response_time;
+                } elsif ($transaction eq 'n') {
+                    ++$transaction_count{$transaction};
+                    $transaction_response_time{$transaction} += $response_time;
+                    push @new_order_response_time, $response_time;
+                } elsif ($transaction eq 'o') {
+                    ++$transaction_count{$transaction};
+                    $transaction_response_time{$transaction} += $response_time;
+                    push @order_status_response_time, $response_time;
+                } elsif ($transaction eq 'p') {
+                    ++$transaction_count{$transaction};
+                    $transaction_response_time{$transaction} += $response_time;
+                    push @payement_response_time, $response_time;
+                } elsif ($transaction eq 's') {
+                    ++$transaction_count{$transaction};
+                    $transaction_response_time{$transaction} += $response_time;
+                    push @stock_level_response_time, $response_time;
+                } elsif ($transaction eq 'D') {
+                    ++$rollback_count{'d'};
+                } elsif ($transaction eq 'N') {
+                    ++$rollback_count{'n'};
+                } elsif ($transaction eq 'O') {
+                    ++$rollback_count{'o'};
+                } elsif ($transaction eq 'P') {
+                    ++$rollback_count{'p'};
+                } elsif ($transaction eq 'S') {
+                    ++$rollback_count{'s'};
+                } elsif ($transaction eq 'E') {
+                    ++$self->{data}->{errors};
+                    ++$error_count{$transaction};
+                } else {
+                    print "error with mix.log format\n";
+                    exit(1);
+                }
+                ++$total_transaction_count;
+            }
+        } elsif (scalar(@word) == 2) {
+            #
+            # Look for that 'START' marker to determine the end of the rampup
+            # time and to calculate the average throughput from that point to
+            # the end of the test.
+            #
+            $self->{data}->{steady_state_start_time} = $word[0];
+        }
+    }
+    close(FILE);
+    #
+    # Calculated the number of New Order transactions per second.
+    #
+    my $tps = $transaction_count{'n'} /
+            ($current_time - $self->{data}->{steady_state_start_time});
+    $self->{data}->{metric} = $tps * 60.0;
+    $self->{data}->{duration} =
+            ($current_time - $self->{data}->{steady_state_start_time}) / 60.0;
+    $self->{data}->{rampup} = $self->{data}->{steady_state_start_time} -
+            $self->{data}->{start_time};
+    #
+    # Other transaction statistics.
+    #
+    my %transaction;
+    $transaction{'d'} = "Delivery";
+    $transaction{'n'} = "New Order";
+    $transaction{'o'} = "Order Status";
+    $transaction{'p'} = "Payment";
+    $transaction{'s'} = "Stock Level";
+    #
+    # Resort numerically, default is by ascii..
+    #
+    @delivery_response_time = sort { $a <=> $b } @delivery_response_time;
+    @new_order_response_time = sort{ $a <=> $b }  @new_order_response_time;
+    @order_status_response_time =
+        sort { $a <=> $b } @order_status_response_time;
+    @payement_response_time = sort { $a <=> $b } @payement_response_time;
+    @stock_level_response_time = sort { $a <=> $b } @stock_level_response_time;
+    #
+    # Get the index for the 90th percentile response time index for each
+    # transaction.
+    #
+    my $delivery90index = $transaction_count{'d'} * 0.90;
+    my $new_order90index = $transaction_count{'n'} * 0.90;
+    my $order_status90index = $transaction_count{'o'} * 0.90;
+    my $payment90index = $transaction_count{'p'} * 0.90;
+    my $stock_level90index = $transaction_count{'s'} * 0.90;
+
+    my %response90th;
+
+    #
+    # 90th percentile for Delivery transactions.
+    #
+    $response90th{'d'} = get_90th_per($delivery90index,
+            @delivery_response_time);
+    $response90th{'n'} = get_90th_per($new_order90index,
+            @new_order_response_time);
+    $response90th{'o'} = get_90th_per($order_status90index,
+            @order_status_response_time);
+    $response90th{'p'} = get_90th_per($payment90index,
+            @payement_response_time);
+    $response90th{'s'} = get_90th_per($stock_level90index,
+            @stock_level_response_time);
+    #
+    # Summarize the transaction statistics into the hash structure for XML.
+    #
+    $self->{data}->{transactions}->{transaction} = [];
+    foreach my $idx ('d', 'n', 'o', 'p', 's') {
+        my $mix = ($transaction_count{$idx} + $rollback_count{$idx}) /
+                $total_transaction_count * 100.0;
+        my $rt_avg = 0;
+        if ($transaction_count{$idx} != 0) {
+            $rt_avg = $transaction_response_time{$idx} /
+                    $transaction_count{$idx};
+        }
+        my $txn_total = $transaction_count{$idx} + $rollback_count{$idx};
+        my $rollback_per = $rollback_count{$idx} / $txn_total * 100.0;
+        push @{$self->{data}->{transactions}->{transaction}},
+                {mix => $mix,
+                rt_avg => $rt_avg,
+                rt_90th => $response90th{$idx},
+                total => $txn_total,
+                rollbacks => $rollback_count{$idx},
+                rollback_per => $rollback_per,
+                name => $transaction{$idx}};
+    }
+    my $json       = new JSON;
+     my $json_result = ',"results":' . $json->allow_blessed->convert_blessed->encode($self);
+     print STDERR $json_result    . "\n";
+   return $json_result;
+}
+
+
+sub mysql_do_command($$) {
+  my $host_info=shift;
+  my $sql =shift;
+        my $dsn =
+            "DBI:mysql:host="
+          . $host_info->{ip}
+          . ";port="
+          . $host_info->{mysql_port}
+          . ";mysql_connect_timeout="
+          . $mysql_connect_timeout;
+
+        my $dbh = DBI->connect(
+            $dsn,
+            $host_info->{mysql_user},
+            $host_info->{mysql_password},
+            {RaiseError=>1}
+        );
+        try {      
+            my $sth = $dbh->do($sql);           
+        }
+        catch Error with {
+            print STDERR "Error in mysql_do_command :".$sql." to host:".$host_info->{ip} . "\n";
+            return 0;
+        };
+        $dbh->disconnect;
+        return 1;  
+}
 sub spider_is_ddl_all_node($) {
     my $lquery = shift;
     my @tokens = tokenize_sql($lquery);
@@ -838,6 +1050,18 @@ sub spider_create_table_info($$) {
     return $err;
 }
 
+sub get_instance_id_from_status_ip($$){
+my $status =shift;
+ my $ip =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+     if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
+            return $instance->{$key}->{id};
+       }     
+    }
+   }
+  return 0; 
+}
 
 sub get_all_slaves() {
     my $host_info;
@@ -973,6 +1197,32 @@ sub get_active_master() {
     }
    return 0; 
 }
+
+sub get_active_memcache() {
+    my $nosql_info; 
+    foreach my $nosql (keys(%{$config->{nosql}})) {
+        $nosql_info = $config->{nosql}->{default};
+        $nosql_info = $config->{nosql}->{$nosql};
+        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache" ){
+           return $nosql_info;
+        }
+    }    
+    return 0;
+}
+
+sub get_active_lb() {
+    my $host_info; 
+    foreach my $bench ( keys( %{ $config->{lb} } ) ) {
+
+       $host_info = $config->{lb}->{default};
+        $host_info = $config->{lb}->{$bench};
+        if ( $host_info->{mode} eq "keepalived" ) {
+            return $host_info;
+        }
+    }
+    return 0;
+}
+
 sub get_active_master_hash() {
     my $host_info;
     foreach my $host ( keys( %{ $config->{db} } ) ) {
@@ -1088,18 +1338,27 @@ sub get_status_diff($$) {
      return $json_status_diff;
 }
 
-sub get_active_memcache() {
-    my $nosql_info; 
-    foreach my $nosql (keys(%{$config->{nosql}})) {
-        $nosql_info = $config->{nosql}->{default};
-        $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache" ){
-           return $nosql_info;
+sub get_90th_per($$)  {
+    my $self = shift;
+    my $index = shift;
+    
+    my @data = @_;
+    $index= defined ($index) ? $index : 0;
+    use POSIX qw(ceil floor);
+    my $result;
+    my $floor = floor($index);
+    my $ceil = ceil($index);
+    if ($floor == $ceil) {
+        $result = $data[$index];
+    } else {
+        if ($data[$ceil]) {
+            $result = ($data[$floor] + $data[$ceil]) / 2;
+        } else {
+            $result = $data[$floor];
         }
-    }    
-    return 0;
+    }
+    return $result;
 }
-
 
 
 sub service_sql_database($) {
@@ -1473,19 +1732,12 @@ sub service_start_bench($$$$) {
     my $self = shift;
     my $node = shift;
     my $type = shift;
-    my $bench_info;
-    my $host_info;
+    my $bench_info=get_active_lb();
     my $err = "000000";
-    foreach my $bench ( keys( %{ $config->{lb} } ) ) {
-
-    #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
-       $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$bench};
-        if ( $host_info->{mode} eq "keepalived" ) {
-            $bench_info = $host_info;
-        }
-    }
-    # my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
+   
+ #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
+     
+  # my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
     my $cmd =
       $SKYBASEDIR
       . "/dbt2/bin/client -u "
@@ -1494,17 +1746,35 @@ sub service_start_bench($$$$) {
       . $bench_info->{mysql_password}
       . " -f -c "
       . $self->{concurrency}."  -s "
-      . " 10 -d dbt2 -l "
-      . $bench_info->{port} . "  -o &";
+      . " 2 -d dbt2 -l "
+      . $bench_info->{port} . "  -o  "
+      . $SKYDATADIR
+      ."/" 
+      . $node
+      ."/client &";
     $err = worker_node_command( $cmd, $self->{ip} );
      #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
     $cmd =
       $SKYBASEDIR
-      . "/src/driver -u "
-      . "-d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 1  -outdir "
-      . $SKYDATADIR."/" . $node ; 
+      . "/dbt2/src/driver  "
+      . "-d 127.0.0.1 -l "
+      . $self->{duration} 
+      ." -wmin 1 -wmax "
+      . $self->{warehouse} 
+      ."  -w "
+      . $self->{warehouse}  
+      . " -sleep 1 -outdir "
+      . $SKYDATADIR
+      ."/" 
+      . $node
+      ."/driver"; 
+     $err = worker_node_command( $cmd, $self->{ip} ); 
+     $cmd="killall client";
+     $err = worker_node_command( $cmd, $self->{ip} ); 
+     my $outfile =$SKYDATADIR. "/" .$node."/driver/mix.log";
 
-    return $err;
+     my $json_res = dbt2_parse_mix( $outfile );
+     return $json_res;
 }
 
 sub service_stop_database($$) {
@@ -1514,7 +1784,6 @@ sub service_stop_database($$) {
 
     my $param = "$SKYDATADIR/sandboxes/$node/send_kill";
     $err = worker_node_command( $param, $self->{ip} );
-
     return $err;
 }
 sub service_stop_mysqlproxy($$) {
@@ -1582,11 +1851,37 @@ sub service_install_bench($$) {
  my $name = shift;
  my $cmd="mkdir ". $SKYDATADIR ."/".$name;
  worker_node_command( $cmd, $self->{ip} );
+ $cmd="mkdir ". $SKYDATADIR ."/".$name."/client";
+ worker_node_command( $cmd, $self->{ip} );
+ $cmd="mkdir ". $SKYDATADIR ."/".$name."/driver";
+ worker_node_command( $cmd, $self->{ip} );
  
- $cmd=$SKYBASEDIR. "/dbt2/bin/datagen  -w 3 -d ". $SKYDATADIR ."/".$name." --mysql";
+ 
+ $cmd=$SKYBASEDIR
+      . "/dbt2/bin/datagen  -w "
+      .  $self->{warehouse}
+      . " -d "
+      . $SKYDATADIR 
+      ."/".$name
+      ." --mysql";
  worker_node_command( $cmd, $self->{ip} );
  my $master= get_active_master();
- $cmd=$SKYBASEDIR. "/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f". $SKYDATADIR ."/".$name." -s /tmp/mysql_sandbox" .$master->{mysql_port}.".sock -u " .$master->{mysql_user}." -p".$master->{mysql_password}." -e INNODB"; ;
+ mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
+
+ $cmd=$SKYBASEDIR
+      . "/dbt2/scripts/mysql/build_db.sh -w "
+      .  $self->{warehouse}
+      . " -d dbt2 -f"
+      . $SKYDATADIR 
+      ."/".$name
+      ." -s /tmp/mysql_sandbox" 
+      .$master->{mysql_port}
+      .".sock -u " 
+      .$master->{mysql_user}
+      ." -h ".$master->{ip}
+      ." -P ".$master->{mysql_port}
+      ." -p".$master->{mysql_password}
+      ." -l -e INNODB"; ;
  worker_node_command( $cmd, $self->{ip} );
  
 # "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
@@ -1616,30 +1911,9 @@ sub service_install_tarantool($$) {
 sub service_install_mycheckpoint($$) {
   my $host_info=shift;
   my $db_name =shift;
-    my $sql = "CREATE DATABASE if not exists ".$db_name ;
-        my $dsn =
-            "DBI:mysql:host="
-          . $host_info->{ip}
-          . ";port="
-          . $host_info->{mysql_port}
-          . ";mysql_connect_timeout="
-          . $mysql_connect_timeout;
-
-        my $dbh = DBI->connect(
-            $dsn,
-            $host_info->{mysql_user},
-            $host_info->{mysql_password},
-            {RaiseError=>1}
-        );
-        try {      
-            my $sth = $dbh->do($sql);           
-        }
-        catch Error with {
-            print STDERR "Mon connect Master failed\n";
-            return 0;
-        };
-        $dbh->disconnect;
-        return 1;  
+  my $sql = "CREATE DATABASE if not exists ".$db_name ;
+  my $err=  mysql_do_command($host_info,$sql);
+  return $err;  
 }
 
 sub service_install_database($$$) {

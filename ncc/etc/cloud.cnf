@@ -156,7 +156,7 @@
 <cloud cloud2>
     status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
-    password        	   xxxx
+    password        	   xxx
     host            	   na
     version         	   1.5
     driver          	   EC2
@@ -244,9 +244,9 @@
   mode                    dbt2
   cloud                   cloud2  
   peer                    lb1
-  warehouse               100
-  concurrency             16 
-  duration                600
+  warehouse               4
+  concurrency             4 
+  duration                20
   datadir                 /var/lib/skysql/dbt2   
 </bench>
 
