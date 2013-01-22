@@ -16,41 +16,20 @@
 #  Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-use strict;
-use Class::Struct;
-use warnings FATAL => 'all';
-use Common::Config;
-use Sys::Hostname;
+use Scramble::Common::Config;
+use Scramble::Common::ClusterUtils;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
 use Gearman::XS::Worker;
 use Cache::Memcached;
+use Sys::Hostname;
 use Data::Dumper;
+use strict;
+use Class::Struct;
+use warnings FATAL => 'all';
 use JSON;
 use DBI;
 
-struct 'host' => {
-    name                 => '$',
-    ip                   => '$',
-    port                 => '$',
-    peer                 => '$',
-    mode                 => '$',
-    replication_user     => '$',
-    replication_password => '$',
-    mysql_port           => '$',
-    mysql_user           => '$',
-    mysql_password       => '$',
-    mysql_version        => '$',
-    mysql_cnf            => '$'
-  
-};
-
-struct 'nosql' => {
-    name => '$',
-    ip   => '$',
-    mode => '$',
-    port => '$'
-};
 
 our %ERRORMESSAGE = (
     "000000" => "running",
@@ -82,11 +61,11 @@ our $gearman_timeout       = 2000;
 our $gearman_ip            ="localhost";
 
 our $mysql_connect_timeout = 1;
-our $config                = new SKY::Common::Config::;
+our $config                = new Scramble::Common::Config::;
 $config->read("etc/cloud.cnf");
 $config->check('SANDBOX');
 
-my %ServiceIPs;
+
 my @console;
 my @actions;
 my $cloud;
@@ -117,75 +96,6 @@ while (1) {
     }
 }
 
-
-
-sub is_ip_from_status_present($$) {
-  my $status =shift;
-  my $ip =shift;
-  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
-    foreach my $key (keys %$instance) {
-      if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
-        return 1;
-      }
-    }
-   }
-  return 0; 
-}
-
-sub is_ip_from_status_running($$) {
-  my $status =shift;
-  my $ip =shift;
-  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
-    foreach my $key (keys %$instance) {
-       if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
-      
-        if($instance->{$key}->{state} eq "running" ) {
-            return 1;
-        }
-      }    
-    }
-   }
-  return 0; 
-}
-
-
-
-sub is_ip_localhost($) {
-    
-    my $testIP = shift;
-    
-    my %IPs;
-    my $interface;
-
-    foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
-        $interface = $1 if /^(\S+?):?\s/;
-        next unless defined $interface;
-        $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
-        $IPs{$interface}->{STATE} =defined( $IPs{$interface}->{STATE}) ?  $IPs{$interface}->{STATE} : "na";
-        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i; 
-        $IPs{$interface}->{IP} =defined( $IPs{$interface}->{IP}) ?  $IPs{$interface}->{IP} : "na";
-    }
-   
-
-    foreach my $key ( sort keys %IPs ) {
-        if ( $IPs{$key}->{IP} eq $testIP ) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-sub add_ip_to_list($) {
-    my $testIP = shift;
-    $ServiceIPs{$testIP}=1;
-    return 1;
-}
-
-
-
-
-
-
 sub cluster_cmd {
     my ( $job, $options ) = @_;
   
@@ -193,8 +103,14 @@ sub cluster_cmd {
     my $command = $job->workload();
     my $json    = new JSON;
     my $json_text =
-      $json->allow_nonref->utf8->relaxed->escape_slash->loose
-      ->allow_singlequote->allow_barekey->decode($command);
+    $json->allow_nonref
+    ->utf8
+    ->relaxed
+    ->escape_slash
+    ->loose
+    ->allow_singlequote
+    ->allow_barekey
+    ->decode($command);
     my $peer_host_info = "";
     my $myhost         = hostname;
     my $ddlallnode     = 0;
@@ -206,7 +122,8 @@ sub cluster_cmd {
     @actions = @cmd_action;
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
-    $cloud = get_active_cloud();
+    $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
+    my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
     $sshkey ="/ncc/etc/" . $cloud->{public_key} ;
 
     my $json2       = new JSON;
@@ -221,7 +138,7 @@ sub cluster_cmd {
     #  print  STDERR Dumper($config);
     #  print  STDERR $json_config;
 
-   my $retjson="";
+    my $retjson="";
     my $action   = $json_text->{command}->{action};
     if ($action ne "ping" )  {print STDERR "Receive command : $command\n";}
     my $group    = $json_text->{command}->{group};
@@ -236,13 +153,12 @@ sub cluster_cmd {
        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
 
        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
-      
-         print  STDERR $json_cloud_str;
+       print  STDERR $json_cloud_str;
        if ($cloud->{driver} ne "LOCAL") {
             $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
        } 
        else {
-          $ret= get_local_instances_status();
+          $ret= Scramble::Common::ClusterUtils::get_local_instances_status($config);
        }   
         return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
     }  
@@ -270,26 +186,18 @@ sub cluster_cmd {
         elsif ( $action eq "ping" ) {
           $ret = instance_heartbeat_collector($json_text,$command);
         }
-
+        elsif ( $action eq "switch_vip"){
+          $ret = service_switch_vip();
+        }
         foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
            my $host_info = $config->{db}->{default};
            $host_info = $config->{db}->{$host};
-           add_ip_to_list($host_info->{ip});
            if ( $host_info->{mode} ne "spider" ) {
                $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
            }
-           my $pass = 1;
-           print STDOUT $group . " vs " . $host;
-           if ( $group ne $host ) { $pass = 0 }
-
-           if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-               $pass = 1;
-           }
-           if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-           if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-           if ( $pass == 1 ) {
-               my $le_localtime = localtime;
-               print $LOG $le_localtime . " processing " . $host . " on $myhost\n";
+          
+           if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
+               print  " processing " . $host . " on $myhost\n";
                if ( $action eq "install" ) {
                    $ret = service_do_command( $host_info, $host, $action );
                }
@@ -330,17 +238,7 @@ sub cluster_cmd {
        foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
             my $host_info = $config->{nosql}->{default};
             $host_info = $config->{nosql}->{$nosql};
-            add_ip_to_list($host_info->{ip});
-            my $pass = 1;
-            #print STDOUT $group . " vs " . $nosql;
-            if ( $group ne $nosql ) { $pass = 0 }
-
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
+            if (is_filter_service($group,$type, $host_info, $nosql, $cloud_name) == 1   ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
                     $ret = service_do_command( $host_info, $nosql, $action );
@@ -355,23 +253,12 @@ sub cluster_cmd {
                     $ret = service_do_command( $host_info, $nosql, $action );
                 }
             }
-
         }
 
         foreach my $host ( sort( keys( %{ $config->{proxy} } ) ) ) {
             my $host_info = $config->{proxy}->{default};
             $host_info = $config->{proxy}->{$host};
-            add_ip_to_list($host_info->{ip});
-            my $pass = 1;
-            #print STDOUT $group . " vs " . $host;
-            if ( $group ne $host ) { $pass = 0 }
-
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
+            if ( is_filter_service($group,$type, $host_info, $host, $cloud_name)  == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
                     $ret = service_do_command( $host_info, $host, $action );
@@ -391,17 +278,8 @@ sub cluster_cmd {
         foreach my $host ( sort( keys( %{ $config->{lb} } ) ) ) {
             my $host_info = $config->{lb}->{default};
             $host_info = $config->{lb}->{$host};
-            add_ip_to_list($host_info->{ip});
-            my $pass = 1;
-            #print STDOUT $group . " vs " . $host;
-            if ( $group ne $host ) { $pass = 0 }
-
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
+           
+            if (is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "stop" ) {
                     $ret = service_do_command( $host_info, $host, $action );
@@ -422,16 +300,8 @@ sub cluster_cmd {
         foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
             my $host_info = $config->{bench}->{default};
             $host_info = $config->{bench}->{$host};
-            my $pass = 1;
-            #print STDOUT $group . " vs " . $host;
-            if ( $group ne $host ) { $pass = 0 }
-
-            if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-                $pass = 1;
-            }
-            if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-            if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-            if ( $pass == 1 ) {
+          
+            if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
                 my $le_localtime = localtime;
                 if ( $action eq "install" ) {
                     $ret = service_install_bench( $host_info, $host, $action );
@@ -445,21 +315,12 @@ sub cluster_cmd {
                 
 
             }
-
         }
         foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
           my $host_info = $config->{monitor}->{default};
           $host_info = $config->{monitor}->{$host};
-          my $pass = 1;
-          #print STDOUT $group . " vs " . $host;
-          if ( $group ne $host ) { $pass = 0 }
-
-          if ( $pass == 0 && $group eq "local" && $myhost eq $host_info->{ip} ) {
-              $pass = 1;
-          }
-          if ( $pass == 0 && $group eq "all" ) { $pass = 1 }
-          if ( $type ne $host_info->{mode} && $type ne 'all' ) { $pass = 0 }
-          if ( $pass == 1 ) {
+         
+          if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
               my $le_localtime = localtime;
 
               if ( $action eq "stop" ) {
@@ -475,36 +336,50 @@ sub cluster_cmd {
           }
 
         }
-        foreach my $key ( sort keys %ServiceIPs ) {
-          print $key;
-        }
    }
    my $json_action      = new JSON; 
    print  $json_action->allow_nonref->utf8->encode(\@actions);
-   
    return '{"'.$level.'":[' . join(',' , @console) .']'. $retjson .' }';
 
 }
 
-sub gttid_reinit(){
+sub is_filter_service($$$$$) {
+    my $action_group = shift;
+    my $action_type = shift; 
+    my $service_host = shift;
+    my $host_name =  shift; 
+    my $action_cloud_name = shift; 
+    my $pass = 0;
+    
+    if ( $action_group eq $host_name 
+         || $action_group eq "all" 
+         || ($action_group eq "local" 
+             && is_ip_localhost($service_host->{ip})==1 )
+   
+       )     
+     { 
+        
+        if ( $action_type eq $service_host->{mode} 
+             || $action_type eq "all" 
+            ) { 
+              if ( $action_cloud_name  eq $service_host->{cloud} ){
+                 $pass = 1;
+               }     
+         } 
+    
+      } 
+    
+    
+    return  $pass;        
+}
 
+sub gttid_reinit(){
+  
   my $sql ="replace into mysql.TBLGTID select CRC32(concat(table_schema, table_name)), 0,1  from information_schema.tables;";
-  my $master_host=get_active_master();
+  my $master_host= Scramble::Common::ClusterUtils::get_active_db($config);
   mysql_do_command($master_host,$sql); 
 }
 
- 
-sub lookup_table_name($) {
-    my $lquery = shift;
-    my @tokens = tokenize_sql($lquery);
-    my $next_i = 1;
-    for my $token (@tokens) {
-        if ( lc $token eq "table" ) {
-            return $tokens[$next_i];
-        }
-        $next_i++;
-    }
-}
 
 sub dbt2_parse_mix($) {
     
@@ -663,15 +538,15 @@ sub dbt2_parse_mix($) {
     #
     # 90th percentile for Delivery transactions.
     #
-    $response90th{'d'} = get_90th_per($delivery90index,
+    $response90th{'d'} =  Scramble::Common::ClusterUtils::get_90th_per($delivery90index,
             @delivery_response_time);
-    $response90th{'n'} = get_90th_per($new_order90index,
+    $response90th{'n'} =  Scramble::Common::ClusterUtils::get_90th_per($new_order90index,
             @new_order_response_time);
-    $response90th{'o'} = get_90th_per($order_status90index,
+    $response90th{'o'} =  Scramble::Common::ClusterUtils::get_90th_per($order_status90index,
             @order_status_response_time);
-    $response90th{'p'} = get_90th_per($payment90index,
+    $response90th{'p'} =  Scramble::Common::ClusterUtils::get_90th_per($payment90index,
             @payement_response_time);
-    $response90th{'s'} = get_90th_per($stock_level90index,
+    $response90th{'s'} =  Scramble::Common::ClusterUtils::get_90th_per($stock_level90index,
             @stock_level_response_time);
     #
     # Summarize the transaction statistics into the hash structure for XML.
@@ -718,18 +593,20 @@ sub mysql_do_command($$) {
             $dsn,
             $host_info->{mysql_user},
             $host_info->{mysql_password},
-            {RaiseError=>1}
+            {RaiseError=>1, mysql_no_autocommit_cmd => 1}
         );
+        use Error qw(:try);
         try {      
             my $sth = $dbh->do($sql);           
         }
         catch Error with {
-            print STDERR "Error in mysql_do_command :".$sql." to host:".$host_info->{ip} . "\n";
+            print STDERR "Error in mysql_do_command :".$sql." to host:".$dsn . "\n";
             return 0;
         };
         $dbh->disconnect;
         return 1;  
 }
+
 sub spider_is_ddl_all_node($) {
     my $lquery = shift;
     my @tokens = tokenize_sql($lquery);
@@ -1051,315 +928,6 @@ sub spider_create_table_info($$) {
     return $err;
 }
 
-sub get_instance_id_from_status_ip($$){
-my $status =shift;
- my $ip =shift;
-  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
-    foreach my $key (keys %$instance) {
-     if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
-            return $instance->{$key}->{id};
-       }     
-    }
-   }
-  return 0; 
-}
-
-sub get_all_slaves() {
-    my $host_info;
-    my $err = "000000";
-    my @slaves;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "slave" ) {
-            push( @slaves, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-
-    return join( ',', @slaves );
-}
-
-sub get_all_masters() {
-    my $host_info;
-    my $err = "000000";
-    my @masters;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @masters );
-}
-
-sub get_all_memcaches() {
-    my $host_info;
-    my $err = "000000";
-    my @memcaches;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "memcache" ) {
-            push( @memcaches,
-                $host_info->{ip} . ":" . $host_info->{mysql_port} );
-        }
-    }
-    return join( ',', @memcaches );
-}
-
-sub get_all_sercive_ips() {
-    my $host_info;
-    my $err = "000000";
-    my @ips;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-    foreach my $host ( keys( %{ $config->{nosql} } ) ) {
-        $host_info = $config->{nosql}->{default};
-        $host_info = $config->{nosql}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-    foreach my $host ( keys( %{ $config->{proxy} } ) ) {
-        $host_info = $config->{proxy}->{default};
-        $host_info = $config->{proxy}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-     foreach my $host ( keys( %{ $config->{lb} } ) ) {
-        $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$host};
-        push( @ips, $host_info->{ip} );
-    }
-
-    return uniq(@ips);
-}
-
-
-
-
-sub get_local_instances_status() {
-    
-    my @ips=get_all_sercive_ips();
-    my @interfaces;
-    my $i=0;
-    my $host_info;
-    
-    foreach my $ip ( @ips)  {
-        push @interfaces, {"instance". $i=>  {
-            id     => "instance". $i,
-            ip       => $ip,
-            state       => "running"
-           }     
-        };
-
-     $i++;    
-    }
-    my $json       = new JSON;
-     my $json_instances_status =  $json->allow_blessed->convert_blessed->encode(\@interfaces);
-   
-   return $json_instances_status ; 
-}
-
-
-sub get_active_cloud() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
-        $host_info = $config->{cloud}->{default};
-        $host_info = $config->{cloud}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
-
-sub get_active_monitor() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{monitor} } ) ) {
-        $host_info = $config->{monitor}->{default};
-        $host_info = $config->{monitor}->{$host};
-      #  if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-      #  }
-    }
-   return 0; 
-}
-
-sub get_active_master() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
-
-sub get_active_memcache() {
-    my $nosql_info; 
-    foreach my $nosql (keys(%{$config->{nosql}})) {
-        $nosql_info = $config->{nosql}->{default};
-        $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache" ){
-           return $nosql_info;
-        }
-    }    
-    return 0;
-}
-
-sub get_active_lb() {
-    my $host_info; 
-    foreach my $bench ( keys( %{ $config->{lb} } ) ) {
-
-       $host_info = $config->{lb}->{default};
-        $host_info = $config->{lb}->{$bench};
-        if ( $host_info->{mode} eq "keepalived" ) {
-            return $host_info;
-        }
-    }
-    return 0;
-}
-
-sub get_active_master_hash() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{db} } ) ) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host;
-        }
-    }
-   return 0; 
-}
-
-sub get_all_ip_from_status($) {
-  my $status =shift;
-   my @serviceips;  
-  foreach  my $service (  @{ $status->{services_status}->{services}} ) {
-    foreach my $key (keys %$service) {
-     push (@serviceips,$service->{$key}->{ip} );
-   }
-   }
-
-  return @serviceips; 
-}
-
-sub get_source_ip_from_status($) {
-  my $status =shift;
-   my @serviceips;  
-   foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
-    foreach my $attr (keys %$interface) {
-          foreach  my $service (  @{ $status->{services_status}->{services}} ) {
-               foreach my $key (keys %$service) {
-                    if ($service->{$key}->{ip} eq $interface->{$attr}->{IP} ){
-                        return $interface->{$attr}->{IP};
-                    }
-          } 
-        }
-         
-      }
-    }  
-  return "0.0.0.0"; 
-}
-
-sub get_status_diff($$) {
-  my $previous_status =shift;
-  my $status_r =shift;
-  my $i=0;
-  my @diff;   
-  foreach  my $service (  @{ ${$status_r}->{services_status}->{services}} ) {
-   
-    foreach my $key (keys %$service) {
-      print STDERR $key . "\n";    
-      if ($service->{$key}->{status} ne $previous_status->{services_status}->{services}[$i]->{$key}->{status}
-            || $service->{$key}->{code} ne $previous_status->{services_status}->{services}[$i]->{$key}->{code}
-         )    
-      {
-            print STDERR "trigger";
-          push @diff, {
-         name     => $key ,
-         type     => "services",
-         ip    => $service->{$key}->{ip} ,
-         state    => $service->{$key}->{status} ,
-         code     => $service->{$key}->{code} , 
-         previous_state =>$previous_status->{services_status}->{services}[$i]->{$key}->{status},
-         previous_code =>$previous_status->{services_status}->{services}[$i]->{$key}->{code}
-        };  
-        
-       }
-       
-     }
-   $i++;
-  }
-   $i=0;
-   foreach  my $instance (  @{ ${$status_r}->{instances_status}->{instances}} ) {
-     foreach my $attr (keys %$instance) {
-       my $skip=0; 
-       print STDERR "ici test ssh\n"; 
-       if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
-          (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
-
-        )    
-       {
-           
-            if ((defined($instance->{$attr}->{state}) ? $instance->{$attr}->{state} : "" ) eq "running"){
-             if( instance_check_ssh($instance->{$attr}->{ip}) ==0 ) {
-                  print STDERR "skipping because ssh failed\n";
-                  ${$status_r}->{instances_status}->{instances}[$i]->{$attr}->{state}="pending";
-                     $skip=1;  
-               
-`   `         } 
-
-         } 
-         if ($skip==0 )   {
-           print STDERR "trigger";
-          
-           push @diff, {
-            name     => $instance->{$attr}->{id} ,
-            type     => "instances",
-            ip       => defined($instance->{$attr}->{ip}) ?  $instance->{$attr}->{ip} : "",
-            state    => defined($instance->{$attr}->{state} ) ? $instance->{$attr}->{state} : "" ,
-            code     => "0" , 
-            previous_state =>$previous_status->{instances_status}->{instances}[$i]->{$attr}->{state},
-            previous_code =>0
-          };  
-        }
-
-       }
-       }
-       $i++;
-     }  
-     my $json       = new JSON;
-     my $json_status_diff = '{"events":' . $json->allow_blessed->convert_blessed->encode(\@diff).'}';
-     print STDERR   $json_status_diff . "\n";
-     return $json_status_diff;
-}
-
-sub get_90th_per($$)  {
-    my $self = shift;
-    my $index = shift;
-    
-    my @data = @_;
-    $index= defined ($index) ? $index : 0;
-    use POSIX qw(ceil floor);
-    my $result;
-    my $floor = floor($index);
-    my $ceil = ceil($index);
-    if ($floor == $ceil) {
-        $result = $data[$index];
-    } else {
-        if ($data[$ceil]) {
-            $result = ($data[$floor] + $data[$ceil]) / 2;
-        } else {
-            $result = $data[$floor];
-        }
-    }
-    return $result;
-}
 
 
 sub service_sql_database($) {
@@ -1427,7 +995,7 @@ sub service_status_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
   my $host=shift;
-  my $mon=get_active_monitor();
+  my $mon= Scramble::Common::ClusterUtils::get_active_monitor($config);
   my $err; 
   my $cmd =
             $SKYBASEDIR
@@ -1512,7 +1080,7 @@ sub service_status_memcache_fromdb($) {
           
         if ($res == 0 ) {
              print STDERR "Setting UDF Memcache server\n";
-            my $mem_info=get_active_memcache();
+            my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
             $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
             print STDERR "'". $mem_info->{ip} .":". $mem_info->{port}."'";
             try {
@@ -1560,8 +1128,8 @@ sub service_status_database($$) {
 
         my $dbh =
           DBI->connect( $dsn, $self->{mysql_user},
-            $self->{mysql_password} );
-        my $param = "select 1";
+            $self->{mysql_password} ,{ mysql_no_autocommit_cmd => 1});
+        my $param = "SELECT 1";
         $dbh->do($param);
     }
     catch Error with {
@@ -1643,7 +1211,7 @@ sub service_start_database($$) {
     $param = "$SKYDATADIR/sandboxes/$node/start";
     $err = worker_node_command( $param, $self->{ip} );
     
-    my $memcaches = get_all_memcaches();
+    my $memcaches =  Scramble::Common::ClusterUtils::get_all_memcaches($config);
     $param =
 "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
           . "SELECT memc_servers_set('"
@@ -1655,7 +1223,7 @@ sub service_start_database($$) {
 sub service_start_mycheckpoint($$) {
   my $self = shift;
   my $node = shift;
-  my $host=get_active_master_hash();
+  my $host=get_active_master_db_name($config);
   my $host_info = $config->{db}->{$host};  
   my $err = "000000";
   
@@ -1733,12 +1301,13 @@ sub service_start_bench($$$$) {
     my $self = shift;
     my $node = shift;
     my $type = shift;
-    my $bench_info=get_active_lb();
+    my $bench_info= Scramble::Common::ClusterUtils::get_active_lb($config);
     my $err = "000000";
    
  #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
      
   # my $cmd=$SKYBASEDIR."/dbt2/bin/client  -c ".$self->{concurrency}." -d ".$self->{duration}." -n -w ".$self->{warehouse}." -s 10 -u ".$bench_info->{mysql_user}." -x ".$bench_info->{mysql_password} ." -H". $bench_info->{vip};
+    
     my $cmd =
       $SKYBASEDIR
       . "/dbt2/bin/client -u "
@@ -1866,7 +1435,7 @@ sub service_install_bench($$) {
       ."/".$name
       ." --mysql";
  worker_node_command( $cmd, $self->{ip} );
- my $master= get_active_master();
+ my $master=  Scramble::Common::ClusterUtils::get_active_db($config);
  mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
 
  $cmd=$SKYBASEDIR
@@ -1978,7 +1547,7 @@ sub service_install_database($$$) {
     my $GTTID =
 "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
     $err = worker_node_command( $GTTID, $self->{ip} );
-    my $memcaches = get_all_memcaches();
+    my $memcaches =  Scramble::Common::ClusterUtils::get_all_memcaches($config);
 
     $param =
 "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
@@ -2022,10 +1591,22 @@ sub instance_check_ssh($){
   return 0;
 }
 
+sub instance_check_scrambledb($){
+    my $ip =shift;
+    my $command=
+    ' "echo 2>&1" && echo "OK" || echo "NOK"';
+    my  $result = worker_node_command($command,$ip);
+   print STDERR $result . " \n";
+    #$result =~ s/\n//g; 
+     if ( $result eq "000000"){ 
+        return 1;
+    }
+  return 0;
+}
+
 sub instance_heartbeat_collector($$) {
     my $status =shift;
     my $json_status = shift ;
-    
     my $json    = new JSON;
     print STDERR "Receive heartbeat..\n";
     #my $status =
@@ -2034,10 +1615,10 @@ sub instance_heartbeat_collector($$) {
    
     my $err = "000000";
     my $host_info;
-    my $host_vip = get_active_master();
-    my $source_ip = get_source_ip_from_status($status) ;
+    my $host_vip =  Scramble::Common::ClusterUtils::get_active_db($config);
+    my $source_ip = Scramble::Common::ClusterUtils::get_source_ip_from_status($status) ;
     print STDERR "heratbeat from ". $source_ip;
-    my $mem_info=get_active_memcache();
+    my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
  
     print STDERR "Process the ping with memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
     
@@ -2056,11 +1637,17 @@ sub instance_heartbeat_collector($$) {
        
         if ($previous_json_status )
        { 
-          
+         
+            print STDERR $previous_json_status;
+            print STDERR "\n";
+             print STDERR "\n";
+
+            print STDERR $json_status;
+
             my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
             ->allow_singlequote->allow_barekey->decode($previous_json_status);
             # pass a reference as the status need to be change in case of ssh failed 
-            my $json_triggers = get_status_diff($previous_status,\$status);
+            my $json_triggers =  Scramble::Common::ClusterUtils::get_status_diff($previous_status,\$status);
             worker_doctor_command($json_triggers,$gearman_ip);
             $json_status= $json->allow_blessed->convert_blessed->encode($status);
             print STDERR "after diff: ". $json_status;
@@ -2130,11 +1717,10 @@ sub database_rolling_restart(){
   }
  
 }
-sub service_switch_database($) {
-    my $switchhost = shift;
-    my $host_info;
-    my $err = "000000";
 
+sub config_switch_status($$){
+    my $switchhost = shift;
+    my $status = shift;
     my $file = "$SKYBASEDIR/ncc/etc/cloud.cnf";
     open my $in,  '<', $file       or die "Can't read old file: $!";
     open my $out, '>', "$file.new" or die "Can't write new file: $!";
@@ -2156,11 +1742,11 @@ sub service_switch_database($) {
             }
         }
 
-        if ( $drap == 1 ) {
+        if ( $drap == 1  && $status eq "master" ) {
             $line =~ s/^(.*)status(.*)slave(.*)$/\tstatus\t\t\t\tmaster/gi;
 
         }
-        else {
+        if( $drap == 1  && $status eq "slave" ) {
             $line =~ s/^(.*)status(.*)(slave|master)(.*)$/\tstatus\t\t\t\tslave/gi;
         }
         print $out $line;
@@ -2170,7 +1756,16 @@ sub service_switch_database($) {
     system("mv $file $file.old");
     system("mv $file.new $file");
     system("chmod 660 $file");
+ }
 
+sub service_switch_database($) {
+    my $switchhost = shift;
+    my $host_info;
+    my $err = "000000";
+    my $oldhost =  Scramble::Common::ClusterUtils::get_active_master_db_name($config);
+    config_switch_status($oldhost,"slave");
+    config_switch_status($switchhost,"master");
+     
    
     stop_all_proxy();
     bootstrap_config();
@@ -2196,6 +1791,32 @@ sub service_switch_database($) {
 }
 
 
+sub service_switch_vip(){
+  
+  my $ip= Scramble::Common::ClusterUtils::get_my_ip_from_config($config);
+  my $newlb= Scramble::Common::ClusterUtils::get_lb_name_from_ip($config,$ip);  
+  my $oldlb= Scramble::Common::ClusterUtils::get_lb_peer_name_from_ip($config,$ip);   
+
+  config_switch_status($oldlb,"slave");
+  config_switch_status($newlb,"master");
+  bootstrap_config();
+  my $lb = Scramble::Common::ClusterUtils::get_active_lb($config);
+ 
+  my $cmd1 ="/sbin/ifconfig lo:0 down";
+  
+  my $cmd2 ="/sbin/ifconfig lo:0"
+  . $lb->{vip} 
+  ." broadcast"
+  ." 10.0.0.10" 
+  ." netmask 255.255.255.255 up";
+   my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
+   foreach (@ips) {  
+        worker_node_command($cmd1 , $_);
+        if ($ip ne $_) {
+            worker_node_command($cmd2 , $_);
+        } 
+   } 
+}
 
 sub service_do_command($$$) {
     my $self = shift;
@@ -2205,9 +1826,9 @@ sub service_do_command($$$) {
     my $err   = "000000";
       print STDERR "Service Do command \n";
 
-    if ( $cmd eq "start" && is_ip_localhost($self->{ip})==0) {
+    if ( $cmd eq "start" && Scramble::Common::ClusterUtils::is_ip_localhost($self->{ip})==0) {
         # get the instances status from memcache 
-        my $mem_info=get_active_memcache();
+        my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
 
         print STDERR "Get the status in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
 
@@ -2218,7 +1839,7 @@ sub service_do_command($$$) {
                'compress_threshold' => 10_000,
         };
 
-           my $cloud = get_active_cloud();
+           my $cloud =  Scramble::Common::ClusterUtils::get_active_cloud($config);
            my $json_cloud       = new JSON ;
            my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
             
@@ -2247,7 +1868,7 @@ sub service_do_command($$$) {
           if ( is_ip_from_status_present($status,$self->{ip})==1) {
              print STDERR "Service Ip is found in status \n";   
              if ( is_ip_from_status_running($status,$self->{ip})==0) {
-                my $instance=get_instance_id_from_status_ip($status,$self->{ip});
+                my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($status,$self->{ip});
                 # not running but present need to start 
                 my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
                 worker_cloud_command($start_instance,$gearman_ip);
@@ -2407,21 +2028,7 @@ sub service_do_command($$$) {
     return $err;
 }
 
-sub delete_pid_if_exists($$) {
-    my $pidfile = shift;
-    my $ip      = shift;
-    my $err     = "000000";
 
-    if ( -e $pidfile ) {
-        open PIDHANDLE, "$pidfile";
-        my $localpid = <PIDHANDLE>;
-        close PIDHANDLE;
-        chomp $localpid;
-        $err =
-          worker_node_command( "tail -f /dev/null --pid " . $localpid, $ip );
-    }
-    return $err;
-}
 
 
 sub worker_node_command($$) {
@@ -2463,8 +2070,8 @@ sub worker_cloud_command($$) {
      } else { 
         return $result; 
      }
-    }  
-
+    
+   }
    return "ER0006";
     
 }
@@ -2516,96 +2123,8 @@ sub worker_doctor_command($$) {
 
 }
 
-sub RPad($$$) {
-
-    my $str = shift;
-    my $len = shift;
-    my $chr = shift;
-    $chr = " " unless ( defined($chr) );
-    return substr( $str . ( $chr x $len ), 0, $len );
-}    
-
-sub report_status($$$) {
-    my $self = shift;
-    my $cmd  = shift;
-    my $err  = shift;
-    my $host = shift;
-    print STDERR $cmd . '\n';
-    my $le_localtime = localtime;
-    print $LOG $le_localtime . " $cmd\n";
-    my $status ="na";
-    if ( $self->{status}) { 
-     $status=$self->{status};
-    }
-    push(@console ,
-       '{"'.$host .'":{"time":"'
-      . $le_localtime
-      . '","name":"'
-      .  $host
-      . '","ip":"'
-      .  $self->{ip} 
-      . '","mode":"'
-      .  $self->{mode}  
-      . '","status":"'
-      .  $status
-      . '","code":"'
-      . $err
-      . '","state":"'
-      . $ERRORMESSAGE{$err}  
-      . '"}}'
-   ); 
- 
-}
-sub report_action($$$) {
-    my $ip = shift;
-    my $cmd  = shift;
-    my $err  = shift;
-    my $le_localtime = localtime;
-    print '{"time":"'
-      . $le_localtime
-      . '","ip":"'
-      . $ip 
-      . '","code":"'
-      . $err
-      . '","command":"'
-      . $cmd  
-      . '"}';
-    push(@actions ,
-       '{"time":"'
-      . $le_localtime
-      . '","ip":"'
-      . $ip 
-      . '","code":"'
-      . $err
-      . '","command":"'
-      . $cmd  
-      . '"}'
-   );
-   
-}
 
 
-
-
-sub replace_config_line($$$) {
-    my $file   = shift;
-    my $strin  = shift;
-    my $strout = shift;
-
-    open my $in,  '<', $file       or die "Can't read old file: $!";
-    open my $out, '>', "$file.new" or die "Can't write new file: $!";
-
-    while (<$in>) {
-        s/^$strin(.*)$/$strout/gi;
-        print $out $_;
-    }
-
-    close $out;
-    system("rm -f $file.old");
-    system("mv $file $file.old");
-    system("mv $file.new $file");
-    system("chmod 660 $file");
-}
 
 sub bootstrap_config() {
     print STDERR "bootstrap_config\n"; 
@@ -2616,7 +2135,7 @@ sub bootstrap_config() {
       . '/ncc/etc/id_rsa.pub`"; sed -e "\|$string|h; \${x;s|$string||;{g;t};a\\" -e "$string" -e "}" $HOME/.ssh/authorized_keys > $HOME/.ssh/authorized_keys2 ;mv $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys_old;mv $HOME/.ssh/authorized_keys2 $HOME/.ssh/authorized_keys';
     my $err = "000000";
 
-    my @ips = get_all_sercive_ips();
+    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach (@ips) {
         my $command =
           "{command:{action:'write_config',group:'localhost',type:'all'}}";
@@ -2648,7 +2167,7 @@ sub bootstrap_binaries() {
       . "/skystack.tar.gz  ./skysql";
     system($command);
     my $err = "000000";
-    my @ips = get_all_sercive_ips();
+    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach (@ips) {
         if ( is_ip_localhost($_) == 0 ) {
             
@@ -2689,7 +2208,7 @@ sub bootstrap_ncc() {
     my $err          = "000000";
 
 
-    my @ips = get_all_sercive_ips();
+    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach (@ips) {
         if ( is_ip_localhost($_) ==0) {
 
@@ -2745,50 +2264,63 @@ sub start_all_proxy() {
     }
 }
 
-
-
-sub uniq {
-    my %seen;
-    return grep { !$seen{$_}++ } @_;
+sub report_status($$$) {
+    my $self = shift;
+    my $cmd  = shift;
+    my $err  = shift;
+    my $host = shift;
+    print STDERR $cmd . '\n';
+    my $le_localtime = localtime;
+    print STDERR $le_localtime . " $cmd\n";
+    my $status ="na";
+    if ( $self->{status}) { 
+     $status=$self->{status};
+    }
+    push(@console ,
+       '{"'.$host .'":{"time":"'
+      . $le_localtime
+      . '","name":"'
+      .  $host
+      . '","ip":"'
+      .  $self->{ip} 
+      . '","mode":"'
+      .  $self->{mode}  
+      . '","status":"'
+      .  $status
+      . '","code":"'
+      . $err
+      . '","state":"'
+      . $ERRORMESSAGE{$err}  
+      . '"}}'
+   ); 
+ 
+}
+sub report_action($$$) {
+    my $ip = shift;
+    my $cmd  = shift;
+    my $err  = shift;
+    my $le_localtime = localtime;
+    print '{"time":"'
+      . $le_localtime
+      . '","ip":"'
+      . $ip 
+      . '","code":"'
+      . $err
+      . '","command":"'
+      . $cmd  
+      . '"}';
+    push(@actions ,
+       '{"time":"'
+      . $le_localtime
+      . '","ip":"'
+      . $ip 
+      . '","code":"'
+      . $err
+      . '","command":"'
+      . $cmd  
+      . '"}'
+   );
+   
 }
 
-sub tokenize_sql($) {
-    my $query = shift;
-    my $re    = qr{
-		(
-			(?:--|\#)[\ \t\S]*      # single line comments
-			|
-			(?:<>|<=>|>=|<=|==|=|!=|!|<<|>>|<|>|\|\||\||&&|&|-|\+|\*(?!/)|/(?!\*)|\%|~|\^|\?)
-									# operators and tests
-			|
-			[\[\]\(\),;.]            # punctuation (parenthesis, comma)
-			|
-			\'\'(?!\')              # empty single quoted string
-			|
-			\"\"(?!\"")             # empty double quoted string
-			|
-			".*?(?:(?:""){1,}"|(?<!["\\])"(?!")|\\"{2})
-									# anything inside double quotes, ungreedy
-			|
-			`.*?(?:(?:``){1,}`|(?<![`\\])`(?!`)|\\`{2})
-									# anything inside backticks quotes, ungreedy
-			|
-			'.*?(?:(?:''){1,}'|(?<!['\\])'(?!')|\\'{2})
-									# anything inside single quotes, ungreedy.
-			|
-			/\*[\ \t\n\S]*?\*/      # C style comments
-			|
-			(?:[\w:@]+(?:\.(?:\w+|\*)?)*)
-									# words, standard named placeholders, db.table.*, db.*
-			|
-			\n                      # newline
-			|
-			[\t\ ]+                 # any kind of white spaces
-		)
-	   }smx;
-    my @ltokens = $query =~ m{$re}smxg;
 
-    @ltokens = grep( !/^[\s\n\r]*$/, @ltokens );
-
-    return wantarray ? @ltokens : \@ltokens;
-}

@@ -19,35 +19,44 @@
  $%ENDLICENSE%$ --]]
 
 require('Memcached')
-require('CRC32')
+-- require('CRC32')
 
 
 local commands    = require("proxy.commands")
 local tokenizer   = require("proxy.tokenizer")
 local lb          = require("proxy.balance")
 local auto_config = require("proxy.auto-config")
+local bit = require 'bit.numberlua'.bit32
 
 
-local backend_id_server = { 5010,5012,5011}
+local backend_id_server = { 5010,5011}
 local memcache_master="127.0.0.1"
 local memcache_port = 11211
 -- insert here --	    
 
 -- connection pool
+local memcache= Memcached.Connect(memcache_master , memcache_port) 
+         
+
 if not proxy.global.config.rwsplit then
 	proxy.global.config.rwsplit = {
-		min_idle_connections = 5,
-		max_idle_connections = 20,
-
+		min_idle_connections = 4,
+		max_idle_connections = 100,
+                com_queries_ro   = 0,
+                com_queries_rw   = 0,
 		is_debug = true  
 	}
 end
 
+local min_idle_connections = 4
+local max_idle_connections = 8
+
+
+
 local is_in_transaction       = false
 local is_in_select_calc_found_rows = false
 
--- get a connection to a backend
--- if not enough in pool, create new connections
+
 
 function tablename_expand(tblname, db_name)
 	if not db_name then db_name = proxy.connection.client.default_db end
@@ -56,6 +65,18 @@ function tablename_expand(tblname, db_name)
 	end
 
 	return tblname
+end
+
+
+function crc(s)
+local bit_band, bit_bxor, bit_rshift, str_byte, str_len = bit.band, bit.bxor, bit.rshift, string.byte, string.len
+ local consts = { 0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA, 0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3, 0x0EDB8832, 0x79DCB8A4, 0xE0D5E91E, 0x97D2D988, 0x09B64C2B, 0x7EB17CBD, 0xE7B82D07, 0x90BF1D91, 0x1DB71064, 0x6AB020F2, 0xF3B97148, 0x84BE41DE, 0x1ADAD47D, 0x6DDDE4EB, 0xF4D4B551, 0x83D385C7, 0x136C9856, 0x646BA8C0, 0xFD62F97A, 0x8A65C9EC, 0x14015C4F, 0x63066CD9, 0xFA0F3D63, 0x8D080DF5, 0x3B6E20C8, 0x4C69105E, 0xD56041E4, 0xA2677172, 0x3C03E4D1, 0x4B04D447, 0xD20D85FD, 0xA50AB56B, 0x35B5A8FA, 0x42B2986C, 0xDBBBC9D6, 0xACBCF940, 0x32D86CE3, 0x45DF5C75, 0xDCD60DCF, 0xABD13D59, 0x26D930AC, 0x51DE003A, 0xC8D75180, 0xBFD06116, 0x21B4F4B5, 0x56B3C423, 0xCFBA9599, 0xB8BDA50F, 0x2802B89E, 0x5F058808, 0xC60CD9B2, 0xB10BE924, 0x2F6F7C87, 0x58684C11, 0xC1611DAB, 0xB6662D3D, 0x76DC4190, 0x01DB7106, 0x98D220BC, 0xEFD5102A, 0x71B18589, 0x06B6B51F, 0x9FBFE4A5, 0xE8B8D433, 0x7807C9A2, 0x0F00F934, 0x9609A88E, 0xE10E9818, 0x7F6A0DBB, 0x086D3D2D, 0x91646C97, 0xE6635C01, 0x6B6B51F4, 0x1C6C6162, 0x856530D8, 0xF262004E, 0x6C0695ED, 0x1B01A57B, 0x8208F4C1, 0xF50FC457, 0x65B0D9C6, 0x12B7E950, 0x8BBEB8EA, 0xFCB9887C, 0x62DD1DDF, 0x15DA2D49, 0x8CD37CF3, 0xFBD44C65, 0x4DB26158, 0x3AB551CE, 0xA3BC0074, 0xD4BB30E2, 0x4ADFA541, 0x3DD895D7, 0xA4D1C46D, 0xD3D6F4FB, 0x4369E96A, 0x346ED9FC, 0xAD678846, 0xDA60B8D0, 0x44042D73, 0x33031DE5, 0xAA0A4C5F, 0xDD0D7CC9, 0x5005713C, 0x270241AA, 0xBE0B1010, 0xC90C2086, 0x5768B525, 0x206F85B3, 0xB966D409, 0xCE61E49F, 0x5EDEF90E, 0x29D9C998, 0xB0D09822, 0xC7D7A8B4, 0x59B33D17, 0x2EB40D81, 0xB7BD5C3B, 0xC0BA6CAD, 0xEDB88320, 0x9ABFB3B6, 0x03B6E20C, 0x74B1D29A, 0xEAD54739, 0x9DD277AF, 0x04DB2615, 0x73DC1683, 0xE3630B12, 0x94643B84, 0x0D6D6A3E, 0x7A6A5AA8, 0xE40ECF0B, 0x9309FF9D, 0x0A00AE27, 0x7D079EB1, 0xF00F9344, 0x8708A3D2, 0x1E01F268, 0x6906C2FE, 0xF762575D, 0x806567CB, 0x196C3671, 0x6E6B06E7, 0xFED41B76, 0x89D32BE0, 0x10DA7A5A, 0x67DD4ACC, 0xF9B9DF6F, 0x8EBEEFF9, 0x17B7BE43, 0x60B08ED5, 0xD6D6A3E8, 0xA1D1937E, 0x38D8C2C4, 0x4FDFF252, 0xD1BB67F1, 0xA6BC5767, 0x3FB506DD, 0x48B2364B, 0xD80D2BDA, 0xAF0A1B4C, 0x36034AF6, 0x41047A60, 0xDF60EFC3, 0xA867DF55, 0x316E8EEF, 0x4669BE79, 0xCB61B38C, 0xBC66831A, 0x256FD2A0, 0x5268E236, 0xCC0C7795, 0xBB0B4703, 0x220216B9, 0x5505262F, 0xC5BA3BBE, 0xB2BD0B28, 0x2BB45A92, 0x5CB36A04, 0xC2D7FFA7, 0xB5D0CF31, 0x2CD99E8B, 0x5BDEAE1D, 0x9B64C2B0, 0xEC63F226, 0x756AA39C, 0x026D930A, 0x9C0906A9, 0xEB0E363F, 0x72076785, 0x05005713, 0x95BF4A82, 0xE2B87A14, 0x7BB12BAE, 0x0CB61B38, 0x92D28E9B, 0xE5D5BE0D, 0x7CDCEFB7, 0x0BDBDF21, 0x86D3D2D4, 0xF1D4E242, 0x68DDB3F8, 0x1FDA836E, 0x81BE16CD, 0xF6B9265B, 0x6FB077E1, 0x18B74777, 0x88085AE6, 0xFF0F6A70, 0x66063BCA, 0x11010B5C, 0x8F659EFF, 0xF862AE69, 0x616BFFD3, 0x166CCF45, 0xA00AE278, 0xD70DD2EE, 0x4E048354, 0x3903B3C2, 0xA7672661, 0xD06016F7, 0x4969474D, 0x3E6E77DB, 0xAED16A4A, 0xD9D65ADC, 0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5, 0x47B2CF7F, 0x30B5FFE9, 0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD70693, 0x54DE5729, 0x23D967BF, 0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94, 0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D }
+     
+local crc, l, i = 0xFFFFFFFF, str_len(s)
+  for i = 1, l, 1 do
+   crc = bit_bxor(bit_rshift(crc, 8), consts[bit_band(bit_bxor(crc, str_byte(s, i)), 0xFF) + 1])
+  end
+ return bit_bxor(crc, -1)
 end
 
 ---
@@ -172,15 +193,15 @@ function get_sql_tables(tokens)
 		elseif sql_stmt == "INSERT" then
 			-- INSERT INTO ...
 
-                        -- print ( "We are in insert into and token :" .. token["token_name"])      
+                       -- print ( "We are in insert into and token :" .. token["token_name"] .. "token value :" )      
                        if ( token["token_name"] == "TK_SQL_INSERT") then  
                             in_tablelist = true
                         elseif  in_tablelist then
-				if token["token_name"] == "TK_LITERAL" and in_tablelist  then
+				if (token["token_name"] == "TK_LITERAL"  or token["token_name"] == "TK_FUNCTION" )and in_tablelist  then
                                     if not db_name and tokens[i + 1] and tokens[i + 1].token_name == "TK_DOT" then
 						db_name = token.text
 				    else
-                                     --   print ("Found table_name : " .. token.text) 
+                                        print ("Found insert table_name : " .. token.text) 
 					tables[tablename_expand(token.text, db_name)] = (sql_stmt == "SELECT" and "read" or "write")
                                         in_tablelist = false
                                     end    
@@ -190,15 +211,15 @@ function get_sql_tables(tokens)
 			end
 		elseif sql_stmt == "UPDATE" then
 			-- UPDATE <tbl> SET ..
-                        if ( token["token_name"] == "TK_SQL_UPDATE") then  
+                        if ( token["token_name"] == "TK_SQL_UPDATE" ) then  
                             in_tablelist = true
                         end        
 			if in_tablelist then
-				if token["token_name"] == "TK_LITERAL" then
+				if token["token_name"] == "TK_LITERAL"  then
                                    if not db_name and tokens[i + 1] and tokens[i + 1].token_name == "TK_DOT" then
 						db_name = token.text
 				    else
-                                     --   print ("Found table_name : " .. token.text) 
+                                        print ("Found update table_name : " .. token.text  ) 
 					tables[tablename_expand(token.text, db_name)] = (sql_stmt == "SELECT" and "read" or "write")
                                         in_tablelist = false
     
@@ -215,103 +236,120 @@ function get_sql_tables(tokens)
 	return tables
 end
 
-
+local is_debug =1
 
 function connect_server() 
-	local is_debug = proxy.global.config.rwsplit.is_debug
 	-- make sure that we connect to each backend at least ones to 
 	-- keep the connections to the servers alive
 	--
 	-- on read_query we can switch the backends again to another backend
 
 	if is_debug then
-		
-		print("[connect_server] " .. proxy.connection.client.src.name)
+		print()
+		print("[connect_server] ")
 	end
 
-	local rw_ndx = 0
+	local least_idle_conns_ndx = 0
+	local least_idle_conns = 0
 
-	-- init all backends 
 	for i = 1, #proxy.global.backends do
-		local s        = proxy.global.backends[i]
+		local s = proxy.global.backends[i]
 		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
 		local cur_idle = pool.users[""].cur_idle_connections
 
-		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
-		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
-		
 		if is_debug then
 			print("  [".. i .."].connected_clients = " .. s.connected_clients)
-			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
-			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
+			print("  [".. i .."].idling_connections = " .. cur_idle)
 			print("  [".. i .."].type = " .. s.type)
 			print("  [".. i .."].state = " .. s.state)
 		end
 
-		-- prefer connections to the master 
-		if s.type == proxy.BACKEND_TYPE_RW and
-		   s.state ~= proxy.BACKEND_STATE_DOWN and
-		   cur_idle < pool.min_idle_connections then
-			proxy.connection.backend_ndx = i
-			break
-		elseif s.type == proxy.BACKEND_TYPE_RO and
-		       s.state ~= proxy.BACKEND_STATE_DOWN 
-		       and cur_idle < pool.min_idle_connections 
-                        then
-			proxy.connection.backend_ndx = i
-			break
-		elseif s.type == proxy.BACKEND_TYPE_RW and
-		       s.state ~= proxy.BACKEND_STATE_DOWN and
-		       rw_ndx == 0 then
-                        rw_ndx = i
+		if s.state ~= proxy.BACKEND_STATE_DOWN then
+			-- try to connect to each backend once at least
+			if cur_idle == 0 then
+				proxy.connection.backend_ndx = i
+				if is_debug then
+					print("  [".. i .."] open new connection")
+				end
+				return
+			end
+
+			-- try to open at least min_idle_connections
+			if least_idle_conns_ndx == 0 or
+			   ( cur_idle < min_idle_connections and 
+			     cur_idle < least_idle_conns ) then
+				least_idle_conns_ndx = i
+				least_idle_conns = s.idling_connections
+			end
 		end
 	end
 
-	if proxy.connection.backend_ndx == 0 then
-		if is_debug then
-			print("  [" .. rw_ndx .. "] taking master as default")
-		end
-		proxy.connection.backend_ndx = rw_ndx
+	if least_idle_conns_ndx > 0 then
+		proxy.connection.backend_ndx = least_idle_conns_ndx
 	end
 
-	-- pick a random backend
-	--
-	-- we someone have to skip DOWN backends
+	if proxy.connection.backend_ndx > 0 then 
+		local s = proxy.global.backends[proxy.connection.backend_ndx]
+		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
+		local cur_idle = pool.users[""].cur_idle_connections
 
-	-- ok, did we got a backend ?
-
-	if proxy.connection.server then 
-		if is_debug then
-			print("  using pooled connection from: " .. proxy.connection.backend_ndx)
+		if cur_idle >= min_idle_connections then
+			-- we have 4 idling connections in the pool, that's good enough
+			if is_debug then
+				print("  using pooled connection from: " .. proxy.connection.backend_ndx)
+			end
+	
+			return proxy.PROXY_IGNORE_RESULT
 		end
-
-		-- stay with it
-		return proxy.PROXY_IGNORE_RESULT
 	end
 
 	if is_debug then
-		print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
+		print("  opening new connection on: " .. proxy.connection.backend_ndx)
 	end
 
 	-- open a new connection 
 end
 
--- add  authed connection into the connection pool
+--- 
+-- put the successfully authed connection into the connection pool
+--
 -- @param auth the context information for the auth
-
+--
+-- auth.packet is the packet
 function read_auth_result( auth )
-	if is_debug then
-		print("[read_auth_result] " .. proxy.connection.client.src.name)
-	end
 	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
+		-- auth was fine, disconnect from the server
 		proxy.connection.backend_ndx = 0
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
+		-- we received either a 
+		-- 
+		-- * MYSQLD_PACKET_ERR and the auth failed or
+		-- * MYSQLD_PACKET_EOF which means a OLD PASSWORD (4.0) was sent
 		print("(read_auth_result) ... not ok yet");
 	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
 		-- auth failed
 	end
 end
+
+
+function disconnect_client()
+  if proxy.connection.backend_ndx == 0 then
+    -- currently we don't have a server backend assigned
+    --
+    -- pick a server which has too many idling connections and close one
+    for i = 1, #proxy.global.backends do
+      local s = proxy.global.backends[i]
+      if s.state ~= proxy.BACKEND_STATE_DOWN and 
+	s.pool.users[proxy.connection.client.username].cur_idle_connections > max_idle_connections then
+        -- try to disconnect a backend
+        proxy.connection.backend_ndx = i
+        return
+      end
+    end
+  end
+end
+
+
 
 
 function read_query( packet )
@@ -326,8 +364,6 @@ function read_query( packet )
 	local norm_query
         local stmt
 
-	
-
 	if cmd.type == proxy.COM_QUIT then
 		-- don't send COM_QUIT  We keep the connection open
 		proxy.response = {
@@ -335,7 +371,7 @@ function read_query( packet )
 		}
 	
 		if is_debug then
-			print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
+			-- print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
 		end
 
 		return proxy.PROXY_SEND_RESULT
@@ -394,20 +430,25 @@ function read_query( packet )
 				end
 			end
 
-			--  last-insert-id from on the original 
-			-- connection
-			if not is_insert_id then
-				local backend_ndx = lb.idle_ro()
-
-				if backend_ndx > 0 then
+			if not is_insert_id   then
+                            local backend_ndx=0;
+                            for i = 1, #proxy.global.backends do
+                               if  proxy.global.backends[i].state == proxy.BACKEND_TYPE_RO then  
+                                   if is_query_to_slave(tokens,i) then 
+                                     backend_ndx = i
+                                    break
+                                   end 
+				end 
+                            end     
+			    if backend_ndx > 0 then
 					proxy.connection.backend_ndx = backend_ndx
-				end
+			    end
 			else
 				print("   found a SELECT LAST_INSERT_ID(), staying on the same backend")
                                 
 			end
-		end
-	end
+		end -- TK_SQL_SELECT
+	end -- is_not_in_transaction and COM_QUERY
 
 	-- no backend selected yet, pick a master
 	if proxy.connection.backend_ndx == 0 then
@@ -432,12 +473,11 @@ function read_query( packet )
 	-- if client and server db don't match, adjust the server-side 
 	--
 	-- skip it if we send a INIT_DB anyway
-	if cmd.type ~= proxy.COM_INIT_DB and 
-	   c.default_db and c.default_db ~= s.default_db then
+	if cmd.type ~= proxy.COM_INIT_DB  and c.default_db ~= s.default_db then
 		print("    server default db: " .. s.default_db)
 		print("    client default db: " .. c.default_db)
 		print("    syncronizing")
-		proxy.queries:prepend(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
+		proxy.queries:append(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
 	end
 
 	-- send to master
@@ -456,86 +496,90 @@ function read_query( packet )
 		print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
 	end
         local tbls  = {} 
---       while ( memcache:add("_lock","lock",1) == nil ) do 
---            print("lock")
---       end
    
-        if  cmd.type == proxy.COM_QUERY  and stmt.token_name ~= "TK_SQL_SELECT" then
-           tokens2     = tokens or assert(tokenizer.tokenize(cmd.query))
-          print ("    Injection GTID")
+       if  cmd.type == proxy.COM_QUERY  and stmt.token_name ~= "TK_SQL_SELECT" then
+            tokens2     = tokens or assert(tokenizer.tokenize(cmd.query))
+            print ("    Injection GTID")
             tbls = get_sql_tables(tokens2)
 	    proxy.queries:append(3, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"STATEMENT\"", { resultset_is_needed = true } )
-            
-             local i=4
+            local i=4
             for tbl,v in pairs(tbls) do 
                 print (tbl)
-                print ("INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)") 
-                proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "INSERT into  mysql.TBLGTID select \"" .. CRC32.Hash(tbl) .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  CRC32.Hash(tbl) .. "\",@@server_id),gtid+1)",{ resultset_is_needed = true } )
+                print ("INSERT into  mysql.TBLGTID select CRC32(\"" .. tbl .. "\", 0 , memc_set(concat(\"" .. CRC32.Hash(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  crc(tbl) .. "\",@@server_id),gtid+1)") 
+                proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "INSERT into mysql.TBLGTID select CRC32(\"" .. tbl .. "\"), 0 , memc_set(concat(\"" .. crc(tbl) .. "\",@@server_id),0)  on duplicate key update gtid=gtid+1, memres=memc_set(concat(\"" ..  crc(tbl) .. "\",@@server_id),gtid+1)",{ resultset_is_needed = true } )
                 i=i+1
-             end 
-             proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
- 
-          
-      elseif (proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then
-          if  (not (tokens == nil)) then    
-            tbls = get_sql_tables(tokens)
-            local memcache= Memcached.Connect({memcache_host , memcache_port}) 
-            local slaveGTID=0  
-            local masterGTID=0  
-            for tbl,v in pairs(tbls) do
-             if is_debug then 
-               print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[1])
-             end
-             masterGTID=memcache:get(CRC32.Hash(tbl) .. backend_id_server[1] )   
-	     if (masterGTID ==  nil) then
-                proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                if is_debug then
-                  print ("   Fail back to master : No memcache entry in master")
-                end
-                memcache:disconnect_all()   
-                break
-             end 
-             if is_debug then 
-               print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[proxy.connection.backend_ndx])
-             end
-             slaveGTID=memcache:get(CRC32.Hash(tbl) ..  backend_id_server[proxy.connection.backend_ndx] )
-             if slaveGTID==nil then
-                proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                if is_debug then
-                 print ("   Fail back to master : No memcache entry in slave")
-                end
-                memcache:disconnect_all()   
-                break
-             end  
-             memcache:disconnect_all()        
-             if is_debug then
-		print(" master GTID : " ..  masterGTID .." for table : " .. tbl)   
-                print(" slave GTID : " ..  slaveGTID .." for table : " .. tbl)   
-             end
-             
-             if  masterGTID ~=slaveGTID then 
-                proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-                print ("    Fail back to master : Replication Table Delay")
-                break
-              end 
-            
-            
-            end
-          else 
-                 print ("    Fail back to master : Can't understand Query")
-                 proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-          end 
-         
-      end 
- --      memcache:delete( "_lock")            
- proxy.queries:append(1, packet, { resultset_is_needed = true })
-             
+            end 
+            proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
+   
+       end 
+        
+       if( proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then
+         proxy.global.config.rwsplit.com_queries_ro   = proxy.global.config.rwsplit.com_queries_ro+1
+       else
+         proxy.global.config.rwsplit.com_queries_rw   = proxy.global.config.rwsplit.com_queries_rw+1
+       end
+       print ("com_queries_ro :" ..  proxy.global.config.rwsplit.com_queries_ro)
+       print ("com_queries_rw :" ..  proxy.global.config.rwsplit.com_queries_rw)
+       proxy.queries:append(1, packet, { resultset_is_needed = true })
        return proxy.PROXY_SEND_QUERY
 end
 
----
--- as long as we are in a transaction keep the connection
--- otherwise release it so another client can use it
+
+function is_query_to_slave(tokens,idx_backend ) 
+--       while ( memcache:add("_lock","lock",1) == nil ) do 
+--            print("lock")
+--       end
+  local tbls  = {} 
+   
+  if  (not (tokens == nil)) then    
+            tbls = get_sql_tables(tokens)
+       --     local memcache= Memcached.Connect(memcache_master , memcache_port) 
+            local slaveGTID=0  
+            local masterGTID=0  
+            for tbl,v in pairs(tbls) do
+                if is_debug then 
+                  print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[1])
+                end
+                masterGTID=memcache:get(crc(tbl) .. backend_id_server[1] )   
+                if (masterGTID ==  nil) then
+                 
+                   if is_debug then
+                     print ("   Fail back to master : No memcache entry in master")
+                   end
+                   return 0
+                end 
+                if is_debug then 
+                  print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[idx_backend])
+                end
+                slaveGTID=memcache:get(crc(tbl) ..  backend_id_server[idx_backend] )
+                if slaveGTID==nil then
+                   if is_debug then
+                    print ("   Fail back to master : No memcache entry in slave")
+                   end
+                   return 0
+                   
+                end  
+                if is_debug then
+                   print(" master GTID : " ..  masterGTID .." for table : " .. tbl)   
+                   print(" slave GTID : " ..  slaveGTID .." for table : " .. tbl)   
+                end
+
+                if  masterGTID ~=slaveGTID then 
+                   print ("    Fail back to master : Replication Table Delay")
+                   return 0
+                 end 
+             
+            end -- for each table 
+
+            end   
+            
+  --          memcache:disconnect_all() 
+            return 1
+--  memcache:increment( backend_id_server[proxy.connection.backend_ndx],1)                     
+ --      memcache:delete( "_lock")       
+end 
+
+
 function read_query_result( inj ) 
 	local is_debug = proxy.global.config.rwsplit.is_debug
 	local res      = assert(inj.resultset)
@@ -559,6 +603,7 @@ function read_query_result( inj )
 
 				return proxy.PROXY_SEND_RESULT
 			end
+                        
 		end
                 if (inj.id > 2) then
                     if res.query_status == proxy.MYSQLD_PACKET_ERR then
@@ -591,21 +636,4 @@ function read_query_result( inj )
 	end
 end
 
---- 
--- close the connections if we have enough connections in the pool
---
--- @return nil - close connection 
---         IGNORE_RESULT - store connection in the pool
-function disconnect_client()
-	local is_debug = proxy.global.config.rwsplit.is_debug
-	if is_debug then
-		print("[disconnect_client] " .. proxy.connection.client.src.name)
-	end
-
-	-- make sure we are disconnection from the connection
-	-- to move the connection into the pool
-	-- if  proxy.connection and  proxy.connection.backend_ndx then 
-        --     proxy.connection.backend_ndx = 0
-        -- end      
-end
 

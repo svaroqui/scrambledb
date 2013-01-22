@@ -1,4 +1,4 @@
-package SKY::Common::Log;
+package Scramble::Common::Log;
 
 use strict;
 use warnings FATAL => 'all';

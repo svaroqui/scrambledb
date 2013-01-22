@@ -24,7 +24,7 @@ defaults
    maxconn                 3000
 frontend mysql-front
 mode tcp
-bind     0.0.0.0:3305
+bind     0.0.0.0:3306
 default_backend  mysql-back
 #---------------------------------------------------------------------
 # round robin balancing between the various backends
@@ -32,6 +32,5 @@ default_backend  mysql-back
 backend mysql-back
   balance     roundrobin
   mode    tcp
-   server proxy3 127.0.0.1:3309  check
-   server proxy2 127.0.0.1:3308  check
-   server proxy1 127.0.0.1:3307  check
+   server proxy11 127.0.0.1:3308  check
+   server proxy10 127.0.0.1:3307  check

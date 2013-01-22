@@ -20,7 +20,8 @@
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
-use Common::Config;
+use Scramble::Common::Config;
+use Scramble::Common::ClusterUtils;
 use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
@@ -43,16 +44,15 @@ our  %ERRORMESSAGE = (
     "ER0106" => "Error writing keepalived config"
 );
 
-our $hashcolumn;
-our $createtable = "";
-our $like = "none";
+
+
 our $database = "";
 our $SKYBASEDIR = $ ENV {SKYBASEDIR};
 our $SKYDATADIR = $ ENV {SKYDATADIR};
 our $gearman_timeout = 2000;
 our $mysql_connect_timeout=3;
 our $console = "{result:{status:'00000'}}";
-our $config = new SKY::Common::Config::;
+our $config = new Scramble::Common::Config::;
 my $conf="etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
@@ -60,8 +60,7 @@ open my $LOG , q{>>},  $SKYDATADIR."/log/worker_write_config.log"
 or die "can't create 'worker_write_config.log'\n";
 
 
-
-        my $worker = new Gearman::XS::Worker;
+my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server('',0);
 if ($ret != GEARMAN_SUCCESS) {
 		printf(STDERR "%s\n", $worker->error());
@@ -81,27 +80,7 @@ while (1) {
 		}
 }
 
-sub is_ip_localhost($) {
-    
-    my $testIP = shift;
-    
-    my %IPs;
-    my $interface;
 
-    foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
-        $interface = $1 if /^(\S+?):?\s/;
-        next unless defined $interface;
-        $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
-        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i;
-    }
-
-    foreach my $key ( sort keys %IPs ) {
-        if ( $IPs{$key}->{IP} eq $testIP ) {
-            return 0;
-        }
-    }
-    return 1;
-}
 
 sub write_cmd {
     my ($job, $options) = @_;
@@ -157,6 +136,8 @@ sub write_cmd {
     print STDOUT "write memcached config\n"; 
     write_lua_script();
     print STDOUT "write lua script from config\n"; 
+    write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
+     print STDOUT "write tarantool from config\n";
   #  write_mysql_config();
 
     return  $console ;
@@ -165,7 +146,7 @@ sub write_cmd {
 
 
 
-sub replace_config($$$){
+sub replace_patern_infile($$$){
     my $file= shift;
     my $strin= shift;
     my $strout= shift;
@@ -190,6 +171,7 @@ sub write_keepalived_config($){
  my $file= shift;
  my $i=100;
  my $lb_info;
+ my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);   
  foreach my $lb (keys(%{$config->{lb}})) {
 
     $lb_info = $config->{lb}->{default};
@@ -211,6 +193,11 @@ sub write_keepalived_config($){
     print $out "vrrp_instance mysql_pool {\n";
     print $out "  # The interface we listen on.\n";
     print $out "  interface ". $lb_info->{device}."\n";
+    my $peerlb = $config->{lb}->{$lb_info->{peer}};
+    print $out "  vrrp_unicast_bind " .$lb_info->{ip}."\n";
+    print $out "  vrrp_unicast_peer " . $peerlb->{ip}."\n";
+#$config->{db}->{ $host_info->{peer}[0] };
+
     print $out "  # The default state, one should be master, the others should be set to SLAVE.\n";
     print $out "  state MASTER\n";
     print $out "\n";
@@ -219,6 +206,9 @@ sub write_keepalived_config($){
     print $out "\n";
     print $out "  priority ". $i."\n";
     print $out "\n";
+    print $out '  notify_master "'.$SKYBASEDIR.'/ncc/clmgr services switch_vip"' ."\n";
+    #print $out 'notify_fault "'.$SKYBASEDIR.'/scripts/vrrp.sh FAULT"\n';
+
     print $out "  # Set the interface whose status to track to trigger a failover.  \n";
     print $out "  track_interface {\n";
     print $out "    ". $lb_info->{device}."\n";
@@ -252,6 +242,7 @@ sub write_keepalived_config($){
     print $out "  protocol TCP\n";
     my $host_info;
     foreach my $host (keys(%{$config->{proxy}})) {
+       if ($host_info->{cloud} eq $cloud_name){
         $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
         print $out "\n";
@@ -262,6 +253,7 @@ sub write_keepalived_config($){
         print $out "      connect_timeout 3\n";
         print $out "   } \n";
         print $out " }\n";
+       } 
      }
      print $out " }\n";
      }
@@ -278,7 +270,7 @@ sub write_lua_script(){
 my $i=100;
 
 
-
+my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
 
  my $host_info;
 foreach my $host (keys(%{$config->{proxy}})) {
@@ -293,7 +285,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
         foreach my $nosql (keys(%{$config->{nosql}})) {
         $nosql_info = $config->{nosql}->{default};
         $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" && $nosql_info->{mode} eq "memcache" ){
+        if  ( $nosql_info->{status} eq "master" && $nosql_info->{mode} eq "memcache" && $nosql_info->{cloud} eq $cloud_name ){
          print $out  get_lua_connection_pool_server_id() ."\n";
          print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
          print $out "local memcache_port = " . $nosql_info->{port} ."\n";
@@ -313,15 +305,83 @@ foreach my $host (keys(%{$config->{proxy}})) {
   } 
   return 0; 
 }
-sub write_haproxy_config($){
+
+
+sub write_tarantool_config($) {
 my $file= shift;
-my $i=100;
+ my $i=100;
+ my $host_nosql;
+ foreach my $nosql (keys(%{$config->{nosql}})) {
+   $host_nosql = $config->{nosql}->{default};
+   $host_nosql = $config->{nosql}->{$nosql}; 
+   if  ($host_nosql->{mode} eq "tarantool") {
+    open my $out, '>', "$file.$nosql.cnf" or die "Can't write new file: $!";
+    print $out "# Limit of memory used to store tuples to 100MB\n";
+    print $out "# (0.1 GB)\n";
+    print $out "# This effectively limits the memory, used by\n";
+    print $out "# Tarantool. However, index and connection memory\n";
+    print $out "# is stored outside the slab allocator, hence\n";
+    print $out "# the effective memory usage can be higher (sometimes\n";
+    print $out "# twice as high).\n";
+    print $out "slab_alloc_arena = 0.1\n";
+
+    print $out "#\n";
+    print $out "# Store the pid in this file. Relative to\n";
+    print $out "# startup dir.\n";
+    print $out "pid_file = \"".$SKYBASEDIR."/ncc/tmp/tarantool.". $nosql .".pid\"\n";
+
+    print $out "\n";
+    print $out "# Pipe the logs into the following process.\n";
+    print $out "logger=\"cat - >> ". $SKYDATADIR . "/log/tarantool.". $nosql  .".log\"\n";
+
+    print $out "#\n";
+    print $out "# Read only and read-write port.\n";
+    print $out "primary_port = ". $host_nosql->{port} ."\n";
+
+    print $out "#\n";
+    print $out "# Read-only port.\n";
+    print $out "secondary_port = ". $host_nosql->{secondary_port} ."\n";
+
+    print $out "#\n";
+    print $out "# The port for administrative commands.\n";
+    print $out "admin_port = ". $host_nosql->{admin_port} ."\n";
+
+    print $out "#\n";
+    print $out "# Each write ahead log contains this many rows.\n";
+    print $out "# When the limit is reached, Tarantool closes\n";
+    print $out "# the WAL and starts a new one.\n";
+    print $out "rows_per_wal = ". $host_nosql->{admin_port} ."\n";
+
+
+    print $out "# Define a simple space with 1 HASH-based\n";
+    print $out "# primary key.\n";
+    print $out "space[0].enabled = 1\n";
+    print $out "space[0].index[0].type = \"HASH\"\n";
+    print $out "space[0].index[0].unique = 1\n";
+    print $out "space[0].index[0].key_field[0].fieldno = 0\n";
+    print $out "space[0].index[0].key_field[0].type = \"NUM\"\n";
+
+    print $out "# working directory (daemon will chdir(2) to it)\n";
+    print $out "work_dir = \"". $SKYDATADIR . "/". $nosql  ."\"\n";
+
+
+    print $out "  return 0; \n";
+    print $out "}\n";
+   } 
+ }
+}
+
+
+sub write_haproxy_config($){
+ my $file= shift;
+ my $i=100;
  my $lb_info;
-foreach my $lb (keys(%{$config->{lb}})) {
+ my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);   
+ foreach my $lb (keys(%{$config->{lb}})) {
 
     $lb_info = $config->{lb}->{default};
     $lb_info = $config->{lb}->{$lb};
-    if  ( $lb_info->{mode} eq "haproxy"){
+    if  ( $lb_info->{mode} eq "haproxy" ){
     open my $out, '>', "$file.$lb.cnf" or die "Can't write new file: $!";
     print $out "global\n";
     print $out "   log         127.0.0.1 local2\n";
@@ -367,10 +427,11 @@ foreach my $lb (keys(%{$config->{lb}})) {
     print $out "  mode    tcp\n";
     my $host_info;
     foreach my $host (keys(%{$config->{proxy}})) {
-        $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
+       if ($host_info->{cloud} eq $cloud_name){  
+    
         print $out "   server $host ". $host_info->{ip}.":". $host_info->{port} . "  check\n";
-
+      }
      }
       close $out;
       system("chmod 660 $file.$lb.cnf " );
@@ -415,10 +476,10 @@ sub write_mysql_config(){
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if (is_ip_localhost ($host_info->{ip})) {
+        if (is_ip_localhost($host_info->{ip})) {
            system(`cat /proc/meminfo |  grep "MemTotal" | awk '{print \$2}'`); 
            my $ram =$? ;
-             replace_config("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
+             replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
              if ($ram eq "0") {
             
              }    
@@ -429,8 +490,8 @@ sub write_mysql_config(){
 
 sub write_mysql_proxy_config($){
 my $file = shift;
-my $masters = list_masters();
-my $slaves = list_slaves() ;
+my $masters = Scramble::Common::ClusterUtils::get_all_masters($config);
+my $slaves =  Scramble::Common::ClusterUtils::get_all_slaves($config) ;
 
 my $i=100;
 my $host_info;
@@ -441,50 +502,45 @@ foreach my $host (keys(%{$config->{proxy}})) {
 
     print $out "[mysql-proxy]\n";
     print $out "pid-file = mysql-proxy.pid\n";
-    print $out "log-file = $SKYBASEDIR/ncc/log/mysql-proxy.log\n";
-    print $out "log-level = debug\n";
-   # print $out "plugin-dir=lib/mysql-proxy/plugins\n";
-   # print $out "admin-username=". $host_info->{admin_user}." \n";
-   # print $out "admin-password=". $host_info->{admin_password}." \n";
-   # print $out "admin-lua-script=lib/mysql-proxy/lua/admin.lua\n";
+    print $out "log-file = $SKYDATADIR/log/mysql-proxy.".$host .".log\n";
+    print $out "log-level = ". $host_info->{log_level} ."\n";
+    print $out "event-threads = ". $host_info->{event_threads} ."\n";
+    print $out "max-open-files=". $host_info->{max_open_files} ."\n";
+    print $out "proxy-fix-bug-25371=". $host_info->{proxy_fix_bug_25371} ."\n";
+    #print $out "plugin-dir=lib/mysql-proxy/plugins\n";
+    #print $out "admin-username=". $host_info->{admin_user}." \n";
+    #print $out "admin-password=". $host_info->{admin_password}." \n";
+    #print $out "admin-lua-script=lib/mysql-proxy/lua/admin.lua\n";
     print $out "proxy-address =". $host_info->{ip}.":". $host_info->{port} ."\n";
     print $out "proxy-backend-addresses=".$masters."\n";
     print $out "proxy-read-only-backend-addresses=". $slaves."\n";
-  # print $out "proxy-lua-script = ../ncc/scripts/interceptor.lua\n";
     print $out "proxy-lua-script = $SKYBASEDIR/ncc/scripts/". $host .".lua\n";
+    print $out "lua-path=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.lua\n";
+    print $out "lua-cpath=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.so\n";
      close $out;
  $i++;
 system("chmod 660 $file.$host.cnf" );
 }
 
 
-# replace_config($file ,"proxy-read-only-backend-addresses","proxy-read-only-backend-addresses=". $slaves);
-# replace_config($file ,"proxy-backend-addresses","proxy-backend-addresses=".  $masters );
+# replace_patern_infile($file ,"proxy-read-only-backend-addresses","proxy-read-only-backend-addresses=". $slaves);
+# replace_patern_infile($file ,"proxy-backend-addresses","proxy-backend-addresses=".  $masters );
 }
 
-sub get_master_cloud() {
-    my $host_info;
-    foreach my $host ( keys( %{ $config->{cloud} } ) ) {
-        $host_info = $config->{cloud}->{default};
-        $host_info = $config->{cloud}->{$host};
-        if ( $host_info->{status} eq "master" ) {
-            return $host_info;
-        }
-    }
-   return 0; 
-}
+
 
 sub write_mha_config($){
   my $file = shift;
   my $host_info ;
   my $err = "000000";
   my $i=1;
-  my $cloud=get_master_cloud();
+  my $cloud=Scramble::Common::ClusterUtils::get_active_cloud($config);
+  my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
   open my $out, '>', "$file.new" or die "Can't write new file: $!";
-  foreach my $host (keys(%{$config->{db}})) {
+  foreach my $host (keys(%{$config->{db}}) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "master" || $host_info->{status} eq "slave") {
+        if ($host_info->{status} eq "master" || $host_info->{status} eq "slave" && $host_info->{cloud} eq $cloud_name) {
             print $out "[server$i]\n";
             print $out "hostname=$host_info->{ip}\n";
             print $out "ip=$host_info->{ip}\n";
@@ -511,18 +567,21 @@ sub write_mha_config($){
 
 sub get_lua_connection_pool_server_id(){
     my @backend; 
-     my $host_info ;
+    my $host_info ;
+    
+    my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
+    print STDERR "cloud_name" . $cloud_name;
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "master") {
-              push(@backend  , $host_info->{mysql_port});
+        if ($host_info->{status} eq "master"  && $host_info->{cloud} eq $cloud_name) {
+              push(@backend  , $host_info->{mysql_port} );
          }
     }
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "slave") {
+        if ($host_info->{status} eq "slave" && $host_info->{cloud} eq $cloud_name) {
               push(@backend ,  $host_info->{mysql_port});
          }
     }
@@ -532,104 +591,28 @@ sub get_lua_connection_pool_server_id(){
 }
 
 
-sub list_slaves(){
-  my $host_info ;
-    my $err = "000000";
-   my @slaves;
-  foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "slave") {
-              push(@slaves  , $host_info->{ip}.":". $host_info->{mysql_port});
-         }
-    }
-
-    return join(',',@slaves) ;
-}
-sub list_masters(){
-  my $host_info ;
-    my $err = "000000";
-    my @masters;
-    foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "master") {
-              push(@masters  , $host_info->{ip}.":". $host_info->{mysql_port});
-         }
-    }
-    return join(',',@masters) ;
-}
-
-sub get_master_host(){
-  my $host_info ;
-    my $err = "000000";
-    my @masters;
-    foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "master") {
-            return $host_info;
-        }
-    }
-    return 0 ;
-}
-
-
-sub list_memcaches(){
-  my $host_info ;
-  my $err = "000000";
-  my @memcaches;
-  foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        if ($host_info->{mode} eq "memcache") {
-              push(@memcaches  , $host_info->{ip}.":". $host_info->{mysql_port});
-         }
-    }
-return join(',',@memcaches) ;
-}
 
 
 
-
-sub all_ips(){
-  my $host_info ;
-  my $err = "000000";
-  my @ips;
-  foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
-        $host_info = $config->{db}->{$host};
-        push(@ips  , $host_info->{ip});
-    }
-    return uniq(@ips) ;
-}
-
-
-
-
-
-sub bootstrap(){
+sub write_certificat(){
     my $my_home_user = $ ENV {HOME};
     my $cmd='string="`cat '.$SKYBASEDIR.'/ncc/etc/id_rsa.pub`"; sed -e "\|$string|h; \${x;s|$string||;{g;t};a\\" -e "$string" -e "}" $HOME/.ssh/authorized_keys > $HOME/.ssh/authorized_keys2 ;mv $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys_old;mv $HOME/.ssh/authorized_keys2 $HOME/.ssh/authorized_keys';
     my $err = "000000";
 
-    my @ips= all_ips();
+    my @ips= Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach  (@ips) {
   #   $err = gearman_client($cmd, $_);
       system("scp -i ". $SKYBASEDIR."/ncc/etc/id_rsa " . $SKYBASEDIR. "/ncc/etc/cloud.cnf ". $_.":".$SKYBASEDIR."/ncc/etc");
 
+   }
 
-}
-
-
-
-#$cms="cat <<EOF_LO0 > /etc/sysconfig/network-scripts/ifcfg-lo:1
-#DEVICE=lo:1
-#IPADDR=192.168.0.10
-#NETMASK=255.255.255.255
-#NAME=loopback
-#ONBOOT=yes
-#EOF_LO0";
+ #$cms="cat <<EOF_LO0 > /etc/sysconfig/network-scripts/ifcfg-lo:1
+ #DEVICE=lo:1
+ #IPADDR=192.168.0.10
+ #NETMASK=255.255.255.255
+ #NAME=loopback
+ #ONBOOT=yes
+ #EOF_LO0";
 
 }
 

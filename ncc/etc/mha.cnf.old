@@ -1,39 +1,39 @@
 [server1]
 hostname=127.0.0.1
 ip=127.0.0.1
-port=5010
+port=5011
 repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/var/lib/skysql/mha
-master_binlog_dir=/var/lib/skysql/sandboxes/node10/data
+remote_workdir=/usr/lib/skysql/mha
+master_binlog_dir=/usr/lib/skysql/sandboxes/db11/data
 ssh_options="-i /usr/local/skysql/ncc/etc/id_rsa"
 basedir=/usr/local/skysql
 
 [server2]
 hostname=127.0.0.1
 ip=127.0.0.1
-port=5012
+port=5010
 repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/var/lib/skysql/mha
-master_binlog_dir=/var/lib/skysql/sandboxes/node12/data
+remote_workdir=/usr/lib/skysql/mha
+master_binlog_dir=/usr/lib/skysql/sandboxes/db10/data
 ssh_options="-i /usr/local/skysql/ncc/etc/id_rsa"
 basedir=/usr/local/skysql
 
 [server3]
-hostname=127.0.0.1
-ip=127.0.0.1
-port=5011
+hostname=10.0.0.102
+ip=10.0.0.102
+port=5010
 repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
 remote_workdir=/var/lib/skysql/mha
-master_binlog_dir=/var/lib/skysql/sandboxes/node11/data
+master_binlog_dir=/var/lib/skysql/sandboxes/db1/data
 ssh_options="-i /usr/local/skysql/ncc/etc/id_rsa"
 basedir=/usr/local/skysql
 

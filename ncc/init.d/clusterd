@@ -87,6 +87,10 @@ start()
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null > $LOG/worker_cluster.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+
+  nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null >> $LOG/worker_cluster.log 2>&1 & 
+  procid=$!
+  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
   
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCONFIG < /dev/null > $LOG/worker_config.log 2>&1 & 
   procid=$!

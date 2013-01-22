@@ -39,40 +39,40 @@
     agent_password          skyvodka
 </db>
 
-<db node10>
+<db db10>
     status                    master
     mode                    mariadb
     ip                      127.0.0.1
-    peer                    node11
+    peer                    db10
     mysql_version           mariadb
     mysql_port		    5010 
     mysql_server_id         5010
     mysql_cnf		    etc/my.template
-    datadir		    /var/lib/skysql
+    cloud		    cloud3
 </db>
 
-<db node11>
+<db db11>
     mode                    mariadb 
     status                    slave 
     ip                      127.0.0.1
-    peer		    node10
+    peer		    db10
     mysql_version	    mariadb
     mysql_port 		    5011
     mysql_server_id         5011
     mysql_cnf		    etc/my.template
-    datadir		    /var/lib/skysql
+    cloud		    cloud3
 </db>
 
 
-<db node12>
+<db db12>
     status                  slave 
     mode                    mariadb 
     ip                      127.0.0.1
-    peer		    node10
+    peer		    db10
     mysql_version	    mariadb
     mysql_port 		    5012
     mysql_cnf		    etc/my.template
-    datadir		    /var/lib/skysql
+    cloud		    cloud3
 </db>
 
 #<db node20>
@@ -86,108 +86,109 @@
 #</db>
 
 
-<proxy proxy1>
+<proxy proxy10>
     mode                    mysql-proxy
     ip                      127.0.0.1 
-    hosts                   node10
-    peer		    node11	
+    hosts                   db10
     port 		    3307 
     script                  rw-splitting.template
+    cloud		    cloud3
 </proxy>
-<proxy proxy2>
+<proxy proxy11>
     mode                    mysql-proxy
     ip                      127.0.0.1 
-    hosts                   node10
-    peer		    node11	
+    hosts                   db10
     port 		    3308
     script                  rw-splitting.template
-</proxy>
-<proxy proxy3>
-    mode                    mysql-proxy
-    ip                      127.0.0.1 
-    hosts                   node10
-    peer		    node11	
-    port 		    3309 
-    script                  rw-splitting.template
+    cloud		    cloud3
 </proxy>
 
-<nosql nosql1>
+
+<nosql nosql10>
     ip                      127.0.0.1
     mode                    memcache
     status                  master
     port              	    11211
     mem                     16
+    cloud		    cloud3
 </nosql>
-<nosql nosql2>
+<nosql nosql11>
     ip                      127.0.0.1
     status                  slave
     mode                    memcache
     port              	    11212
+    cloud		    cloud3
     mem                     16
 </nosql>
 
 
-<lb lb1>
+<lb lb10>
     ip                      127.0.0.1
     vip                     127.0.0.1
     port                    3304  
-    peer                    lb2
+    peer                    lb11
     status                  master
     mode                    keepalived
     balance                 none
     device                  eth1 
     mysql_user		    skysql 
     mysql_password	    skyvodka	
+    cloud		    cloud3
 </lb>
-<lb lb2>
+<lb lb11>
     ip                      127.0.0.1
     vip                     127.0.0.1
     port                    3303  
-    peer                    lb1
+    peer                    lb10
     status                  slave
     mode                    keepalived
     balance                 none
     device                  eth2 
     mysql_user		    skysql 
     mysql_password	    skyvodka	
+    cloud		    cloud3
 </lb>
-<lb lb3>
+<lb lb12>
     ip                      127.0.0.1
     vip                     0.0.0.0
     port                    3306  
     mysql_user		    skysql 
     mysql_password	    skyvodka	
-    peer                    lb4
+    peer                    lb13
     mode                    haproxy
     status                  master
     device                  eth1 
+    cloud		    cloud3
 </lb>
-<lb lb4>
+<lb lb13>
     ip                      127.0.0.1
     vip                     0.0.0.0
     mysql_user		    skysql 
     mysql_password	    skyvodka	
     port                    3305  
-    peer                    lb3
+    peer                    lb12
     mode                    haproxy
     device                  eth2 
     status                  slave
+    cloud		    cloud3
 </lb>
 
-<bench bench1> 
+<bench bench10> 
   mode                    dbt2
-  ip                    127.0.0.1  
+  ip                      127.0.0.1  
   warehouse               100
   concurrency             16 
   duration                600
   datadir                 /var/lib/skysql/dbt2   
+   cloud		  cloud3  
 </bench>
 
-<monitor mon1>
+<monitor mon10>
     mode                  mycheckpoint
     ip                    127.0.0.1  
     port                  8080
     smtp-from             mon@skysql.com
     smtp-to               stephane@skysql.com
     smtp-host             localhost  
+    cloud		    cloud3
 </monitor>

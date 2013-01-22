@@ -20,12 +20,12 @@ use File::Basename;
 our $SELF_DIR = dirname(dirname(Cwd::abs_path(__FILE__)));
 
 use Data::Dumper; # XXX
-SKY
+Scramble
 # START UTILITY FUNCTIONS
 # test config
 sub test_config {
 	my $program = shift;
-	my $config = new MMM::Common::Config::;
+	my $config = new Scramble::Common::Config::;
 	$config->read('common_config_test');
 #print Data::Dumper->Dump([$config]);
 	$config->check($program);
@@ -43,8 +43,8 @@ sub write_config_file ($$) {
 }
 # END UTILITY FUNCTIONS
 
-my $config = new MMM::Common::Config::;
-isa_ok($config, 'MMM::Common::Config');
+my $config = new Scramble::Common::Config::;
+isa_ok($config, 'Scramble::Common::Config');
 
 
 my $test_conf = "$SELF_DIR/common_config_test.conf";
@@ -59,61 +59,61 @@ is($config->_get_filename('resolv'), '/etc/resolv.conf', '_get_filename finds /e
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
+$Scramble::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
 write_config_file($test_conf, '');
 stderr_like { test_config(); } qr/required_1_var/, 'Error if required variable is not there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
+$Scramble::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
 write_config_file($test_conf, 'required_1_var some_value');
 stderr_like { test_config(); } qr/^\s*$/, 'No error if required variable is there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
+$Scramble::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
 write_config_file($test_conf, '');
 stderr_like { test_config('PROG1'); } qr/required_1_var/, 'Error if required variable is not there (with program)';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
+$Scramble::Common::Config::RULESET = { 'required_1_var' => { 'required' => 1 } };
 write_config_file($test_conf, 'required_1_var some_value');
 stderr_like { test_config('PROG1'); } qr/^\s*$/, 'No error if required variable is there (with program)';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
+$Scramble::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
 write_config_file($test_conf, '');
 stderr_like { test_config('PROG1'); } qr/required_prog1_var/, 'Error if required variable for specific program is not there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
+$Scramble::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
 write_config_file($test_conf, 'required_prog1_var some_value');
 stderr_like { test_config('PROG1'); } qr/^\s*$/, 'No error if required variable for specific program is there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
+$Scramble::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
 write_config_file($test_conf, '');
 stderr_like { test_config('PROG2'); } qr/^\s*$/, 'No error if required variable for different program is not there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
+$Scramble::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
 write_config_file($test_conf, '');
 stderr_like { test_config(); } qr/required_prog1_var/, 'Error if required variable for any program is not there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
+$Scramble::Common::Config::RULESET = { 'required_prog1_var' => { 'required' => [ 'PROG1' ] } };
 write_config_file($test_conf, 'required_prog1_var some_value');
 stderr_like { test_config(); } qr/^\s*$/, 'No error if required variable for any program is there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'default_var' => { 'default' => 'mydefault' } };
+$Scramble::Common::Config::RULESET = { 'default_var' => { 'default' => 'mydefault' } };
 write_config_file($test_conf, '');
 stderr_like 
 	{ $config = test_config(); is($config->{default_var}, 'mydefault', 'default value is used if var is not specified'); } 
@@ -121,76 +121,76 @@ stderr_like
 
 ###
 
-$MMM::Common::Config::RULESET = { 'default_var' => { 'default' => 'mydefault' } };
+$Scramble::Common::Config::RULESET = { 'default_var' => { 'default' => 'mydefault' } };
 write_config_file($test_conf, 'default_var othervalue');
 $config = test_config();
 is($config->{default_var}, 'othervalue', 'default value is not used if var is specified');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'def_req_1_var' => { 'default' => 'mydef', 'required' => '1' } };
+$Scramble::Common::Config::RULESET = { 'def_req_1_var' => { 'default' => 'mydef', 'required' => '1' } };
 write_config_file($test_conf, '');
 stderr_like { test_config(); } qr/required/i, 'Error if required variable has a default and is missing';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'host' => { 'multiple' => 1, 'section' => { } } };
+$Scramble::Common::Config::RULESET = { 'host' => { 'multiple' => 1, 'section' => { } } };
 write_config_file($test_conf, "<host db1/>");
 $config = test_config();
 is(ref($config->{host}), "HASH", 'named section without variables is recognized as section');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'debug' => { 'values' => ['1', '0', 'yes', 'no'] } };
+$Scramble::Common::Config::RULESET = { 'debug' => { 'values' => ['1', '0', 'yes', 'no'] } };
 write_config_file($test_conf, 'debug 0');
 stderr_like { test_config(); } qr/^\s*$/, 'No error if value of variable is in list';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'debug' => { 'values' => ['1', '0', 'yes', 'no'] } };
+$Scramble::Common::Config::RULESET = { 'debug' => { 'values' => ['1', '0', 'yes', 'no'] } };
 write_config_file($test_conf, 'debug activated');
 stderr_like { test_config(); } qr/activated/, 'Error if value of variable is not in list';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'this' => { 'refvalues' => 'host' }, 'host' => { 'multiple' => 1, 'section' => { } } };
+$Scramble::Common::Config::RULESET = { 'this' => { 'refvalues' => 'host' }, 'host' => { 'multiple' => 1, 'section' => { } } };
 write_config_file($test_conf, "this db1\n<host db1/>\n<host db2/>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if value of variable is in referenced list';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'this' => { 'refvalues' => 'host' }, 'host' => { 'multiple' => 1, 'section' => { } } };
+$Scramble::Common::Config::RULESET = { 'this' => { 'refvalues' => 'host' }, 'host' => { 'multiple' => 1, 'section' => { } } };
 write_config_file($test_conf, "this db3\n<host db1/>\n<host db2/>");
 stderr_like { test_config(); } qr/db3/, 'Error if value of variable is not in referenced list';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'host' => { 'multiple' => 1, 'section' => { 'peer' => { 'refvalues' => 'host' } } } };
+$Scramble::Common::Config::RULESET = { 'host' => { 'multiple' => 1, 'section' => { 'peer' => { 'refvalues' => 'host' } } } };
 write_config_file($test_conf, "<host db1/>\n<host db2>\npeer db1\n</host>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if value of variable is in referenced list (self reference)';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'check' => { 'multiple' => 1, 'values' => ['ping', 'mysql', 'replication'], 'section' => { } } };
+$Scramble::Common::Config::RULESET = { 'check' => { 'multiple' => 1, 'values' => ['ping', 'mysql', 'replication'], 'section' => { } } };
 write_config_file($test_conf, "<check replication/>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if name of section is in list';
 
 
 ###
 
-$MMM::Common::Config::RULESET = { 'check' => { 'multiple' => 1, 'values' => ['ping', 'mysql', 'replication'], 'section' => { } } };
+$Scramble::Common::Config::RULESET = { 'check' => { 'multiple' => 1, 'values' => ['ping', 'mysql', 'replication'], 'section' => { } } };
 write_config_file($test_conf, "<check blood_pressure/>");
 stderr_like { test_config(); } qr/blood_pressure/, 'Error if name of section is not in list';
 
 ### UNIQUE SECTIONS
 
-$MMM::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var' => { 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var' => { 'required' => 1 } } } };
 write_config_file($test_conf, "<section>\nsection_var somevalue\n</section>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if required section variable is there (unique section)';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'monitor' => { 'section' => { 'ip' => { 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'monitor' => { 'section' => { 'ip' => { 'required' => 1 } } } };
 write_config_file($test_conf, "<monitor/>");
 stderr_like { test_config(); } qr/required/i, 'Error if required section variable is not there (unique section)';
 
@@ -199,72 +199,72 @@ stderr_like { test_config(); } qr/required/i, 'Error if required section variabl
 #print Data::Dumper->Dump([$config]);
 #exit (1);
 
-$MMM::Common::Config::RULESET = { 'monitor' => { 'section' => { 'port' => { 'default' => '9988' } } } };
+$Scramble::Common::Config::RULESET = { 'monitor' => { 'section' => { 'port' => { 'default' => '9988' } } } };
 write_config_file($test_conf, "<monitor/>");
 $config = test_config();
 is($config->{monitor}->{port}, '9988', 'default value is used if section var is not specified (unique section)');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'monitor' => { 'section' => { 'port' => { 'default' => '9988', 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'monitor' => { 'section' => { 'port' => { 'default' => '9988', 'required' => 1 } } } };
 write_config_file($test_conf, "<monitor/>");
 stderr_like { test_config(); } qr/default/i, 'Warning if required section variable has a default and is missing';
 stderr_like { test_config(); } qr/required/i, 'Error if required section variable has a default and is missing';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
 write_config_file($test_conf, "<section>\nsection_var othervalue\n</section>");
 $config = test_config();
 is($config->{section}->{section_var}, 'othervalue', 'default value is not used if section var is specified (unique section)');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
 write_config_file($test_conf, "<section>\nsection_var2 need\n</section>");
 stderr_like { test_config(); } qr/required/i, 'Error if deprequired section variable is needed but not specified (unique section)';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
 write_config_file($test_conf, "<section>\nsection_var2 dont_need</section>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if deprequired section variable is not needed and not specified (unique section)';
 
 ### NON UNIQUE SECTIONS
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'required' => 1 } } } };
 write_config_file($test_conf, "<section name1>\nsection_var somevalue\n</section>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if required section variable is there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'required' => 1 } } } };
 write_config_file($test_conf, "<section name1/>");
 stderr_like { test_config(); } qr/section_var/, 'Error if required section variable is not there';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
 write_config_file($test_conf, "<section name1/>");
 $config = test_config();
 is($config->{section}->{name1}->{section_var}, 'mydefault', 'default value is used if section var is not specified');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
 write_config_file($test_conf, "<section name1>\nsection_var othervalue\n</section>");
 $config = test_config();
 is($config->{section}->{name1}->{section_var}, 'othervalue', 'default value is not used if section var is specified');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault', 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var' => { 'default' => 'mydefault', 'required' => 1 } } } };
 write_config_file($test_conf, "<section name1/>");
 stderr_like { test_config(); } qr/required/i, 'Error if required section variable has a default and is missing';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
 write_config_file($test_conf, "<section default>\nsection_var othervalue\n</section>\n<section name1/>");
 $config = test_config();
 is($config->{section}->{default}, undef, 'template section is undefined');
@@ -272,32 +272,32 @@ is($config->{section}->{name1}->{section_var}, 'othervalue', 'default value is n
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'default' => 'mydefault' } } } };
 write_config_file($test_conf, "<section default/>\n<section name1/>");
 $config = test_config();
 is($config->{section}->{name1}->{section_var}, 'mydefault', 'default value is used if section var is not specified in template');
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'required' => 1 } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var' => { 'required' => 1 } } } };
 write_config_file($test_conf, "<section default>\nsection_var othervalue\n</section>\n<section name1>");
 stderr_like { test_config(); } qr/^\s*$/, 'No Error if required section variable is only specified in template';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
 write_config_file($test_conf, "<section name1>\nsection_var2 need\n</section>");
 stderr_like { test_config(); } qr/required/i, 'Error if deprequired section variable is needed but not specified';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
 write_config_file($test_conf, "<section name1>\nsection_var2 dont_need\n</section>");
 stderr_like { test_config(); } qr/^\s*$/, 'No error if deprequired section variable is not needed and not specified';
 
 ###
 
-$MMM::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
+$Scramble::Common::Config::RULESET = { 'section' => { 'multiple' => 1, 'template' => 'default', 'section' => { 'section_var1' => { 'deprequired' => { 'section_var2' => 'need' } }, 'section_var2' => { } } } };
 write_config_file($test_conf, "<section default>\nsection_var2 need\n</section>\n<section name1/>");
 stderr_like { test_config(); } qr/required/i, 'Error if deprequired section variable is needed because of template but not specified';
 
@@ -311,7 +311,7 @@ EOL
 #$config->check('LVMTOOLS');
 #$config->check('AGENT');
 #$config->check();
-#print Data::Dumper->Dump([$MMM::Common::Config::RULESET]);
+#print Data::Dumper->Dump([$Scramble::Common::Config::RULESET]);
 #print Data::Dumper->Dump([$config]);
 #use Data::Dumper;
 #print Data::Dumper->Dump([$config]);

@@ -59,97 +59,49 @@ local is_in_transaction       = false
 -- if this was a SELECT SQL_CALC_FOUND_ROWS ... stay on the same connections
 local is_in_select_calc_found_rows = false
 
---- 
--- get a connection to a backend
---
--- as long as we don't have enough connections in the pool, create new connections
---
-function connect_server() 
-	local is_debug = proxy.global.config.rwsplit.is_debug
-	-- make sure that we connect to each backend at least ones to 
-	-- keep the connections to the servers alive
-	--
-	-- on read_query we can switch the backends again to another backend
+local min_idle_connections = 4
+local max_idle_connections = 8
 
-	if is_debug then
-		print()
-		print("[connect_server] " .. proxy.connection.client.src.name)
-	end
+function connect_server()
+  
+  local least_idle_conns_ndx = 0
+  local least_idle_conns = 0
 
-	local rw_ndx = 0
+  for i = 1, #proxy.global.backends do
+    local s = proxy.global.backends[i]
 
-	-- init all backends 
-	for i = 1, #proxy.global.backends do
-		local s        = proxy.global.backends[i]
-		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
-		local cur_idle = pool.users[""].cur_idle_connections
+    if s.state ~= proxy.BACKEND_STATE_DOWN then
+      -- try to connect to each backend once at least
+      if s.idling_connections == 0 then
+        proxy.connection.backend_ndx = i
+        return
+      end
 
-		pool.min_idle_connections = proxy.global.config.rwsplit.min_idle_connections
-		pool.max_idle_connections = proxy.global.config.rwsplit.max_idle_connections
-		
-		if is_debug then
-			print("  [".. i .."].connected_clients = " .. s.connected_clients)
-			print("  [".. i .."].pool.cur_idle     = " .. cur_idle)
-			print("  [".. i .."].pool.max_idle     = " .. pool.max_idle_connections)
-			print("  [".. i .."].pool.min_idle     = " .. pool.min_idle_connections)
-			print("  [".. i .."].type = " .. s.type)
-			print("  [".. i .."].state = " .. s.state)
-		end
+      -- try to open at least min_idle_connections
+      if least_idle_conns_ndx == 0 or
+         ( s.pool.users[""].cur_idle_connections < min_idle_connections and
+           s.pool.users[""].cur_idle_connections < least_idle_conns ) then
+        least_idle_conns_ndx = i
+        least_idle_conns = s.pool.users[""].cur_idle_connections
+      end
+    end
+  end
 
-		-- prefer connections to the master 
-		if s.type == proxy.BACKEND_TYPE_RW and
-		   s.state ~= proxy.BACKEND_STATE_DOWN and
-		   cur_idle < pool.min_idle_connections then
-			proxy.connection.backend_ndx = i
-			break
-		elseif s.type == proxy.BACKEND_TYPE_RO and
-		       s.state ~= proxy.BACKEND_STATE_DOWN 
-		       and cur_idle < pool.min_idle_connections 
-                        then
-			proxy.connection.backend_ndx = i
-			break
-		elseif s.type == proxy.BACKEND_TYPE_RW and
-		       s.state ~= proxy.BACKEND_STATE_DOWN and
-		       rw_ndx == 0 then
-			rw_ndx = i
-		end
-	end
+  if least_idle_conns_ndx > 0 then
+    proxy.connection.backend_ndx = least_idle_conns_ndx
+  end
 
-	if proxy.connection.backend_ndx == 0 then
-		if is_debug then
-			print("  [" .. rw_ndx .. "] taking master as default")
-		end
-		proxy.connection.backend_ndx = rw_ndx
-	end
+  if proxy.connection.backend_ndx > 0 and
+     proxy.servers[proxy.connection.backend_ndx].idling_connections >= min_idle_connections then
+    -- we have idling connections in the pool, that's good enough
 
-	-- pick a random backend
-	--
-	-- we someone have to skip DOWN backends
+    return proxy.PROXY_IGNORE_RESULT
+  end
 
-	-- ok, did we got a backend ?
-
-	if proxy.connection.server then 
-		if is_debug then
-			print("  using pooled connection from: " .. proxy.connection.backend_ndx)
-		end
-
-		-- stay with it
-		return proxy.PROXY_IGNORE_RESULT
-	end
-
-	if is_debug then
-		print("  [" .. proxy.connection.backend_ndx .. "] idle-conns below min-idle")
-	end
-
-	-- open a new connection 
+  -- open a new connection
 end
 
---- 
--- put the successfully authed connection into the connection pool
---
--- @param auth the context information for the auth
---
--- auth.packet is the packet
+
 function read_auth_result( auth )
 	if is_debug then
 		print("[read_auth_result] " .. proxy.connection.client.src.name)
@@ -409,19 +361,20 @@ function read_query_result( inj )
 	end
 end
 
---- 
--- close the connections if we have enough connections in the pool
---
--- @return nil - close connection 
---         IGNORE_RESULT - store connection in the pool
 function disconnect_client()
-	local is_debug = proxy.global.config.rwsplit.is_debug
-	if is_debug then
-		print("[disconnect_client] " .. proxy.connection.client.src.name)
-	end
-
-	-- make sure we are disconnection from the connection
-	-- to move the connection into the pool
-	-- proxy.connection.backend_ndx = 0
+  if proxy.connection.backend_ndx == 0 then
+    -- currently we don't have a server backend assigned
+    --
+    -- pick a server which has too many idling connections and close one
+    for i = 1, #proxy.global.backends do
+      local s = proxy.global.backends[i]
+      if s.state ~= proxy.BACKEND_STATE_DOWN and 
+	s.pool.users[proxy.connection.client.username].cur_idle_connections > max_idle_connections then
+        -- try to disconnect a backend
+        proxy.connection.backend_ndx = i
+        return
+      end
+    end
+  end
 end
 

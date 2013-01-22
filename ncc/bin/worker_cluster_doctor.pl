@@ -104,6 +104,7 @@ sub consult_cmd() {
                   print STDERR "Test pass runing action : ". $command ."\n";
                   worker_cloud_command($command,$gearman_ip);  
                   $memd->set( "actions", '{"actions":[]}' );
+                  sleep 1;
             }   
 
         }

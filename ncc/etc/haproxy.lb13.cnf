@@ -24,7 +24,7 @@ defaults
    maxconn                 3000
 frontend mysql-front
 mode tcp
-bind     0.0.0.0:3306
+bind     0.0.0.0:3305
 default_backend  mysql-back
 #---------------------------------------------------------------------
 # round robin balancing between the various backends
