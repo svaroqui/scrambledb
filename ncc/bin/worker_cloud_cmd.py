@@ -24,7 +24,7 @@ def cloud_cmd(worker, job):
    print config
    res ='000000' 
    print config['command'] 
- 
+   
    print config['command']['action'] 
 
    if config["command"]["action"] == "launch": 
@@ -77,6 +77,7 @@ def terminate_ec2_instances(config):
 
 def status_ec2_instances(config):
    import boto
+   boto.config.set('Boto','http_socket_timeout','4')  
    import simplejson as json
    conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
    reservations=conn.get_all_instances()
@@ -118,7 +119,7 @@ def launching_ec2_instances(config):
 
 # Establish a connection with the job server on localhost--like the client,
 # multiple job servers can be used.
-worker = GearmanWorker(['127.0.0.1'])
+worker = GearmanWorker(['127.0.0.1:45045'])
 
 # register_task will tell the job server that this worker handles the "echo"
 # task

@@ -62,7 +62,7 @@ our $gearman_ip            ="localhost";
 
 our $mysql_connect_timeout = 1;
 our $config                = new Scramble::Common::Config::;
-$config->read("etc/cloud.cnf");
+$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
 $config->check('SANDBOX');
 
 
@@ -120,7 +120,7 @@ sub cluster_cmd {
     my @cmd_action;
     @console=@cmd_console;
     @actions = @cmd_action;
-    $config->read("etc/cloud.cnf");
+    $config->read($SKYBASEDIR ."/ncc/etc/cloud.cnf");
     $config->check('SANDBOX');
     $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
     my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
@@ -154,12 +154,12 @@ sub cluster_cmd {
 
        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
        print  STDERR $json_cloud_str;
-       if ($cloud->{driver} ne "LOCAL") {
-            $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
-       } 
-       else {
-          $ret= Scramble::Common::ClusterUtils::get_local_instances_status($config);
-       }   
+    #   if ($cloud->{driver} ne "LOCAL") {
+    #        $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
+    #   } 
+    #   else {
+          $ret= get_local_instances_status($config);
+    #    }   
         return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
     }  
     if ( $level eq "services" ){
@@ -354,7 +354,7 @@ sub is_filter_service($$$$$) {
     if ( $action_group eq $host_name 
          || $action_group eq "all" 
          || ($action_group eq "local" 
-             && is_ip_localhost($service_host->{ip})==1 )
+             && Scramble::Common::ClusterUtils::is_ip_localhost($service_host->{ip})==1 )
    
        )     
      { 
@@ -371,6 +371,110 @@ sub is_filter_service($$$$$) {
     
     
     return  $pass;        
+}
+
+sub get_local_instances_status($) {
+    my $config =shift;
+    my @ips=Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
+    my @interfaces;
+    my $i=0;
+    my $host_info;
+    
+    foreach my $ip ( @ips)  {
+        push @interfaces, {"instance". $i=>  {
+            id     => "instance". $i,
+            ip       => $ip,
+            state       => "running"
+           }     
+        };
+
+     $i++;    
+    }
+    my $json       = new JSON;
+     my $json_instances_status =  $json->allow_blessed->convert_blessed->encode(\@interfaces);
+   
+   return $json_instances_status ; 
+}
+
+sub get_status_diff($$) {
+  my $previous_status =shift;
+  my $status_r =shift;
+  
+  my $i=0;
+  my @diff;
+   
+   
+  foreach  my $service (  @{ ${$status_r}->{services_status}->{services}} ) {
+   foreach my $key (keys %$service) {
+      # service name may change or service removed  
+      if (  defined($previous_status->{services_status}->{services}[$i]->{$key}->{state}) )
+      { 
+           
+      print STDERR $key . "\n";    
+      if ( $service->{$key}->{state} ne $previous_status->{services_status}->{services}[$i]->{$key}->{state}
+            || $service->{$key}->{code} ne $previous_status->{services_status}->{services}[$i]->{$key}->{code}
+         )    
+      {
+            print STDERR "trigger";
+          push @diff, {
+         name     => $key ,
+         type     => "services",
+         ip    => $service->{$key}->{ip} ,
+         state    => $service->{$key}->{state} ,
+         code     => $service->{$key}->{code} , 
+         previous_state =>$previous_status->{services_status}->{services}[$i]->{$key}->{state},
+         previous_code =>$previous_status->{services_status}->{services}[$i]->{$key}->{code}
+        };  
+        
+       }
+       
+     }
+     }
+      
+   $i++;
+  }
+   $i=0;
+   foreach  my $instance (  @{ ${$status_r}->{instances_status}->{instances}} ) {
+     foreach my $attr (keys %$instance) {
+       my $skip=0; 
+       print STDERR "ici test ssh\n"; 
+       if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
+          (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
+
+        )    
+       {
+           
+            if ((defined($instance->{$attr}->{state}) ? $instance->{$attr}->{state} : "" ) eq "running"){
+             if( instance_check_ssh($instance->{$attr}->{ip}) ==0 ) {
+                  print STDERR "skipping because ssh failed\n";
+                  ${$status_r}->{instances_status}->{instances}[$i]->{$attr}->{state}="pending";
+                     $skip=1;  
+               
+`   `         } 
+
+         } 
+         if ($skip==0 )   {
+           print STDERR "trigger";
+          
+           push @diff, {
+            name     => $instance->{$attr}->{id} ,
+            type     => "instances",
+            ip       => defined($instance->{$attr}->{ip}) ?  $instance->{$attr}->{ip} : "",
+            state    => defined($instance->{$attr}->{state} ) ? $instance->{$attr}->{state} : "" ,
+            code     => "0" , 
+            previous_state =>$previous_status->{instances_status}->{instances}[$i]->{$attr}->{state},
+            previous_code =>0
+          };  
+        }
+
+       }
+       }
+       $i++;
+     }  
+     my $json       = new JSON;
+     my $json_status_diff = '{"events":' . $json->allow_blessed->convert_blessed->encode(\@diff).'}';
+     print STDERR   $json_status_diff . "\n";
+     return $json_status_diff;
 }
 
 sub gttid_reinit(){
@@ -1555,7 +1659,7 @@ sub service_install_database($$$) {
       . $memcaches . "');\"";
     $err = worker_node_command( $param, $self->{ip} );
 
-    report_status( $self, "Install node", $err, $node );
+   # report_status( $self, "Install node", $err, $node );
     return $err;
 }
 
@@ -1638,16 +1742,15 @@ sub instance_heartbeat_collector($$) {
         if ($previous_json_status )
        { 
          
-            print STDERR $previous_json_status;
-            print STDERR "\n";
-             print STDERR "\n";
-
-            print STDERR $json_status;
+        #   print STDERR $previous_json_status;
+        #   print STDERR "\n";
+        #    print STDERR "\n";
+        #    print STDERR $json_status;
 
             my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
             ->allow_singlequote->allow_barekey->decode($previous_json_status);
             # pass a reference as the status need to be change in case of ssh failed 
-            my $json_triggers =  Scramble::Common::ClusterUtils::get_status_diff($previous_status,\$status);
+            my $json_triggers =  get_status_diff($previous_status,\$status);
             worker_doctor_command($json_triggers,$gearman_ip);
             $json_status= $json->allow_blessed->convert_blessed->encode($status);
             print STDERR "after diff: ". $json_status;
@@ -1675,17 +1778,17 @@ sub instance_heartbeat_collector($$) {
               print STDERR "No actions in memcache heartbeat setting empty json  \n";
               $memd->set( "actions", '{"actions":[]}' );
     }
-
+    my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        print STDERR "Connect to db: " . $host . "\n";
+       if ($host_info->{cloud} eq $cloud_name){ 
         
         # Check memcache_udf
         service_status_memcache_fromdb($host_info);
         service_install_mycheckpoint( $host_vip , "mon_" . $host);
         service_status_mycheckpoint($host_vip,$host_info,$host);
-        
+       } 
     }
     return $err;
     
@@ -1792,30 +1895,42 @@ sub service_switch_database($) {
 
 
 sub service_switch_vip(){
-  
+  my $err   = "000000";
   my $ip= Scramble::Common::ClusterUtils::get_my_ip_from_config($config);
   my $newlb= Scramble::Common::ClusterUtils::get_lb_name_from_ip($config,$ip);  
   my $oldlb= Scramble::Common::ClusterUtils::get_lb_peer_name_from_ip($config,$ip);   
-
-  config_switch_status($oldlb,"slave");
-  config_switch_status($newlb,"master");
-  bootstrap_config();
+  print STDERR "Current lb from config " .  $newlb ."\n";
+  print STDERR "Passive lb from config " .  $oldlb ."\n";
+  $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
+  #if (Scramble::Common::ClusterUtils::is_ip_localhost($ip)==1)  {
+  #  print STDERR "nothing do do lb in the conf already master\n";
+  # 
+  #} else   {
+  #  config_switch_status($oldlb,"master");
+  #  config_switch_status($newlb,"slave");
+  #  bootstrap_config();
+  #}
   my $lb = Scramble::Common::ClusterUtils::get_active_lb($config);
  
+
   my $cmd1 ="/sbin/ifconfig lo:0 down";
-  
-  my $cmd2 ="/sbin/ifconfig lo:0"
+  print STDERR  $cmd1."\n";
+  my $cmd2 ="/sbin/ifconfig lo:0 "
   . $lb->{vip} 
   ." broadcast"
   ." 10.0.0.10" 
   ." netmask 255.255.255.255 up";
+   print STDERR  $cmd2."\n";
    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
    foreach (@ips) {  
+         print STDERR  "removing loopback on ". $_ . "\n";  
         worker_node_command($cmd1 , $_);
-        if ($ip ne $_) {
+        if (Scramble::Common::ClusterUtils::is_ip_localhost($_)==0) {
+             print STDERR  "add loopback on ". $_ . "\n";  
             worker_node_command($cmd2 , $_);
         } 
    } 
+   return $err; 
 }
 
 sub service_do_command($$$) {
@@ -1865,9 +1980,9 @@ sub service_do_command($$$) {
             ->allow_singlequote->allow_barekey->decode($json_todo);
                 
             
-          if ( is_ip_from_status_present($status,$self->{ip})==1) {
+          if ( Scramble::Common::ClusterUtils::is_ip_from_status_present($status,$self->{ip})==1) {
              print STDERR "Service Ip is found in status \n";   
-             if ( is_ip_from_status_running($status,$self->{ip})==0) {
+             if ( Scramble::Common::ClusterUtils::is_ip_from_status_running($status,$self->{ip})==0) {
                 my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($status,$self->{ip});
                 # not running but present need to start 
                 my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
@@ -2169,7 +2284,7 @@ sub bootstrap_binaries() {
     my $err = "000000";
     my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach (@ips) {
-        if ( is_ip_localhost($_) == 0 ) {
+        if ( Scramble::Common::ClusterUtils::is_ip_localhost($_) == 0 ) {
             
             $command =
                 "scp -q -i  "
@@ -2210,7 +2325,7 @@ sub bootstrap_ncc() {
 
     my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
     foreach (@ips) {
-        if ( is_ip_localhost($_) ==0) {
+        if ( Scramble::Common::ClusterUtils::is_ip_localhost($_) ==0) {
 
             $command =
                 "scp -q -i "

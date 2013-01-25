@@ -1,0 +1,18 @@
+#!/usr/local/skysql/perl/bin/perl
+use strict;
+use Class::Struct;
+use warnings FATAL => 'all';
+
+use Scramble::Common::ClusterUtils;
+
+our $SKYBASEDIR            = $ENV{SKYBASEDIR};
+our $SKYDATADIR            = $ENV{SKYDATADIR};
+our $config                = new Scramble::Common::Config::;
+$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
+$config->check('SANDBOX');
+
+$cloud = get_active_cloud($config);
+print STDERR $cloud->{elastic_ip}
+
+
+

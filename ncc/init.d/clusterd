@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Gearman server and library
-# Copyright (C) 2008 Brian Aker, Eric Day
+# SCambleDB server and library
+# Copyright (C) 2012 Stephane Varoqui 
 # All rights reserved.
 #
 # Use and distribution licensed under the BSD license.  See
@@ -16,7 +16,7 @@ export SKYDATADIR=$SKYDATADIR
 export SKYUSER=skysql
 export SKYGROUP=skysql
 export PATH=$PATH:$SKYBASEDIR/sandbox/bin/:$SKYBASEDIR/gearmand/bin/:$SKYBASEDIR/gearmand/sbin/:$SKYBASEDIR/mariadb-client/bin/
-export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/site_perl/5.16.0/darwin-2level
+export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/site_perl/5.16.0/darwin-2level:$SKYBASEDIR/ncc/lib
 export SANDBOX_AS_ROOT=1
 export PYTHONUSERBASE=$SKYBASEDIR/MySQL-python
 export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
@@ -36,13 +36,9 @@ if [ ! -d $SKYDATADIR/log ];
 then
    mkdir $SKYDATADIR/log  
 fi
-if [ ! -d $SKYDATADIR/dbt2 ];
+if [ ! -d $SKYDATADIR/tmp ];
 then
-   mkdir $SKYDATADIR/dbt2  
-fi
-if [ ! -d $SKYDATADIR/dbt3 ];
-then
-   mkdir $SKYDATADIR/dbt3  
+   mkdir $SKYDATADIR/tmp  
 fi
 if [ ! -d $SKYDATADIR/sandboxes ];
 then
@@ -56,14 +52,14 @@ if [ ! -d $SKYDATADIR/backup ];
 then
   mkdir $SKYDATADIR/backup  
 fi
-if [ ! -d $SKYDATADIR/sphinx ];
-then
-  mkdir $SKYDATADIR/sphinx  
-fi
 
-echo 1 > /proc/sys/net/ipv4/tcp_tw_recycle
-echo 1024 > /proc/sys/net/core/somaxconn
+echo 0 > /proc/sys/net/ipv4/tcp_tw_recycle
+echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+echo 4096 > /proc/sys/net/core/somaxconn
 echo 4096 > /proc/sys/net/ipv4/tcp_max_syn_backlog
+echo 0 > /proc/sys/net/ipv4/tcp_syncookie
+echo 1 > /proc/sys/net/ipv4/tcp_no_metrics_save
+
 
 GEARMAND=$SKYBASEDIR/gearmand/sbin/gearmand
 PIDFILE=$SKYBASEDIR/ncc/tmp/gearmand.pid
@@ -82,31 +78,31 @@ start()
   
   nohup $SKYBASEDIR/perl/bin/perl $WORKER  < /dev/null > $LOG/worker_node.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
   
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null > $LOG/worker_cluster.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
 
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null >> $LOG/worker_cluster.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
   
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCONFIG < /dev/null > $LOG/worker_config.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid  
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
 
   nohup $SKYBASEDIR/perl/bin/perl $WORKERHEARBEAT < /dev/null > $LOG/worker_hearbeat.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid  
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
 
   nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid 
+  echo $procid >> $$SKYDATADIR/tmp/wrk$procid.pid 
 
   nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
   procid=$!
-  echo $procid >> $SKYBASEDIR/ncc/tmp/wrk$procid.pid 
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
 
 
 }
@@ -116,7 +112,7 @@ stop()
   kill `cat $PIDFILE`
   killall gearmand   
   rm -f $PIDFILE
-  _dfiles="$SKYBASEDIR/ncc/tmp/wrk*.pid"
+  _dfiles="$SKYDATADIR/tmp/wrk*.pid"
  
 for f in $_dfiles
 do
@@ -126,7 +122,7 @@ do
 done  
 
 }
-
+ 
 case "$1" in
 
   start)
@@ -143,7 +139,7 @@ case "$1" in
   ;;
 
   *)
-    echo "Usage: $0 {start|stop|restart}"
+    echo "Usage: $0 {start|stop|restart} $1 {local| tunnel} "
   ;;
 
 esac

@@ -1,4 +1,0 @@
-export DSS_QUERY=../../mariadb-tools/dbt3_benchmark/dbt3_mysql/mysql_queries/
-export DSS_PATH=/var/lib/skysql/dbt3
-../../dbt3/bin/dbgen -vfF -s 30
-

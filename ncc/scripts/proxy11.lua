@@ -35,7 +35,6 @@ local memcache_port = 11211
 -- insert here --	    
 
 -- connection pool
-local memcache= Memcached.Connect(memcache_master , memcache_port) 
          
 
 if not proxy.global.config.rwsplit then
@@ -433,10 +432,10 @@ function read_query( packet )
 			if not is_insert_id   then
                             local backend_ndx=0;
                             for i = 1, #proxy.global.backends do
-                               if  proxy.global.backends[i].state == proxy.BACKEND_TYPE_RO then  
+                               if  proxy.global.backends[i].state == proxy.BACKEND_TYPE_RO  then  
                                    if is_query_to_slave(tokens,i) then 
                                      backend_ndx = i
-                                    break
+                                      break
                                    end 
 				end 
                             end     
@@ -530,10 +529,10 @@ function is_query_to_slave(tokens,idx_backend )
 --            print("lock")
 --       end
   local tbls  = {} 
-   
+  print( " is_query_to_slave")
   if  (not (tokens == nil)) then    
             tbls = get_sql_tables(tokens)
-       --     local memcache= Memcached.Connect(memcache_master , memcache_port) 
+            local memcache= Memcached.Connect(memcache_master , memcache_port) 
             local slaveGTID=0  
             local masterGTID=0  
             for tbl,v in pairs(tbls) do
@@ -546,6 +545,7 @@ function is_query_to_slave(tokens,idx_backend )
                    if is_debug then
                      print ("   Fail back to master : No memcache entry in master")
                    end
+                   memcache:disconnect_all() 
                    return 0
                 end 
                 if is_debug then 
@@ -556,6 +556,7 @@ function is_query_to_slave(tokens,idx_backend )
                    if is_debug then
                     print ("   Fail back to master : No memcache entry in slave")
                    end
+                   memcache:disconnect_all() 
                    return 0
                    
                 end  
@@ -566,6 +567,7 @@ function is_query_to_slave(tokens,idx_backend )
 
                 if  masterGTID ~=slaveGTID then 
                    print ("    Fail back to master : Replication Table Delay")
+                   memcache:disconnect_all() 
                    return 0
                  end 
              
@@ -573,7 +575,7 @@ function is_query_to_slave(tokens,idx_backend )
 
             end   
             
-  --          memcache:disconnect_all() 
+           memcache:disconnect_all() 
             return 1
 --  memcache:increment( backend_id_server[proxy.connection.backend_ndx],1)                     
  --      memcache:delete( "_lock")       
@@ -584,6 +586,7 @@ function read_query_result( inj )
 	local is_debug = proxy.global.config.rwsplit.is_debug
 	local res      = assert(inj.resultset)
   	local flags    = res.flags
+       
 
 	if inj.id ~= 1 then
 		-- ignore the result of the USE <default_db>

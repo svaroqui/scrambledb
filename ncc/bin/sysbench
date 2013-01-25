@@ -1,9 +1,0 @@
-HOMEDIR=/home/skysql
-NUM_THREADS=4
-$HOMEDIR/mysql-client/bin/mysql --user=skysql  --port=3307 --password=skyvodka --host=127.0.0.1  -e"create database sbtest" 
-$HOMEDIR/sysbench/bin/sysbench   --test=$HOMEDIR/sysbench/tests/db/oltp_simple.lua   --oltp-table-size=2000000   --max-time=300   --max-requests=0    --mysql-user=skysql  --mysql-port=3307 --mysql-password=skyvodka --mysql-host=127.0.0.1  --mysql-engine-trx=yes   --num-threads=$NUM_THREADS   prepare
-
-
-NUM_THREADS="4"
-$HOMEDIR/sysbench/bin/sysbench   --test=$HOMEDIR/sysbench/tests/db/oltp_simple.lua   --oltp-table-size=2000000   --max-time=300   --max-requests=0    --mysql-user=skysql  --mysql-port=3307 --mysql-password=skyvodka --mysql-host=127.0.0.1  --mysql-engine-trx=yes   --num-threads="$NUM_THREADS"   prepare
-

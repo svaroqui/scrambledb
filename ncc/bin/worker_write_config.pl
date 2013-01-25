@@ -53,7 +53,7 @@ our $gearman_timeout = 2000;
 our $mysql_connect_timeout=3;
 our $console = "{result:{status:'00000'}}";
 our $config = new Scramble::Common::Config::;
-my $conf="etc/cloud.cnf";
+my $conf=$SKYBASEDIR . "/ncc/etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
 open my $LOG , q{>>},  $SKYDATADIR."/log/worker_write_config.log"
@@ -99,7 +99,7 @@ sub write_cmd {
     my $ret = "true";
     $console= "";
 
-    $config->read("etc/cloud.cnf");
+    $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
     $config->check('SANDBOX');
     my $json2 = new JSON;
     my $json_config   = $json2->allow_blessed->convert_blessed->encode($config );
@@ -199,14 +199,20 @@ sub write_keepalived_config($){
 #$config->{db}->{ $host_info->{peer}[0] };
 
     print $out "  # The default state, one should be master, the others should be set to SLAVE.\n";
-    print $out "  state MASTER\n";
+    if  ( $lb_info->{status} eq "master" ) {
+        print $out "  state MASTER\n";
+    }     
+    else
+    {
+        print $out "  state SLAVE\n";
+    } 
     print $out "\n";
     print $out " # This should be the same on all participating load balancers.\n";
     print $out "  virtual_router_id 1\n";
     print $out "\n";
     print $out "  priority ". $i."\n";
     print $out "\n";
-    print $out '  notify_master "'.$SKYBASEDIR.'/ncc/clmgr services switch_vip"' ."\n";
+    print $out '  notify_master "'.$SKYBASEDIR.'/ncc/bin/clmgr services switch_vip"' ."\n";
     #print $out 'notify_fault "'.$SKYBASEDIR.'/scripts/vrrp.sh FAULT"\n';
 
     print $out "  # Set the interface whose status to track to trigger a failover.  \n";
@@ -289,6 +295,22 @@ foreach my $host (keys(%{$config->{proxy}})) {
          print $out  get_lua_connection_pool_server_id() ."\n";
          print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
          print $out "local memcache_port = " . $nosql_info->{port} ."\n";
+
+         print $out "if not proxy.global.config.rwsplit then\n";
+	 print $out "proxy.global.config.rwsplit = {\n";
+	 print $out "       com_queries_ro   = 0,\n";
+         print $out "       com_queries_rw   = 0,\n";
+         if ($host_info->{lua_debug}  ) {
+            print $out "	is_debug = true \n"; 
+         }   
+         else 
+        {
+           print $out "	is_debug = false  \n"; 
+        }
+          
+	 print $out "}\n";
+     print $out "end\n";
+
         
     }
    }
@@ -513,7 +535,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
     #print $out "admin-lua-script=lib/mysql-proxy/lua/admin.lua\n";
     print $out "proxy-address =". $host_info->{ip}.":". $host_info->{port} ."\n";
     print $out "proxy-backend-addresses=".$masters."\n";
-    print $out "proxy-read-only-backend-addresses=". $slaves."\n";
+    #print $out "proxy-read-only-backend-addresses=". $slaves."\n";
     print $out "proxy-lua-script = $SKYBASEDIR/ncc/scripts/". $host .".lua\n";
     print $out "lua-path=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.lua\n";
     print $out "lua-cpath=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.so\n";
@@ -568,7 +590,9 @@ sub write_mha_config($){
 sub get_lua_connection_pool_server_id(){
     my @backend; 
     my $host_info ;
-    
+   
+    my @replicas; 
+
     my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
     print STDERR "cloud_name" . $cloud_name;
     foreach my $host (keys(%{$config->{db}})) {
@@ -583,11 +607,16 @@ sub get_lua_connection_pool_server_id(){
         $host_info = $config->{db}->{$host};
         if ($host_info->{status} eq "slave" && $host_info->{cloud} eq $cloud_name) {
               push(@backend ,  $host_info->{mysql_port});
+              push(@replicas, "{ port = " . $host_info->{mysql_port}
+               . ", ip = '".   $host_info->{ip} ."'"
+               . ", user = '".   $host_info->{mysql_user} ."'"
+               . ", password  = '".   $host_info->{mysql_password} ."'"
+               ."}");
          }
     }
-
-    return "local backend_id_server = { " . join(',',@backend). "}" ;
-
+    
+    return "local backend_id_server = { " . join(',',@backend). "}\n local replication_dsn = {". join(',',@replicas). "}\n";
+    
 }
 
 

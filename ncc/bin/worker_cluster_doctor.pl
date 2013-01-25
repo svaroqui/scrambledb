@@ -2,7 +2,7 @@
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
-use Common::Config;
+use Scramble::Common::Config;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
 use Gearman::XS::Worker;
@@ -18,7 +18,7 @@ our $gearman_timeout = 2000;
 our $gearman_ip            ="localhost";
 our $mysql_connect_timeout=3;
 our $console = "{result:{status:'00000'}}";
-our $config = new SKY::Common::Config::;
+our $config = new Scramble::Common::Config::;
 my $conf="etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');

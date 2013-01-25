@@ -1,8 +1,7 @@
-
 <cloud cloud1>
     status                 slave
-    user            	   skysql@myvcloud
-    password        	   xxxx
+    user            	   skysql@David_CHANIAL_1001895
+    password        	   !davixx#
     host            	   vcloud.hegerys.com
     version         	   1.5
     driver          	   VCLOUD
@@ -13,7 +12,7 @@
 </cloud>
 
 <cloud cloud2>
-    status                 slave
+    status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
     password        	   xxx
     host            	   na
@@ -31,20 +30,6 @@
     elastic_ip             107.21.41.133
 </cloud>
 
-<cloud cloud3>
-    status                 master
-    user                   xxxx
-    password               xxxx
-    host                   na
-    version                1.5
-    driver                 LOCAL
-    template               na   
-    key                    na
-    ex_vdc                 na
-    instance_type          na
-    public_key             id_rsa
-</cloud>
-
 
 <db default>
     cluster_interface       eth0
@@ -54,13 +39,12 @@
     mysql_password	    skyvodka		
     agent_user              skysql
     agent_password          skyvodka
-  	
 </db>
 
 <db db1>
     mode                    mariadb
 	status				master
-    cloud                   cloud2
+    cloud		    cloud2		
     ip                      10.0.0.102
     peer                    db1
     mysql_version           mariadb
@@ -68,28 +52,26 @@
     mysql_cnf		    etc/my.template
     mem_pct                 30
     io_pct                  30
-    datadir		    /var/lib/skysql
 </db>
+
+#<db db3>
+#    mode                    mariadb
+#	status				slave
+#    cloud		    cloud2		
+#    ip                     10.0.0.47
+#    peer		    db1
+#    mysql_version	    mariadb
+#    mysql_port 	    5011
+#    mysql_cnf		    etc/my.template
+#    mem_pct                30
+#    io_pct                 30
+#</db>
+
 
 <db db2>
     mode                    mariadb
-	status				slave
-    cloud                   cloud2    
-    ip                      10.0.0.47
-    peer		    db1
-    mysql_version	    mariadb
-    mysql_port 		    5011
-    mysql_cnf		    etc/my.template
-    mem_pct                 30
-    io_pct                  30
-    datadir		    /var/lib/skysql
-</db>
-
-
-<db db3>
-    mode                    mariadb
 	status 				slave
-    cloud                   cloud2
+    cloud		    cloud2		
     ip                      10.0.0.49
     peer		    db1
     mysql_version	    mariadb
@@ -97,26 +79,24 @@
     mem_pct		    30
     io_pct		    30
     mysql_cnf		    etc/my.template
-    datadir		    /var/lib/skysql
 </db>
 
 #<db node20>
 #    ip                      10.0.0.102
 #    mode                    monitor
-#    cloud                   cloud2
 #    state                   slave 
 #    peer                    node10,node11
-#    mysql_version           mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
+#    mysql_version           spider 
 #    mysql_port              5020
-#    mysql_cnf		    etc/my_proxy.cnf
-#    datadir		    /var/lib/skysql
+#    mysql_cnf		     etc/my_proxy.cnf
+#    cloud                   cloud2
 #</db>
 
 
 <proxy proxy1> 
-   mode                    mysql-proxy
+    mode                    mysql-proxy
     ip                      10.0.0.102 
-    cloud                   cloud2
+    cloud		    cloud2		
     hosts                   db1
     port 		    3307 
     script                  rw-splitting.template
@@ -125,41 +105,41 @@
 <proxy proxy2>
     mode                    mysql-proxy
     ip                      10.0.0.47
-    cloud                   cloud2
+    cloud		    cloud2		
     hosts                   db1
-   port                    3307
-    script                  rw-splitting.template
+    port                    3307
+    script                  scramble.template
 </proxy>
 
 <proxy proxy3>
     mode                    mysql-proxy
-    ip                      10.0.0.48
-    cloud                   cloud2
+    ip                      10.0.0.49
+    cloud		    cloud2		
     hosts                   db1
     port                    3307
     script                  rw-splitting.template
 </proxy>
 
 <nosql nosql1>
-    ip                      10.0.0.102
+    ip                      10.0.0.47
     mode                    memcache
-    cloud                   cloud2
+    cloud		    cloud2		
     status                   master
     port              	    11211
     mem                    16
 </nosql>
 
 <nosql nosql2>
-    ip                      10.0.0.48
-    cloud                   cloud2
+    ip                      10.0.0.49
     mode                    memcache
     status                  slave
+    cloud		    cloud2		
     port                    11211
     mem                     16
 </nosql>
 
 <nosql nosql3>
-    ip                      10.0.0.48
+    ip                      10.0.0.47
     mode                    tarantool 
     cloud                   cloud2
     status                  master
@@ -183,13 +163,28 @@
 </nosql>
 
 
+<cloud cloud3>
+    status          slave
+    user            xxxx
+    password        xxxx
+    host            na
+    version         1.5
+    driver          LOCAL
+    template        na   
+    key             na
+    ex_vdc          na
+    instance_type   na
+    public_key      id_rsa
+</cloud>
+
+
 <lb lb1>
     ip                      10.0.0.102
     vip                     10.0.0.10
     port                    3306  
-    cloud                   cloud2
+    cloud		    cloud2		
     peer                    lb2
-    status                  master	
+	status				slave
     mode                    keepalived
     device 		    eth0		
     mysql_user		    skysql 
@@ -199,9 +194,9 @@
 <lb lb2>
     ip                      10.0.0.47
     vip                     10.0.0.10
-    cloud                   cloud2
     port                    3306  
-    status                  slave
+    cloud		    cloud2		
+    status                  master 
     peer                    lb1
     mode                    keepalived
     device		    eth0
@@ -211,9 +206,9 @@
 
 <lb lb3>
     ip                      10.0.0.102
-    vip                     0.0.0.0
-    cloud                   cloud2 
+    vip                     0.0.0.0 
     port                    3306  
+    cloud		    cloud2		
     status                  master
     mysql_user		    skysql 
     mysql_password	    skyvodka	
@@ -225,7 +220,7 @@
 <lb lb4>
     ip                      10.0.0.47
     vip                     0.0.0.0
-    cloud                   cloud2
+    cloud		    cloud2		
     mysql_user		    skysql 
     mysql_password	    skyvodka	
     status                  master	
@@ -238,27 +233,23 @@
 <bench bench1>  
   ip                      10.0.0.47
   mode                    dbt2
-  cloud                   cloud2  
-  warehouse               4
-  concurrency             4 
+  cloud			  cloud2		
+  warehouse               4 
+  concurrency             10 
   duration                20
   datadir                 /var/lib/skysql/dbt2   
 </bench>
 
 <monitor mon1>
+    cloud		  cloud2		
     mode                  mycheckpoint
     port                  8080
-    cloud                 cloud2
     smtp_from             mon@skysql.com
     smtp_to               stephane@skysql.com
-    smtp_host             10.0.0.47  
+    smtp_host             localhost  
     ip                    10.0.0.47
     purge_days            1  
 </monitor>
-
-
-
-# local network config 
 
 <db db10>
     status                    master
@@ -284,7 +275,6 @@
     cloud		    cloud3
 </db>
 
-
 <proxy proxy10>
     mode                    mysql-proxy
     ip                      127.0.0.1 
@@ -303,7 +293,6 @@
     cloud		    cloud3
 </proxy>
 
-
 <nosql nosql10>
     ip                      127.0.0.1
     mode                    memcache
@@ -312,6 +301,7 @@
     mem                     16
     cloud		    cloud3
 </nosql>
+
 <nosql nosql11>
     ip                      127.0.0.1
     status                  slave
@@ -320,7 +310,6 @@
     cloud		    cloud3
     mem                     16
 </nosql>
-
 
 <lb lb10>
     ip                      127.0.0.1
@@ -335,6 +324,7 @@
     mysql_password	    skyvodka	
     cloud		    cloud3
 </lb>
+
 <lb lb11>
     ip                      127.0.0.1
     vip                     127.0.0.1

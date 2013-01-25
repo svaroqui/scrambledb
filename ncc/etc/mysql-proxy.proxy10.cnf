@@ -1,5 +1,6 @@
 [mysql-proxy]
 pid-file = mysql-proxy.pid
+log-file = /var/lib/skysql/log/mysql-proxy.proxy10.log
 log-level = debug
 event-threads = 1
 max-open-files=4096
