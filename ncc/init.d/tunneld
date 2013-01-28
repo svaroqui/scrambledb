@@ -1,0 +1,60 @@
+#!/bin/sh
+
+# SCambleDB server and library
+# Copyright (C) 2012 Stephane Varoqui 
+# All rights reserved.
+#
+# Use and distribution licensed under the BSD license.  See
+# the COPYING file in this directory for full text.
+
+SKYDATADIR="/var/lib/skysql"
+SKYBASEDIR="/usr/local/skysql" 
+# SKYBASEDIR=$(dirname $0)/../..
+#cd $SKYBASEDIR
+export SKYBASEDIR=$SKYBASEDIR
+export SKYDATADIR=$SKYDATADIR
+export SKYUSER=skysql
+export SKYGROUP=skysql
+export PATH=$PATH:$SKYBASEDIR/sandbox/bin/:$SKYBASEDIR/gearmand/bin/:$SKYBASEDIR/gearmand/sbin/:$SKYBASEDIR/mariadb-client/bin/
+export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/site_perl/5.16.0/darwin-2level:$SKYBASEDIR/ncc/lib
+export SANDBOX_AS_ROOT=1
+export PYTHONUSERBASE=$SKYBASEDIR/MySQL-python
+export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
+export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/:$SKYBASEDIR/boost/lib/
+
+
+start()
+{
+
+$SKYBASEDIR/perl/bin/perl $SKYBASEDIR/ncc/bin/tunnel.pl
+sleep 1 
+$SKYBASEDIR/ncc/init.d/clusterd start tunnel
+}
+
+stop()
+{
+  kill `ps ax|grep ssh|grep 4730|grep 4730 |awk "{ print  $1 }" | head -n1` 
+  $SKYBASEDIR/ncc/init.d/clusterd stop 	
+}
+ 
+case "$1" in
+
+  start)
+    start
+  ;;
+
+  stop)
+    stop
+  ;;
+
+  restart)
+    stop
+    start
+  ;;
+
+  *)
+    echo "Usage: $0 {start|stop|restart} "
+  ;;
+
+esac
+

@@ -9,9 +9,7 @@
 
 SKYDATADIR="/var/lib/skysql"
 SKYBASEDIR="/usr/local/skysql" 
-# SKYBASEDIR=$(dirname $0)/../..
-cd $SKYBASEDIR
-export SKYBASEDIR=$(pwd)
+export SKYBASEDIR=$SKYBASEDIR
 export SKYDATADIR=$SKYDATADIR
 export SKYUSER=skysql
 export SKYGROUP=skysql
@@ -57,7 +55,6 @@ echo 0 > /proc/sys/net/ipv4/tcp_tw_recycle
 echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
 echo 4096 > /proc/sys/net/core/somaxconn
 echo 4096 > /proc/sys/net/ipv4/tcp_max_syn_backlog
-echo 0 > /proc/sys/net/ipv4/tcp_syncookie
 echo 1 > /proc/sys/net/ipv4/tcp_no_metrics_save
 
 
@@ -70,10 +67,12 @@ WORKERCONFIG=$SKYBASEDIR/ncc/bin/worker_write_config.pl
 WORKERHEARBEAT=$SKYBASEDIR/ncc/bin/worker_heartbeat.pl
 WORKERDOCTOR=$SKYBASEDIR/ncc/bin/worker_cluster_doctor.pl
 WORKERCLOUD=$SKYBASEDIR/ncc/bin/worker_cloud_cmd.py
+PRIVATE=$2;
 
 start()
 {
-
+ if [ "$PRIVATE" != "tunnel" ];
+ then   
   $GEARMAND -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log &
   
   nohup $SKYBASEDIR/perl/bin/perl $WORKER  < /dev/null > $LOG/worker_node.log 2>&1 & 
@@ -95,15 +94,16 @@ start()
   nohup $SKYBASEDIR/perl/bin/perl $WORKERHEARBEAT < /dev/null > $LOG/worker_hearbeat.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
-
-  nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
-  procid=$!
-  echo $procid >> $$SKYDATADIR/tmp/wrk$procid.pid 
-
+ 
   nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
 
+ fi
+ nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
+ procid=$!
+ echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
+  
 
 }
 
@@ -139,7 +139,7 @@ case "$1" in
   ;;
 
   *)
-    echo "Usage: $0 {start|stop|restart} $1 {local| tunnel} "
+    echo "Usage: $0 {start|stop|restart} $1 {local|tunnel} "
   ;;
 
 esac

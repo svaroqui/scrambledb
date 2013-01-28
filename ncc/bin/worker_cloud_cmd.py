@@ -77,11 +77,14 @@ def terminate_ec2_instances(config):
 
 def status_ec2_instances(config):
    import boto
-   boto.config.set('Boto','http_socket_timeout','4')  
+   # boto.config.set('Boto','http_socket_timeout','20')  
+   print "ici1" 
    import simplejson as json
+   print "ici2" 
    conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
+   print "ici3"
    reservations=conn.get_all_instances()
-   
+   print reservations
    d= [] 
    for reservation in reservations:
       for i in reservation.instances:  
@@ -119,7 +122,7 @@ def launching_ec2_instances(config):
 
 # Establish a connection with the job server on localhost--like the client,
 # multiple job servers can be used.
-worker = GearmanWorker(['127.0.0.1:45045'])
+worker = GearmanWorker(['127.0.0.1:4730'])
 
 # register_task will tell the job server that this worker handles the "echo"
 # task

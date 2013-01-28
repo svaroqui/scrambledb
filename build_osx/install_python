@@ -48,3 +48,9 @@ unzip master
 cd xmltodict-master
 CC='/usr/bin/gcc'  python setup.py build
 python setup.py install --user
+
+wgetwget http://pypi.python.org/packages/source/s/simplejson/simplejson-3.0.7.tar.gz#md5=f674e9035aee1064dae90b22aa76ea98
+tar xzf simplejson-3.0.7.tar.gz 
+cd simplejson-3.0.7
+python setup.py build 
+python setup.py install --user

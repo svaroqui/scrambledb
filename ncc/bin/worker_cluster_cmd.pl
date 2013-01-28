@@ -53,17 +53,18 @@ our %ERRORMESSAGE = (
 
 our $SKYBASEDIR            = $ENV{SKYBASEDIR};
 our $SKYDATADIR            = $ENV{SKYDATADIR};
+our $config                = new Scramble::Common::Config::;
+$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
+$config->check('SANDBOX');
+
 our $hashcolumn;
 our $createtable           = "";
 our $like                  = "none";
 our $database              = "";
-our $gearman_timeout       = 2000;
+our $gearman_timeout       = 3000;
 our $gearman_ip            ="localhost";
 
 our $mysql_connect_timeout = 1;
-our $config                = new Scramble::Common::Config::;
-$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
-$config->check('SANDBOX');
 
 
 my @console;
@@ -153,13 +154,18 @@ sub cluster_cmd {
        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
 
        $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
-       print  STDERR $json_cloud_str;
-    #   if ($cloud->{driver} ne "LOCAL") {
-    #        $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
-    #   } 
-    #   else {
+       
+       print  STDERR $json_cloud_str ;
+      if ($cloud->{driver} ne "LOCAL") {
+    #        print  STDERR "calling worker_cloud_command";
+    #    if ( $action ne "status" && $cloud->{driver} ne "LOCAL") {
+          $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
+          print "debug :". $ret . "\n";
+       } 
+       else {
           $ret= get_local_instances_status($config);
-    #    }   
+           print "debug :". $ret . "\n";
+        }   
         return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
     }  
     if ( $level eq "services" ){
@@ -379,21 +385,26 @@ sub get_local_instances_status($) {
     my @interfaces;
     my $i=0;
     my $host_info;
+    my $state ;
     
     foreach my $ip ( @ips)  {
+        if (instance_check_ssh($ip) ==0 )  {
+           $state ="stopped";
+        }   else {  
+            $state ="running"; 
+        }     
         push @interfaces, {"instance". $i=>  {
             id     => "instance". $i,
             ip       => $ip,
-            state       => "running"
-           }     
-        };
+            state     => $state 
+        }  };
 
      $i++;    
     }
     my $json       = new JSON;
-     my $json_instances_status =  $json->allow_blessed->convert_blessed->encode(\@interfaces);
+    my $json_instances_status =  $json->allow_blessed->convert_blessed->encode(\@interfaces);
    
-   return $json_instances_status ; 
+    return $json_instances_status ; 
 }
 
 sub get_status_diff($$) {
@@ -1979,11 +1990,24 @@ sub service_do_command($$$) {
            my $todo =  $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
             ->allow_singlequote->allow_barekey->decode($json_todo);
                 
-            
+             print STDERR "debug local status : " . $json_status;
           if ( Scramble::Common::ClusterUtils::is_ip_from_status_present($status,$self->{ip})==1) {
              print STDERR "Service Ip is found in status \n";   
              if ( Scramble::Common::ClusterUtils::is_ip_from_status_running($status,$self->{ip})==0) {
-                my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($status,$self->{ip});
+               my $status_instance='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
+                print STDERR "debug cloud instance  : not running sending "  . $status_instance;
+                
+                my $cloud_status_json = worker_cloud_command($status_instance,$gearman_ip);
+                print STDERR "debug cloud status : " .$cloud_status_json;
+               
+                my $cloud_status = $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
+            ->allow_singlequote->allow_barekey->decode($cloud_status_json);
+                
+                my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($cloud_status,$self->{ip});
+               
+
+               # my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($status,$self->{ip});
+                
                 # not running but present need to start 
                 my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
                 worker_cloud_command($start_instance,$gearman_ip);
@@ -2173,9 +2197,9 @@ sub worker_cloud_command($$) {
     my $cmd    = shift;
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
-    $client->add_servers($ip);
-    print STDOUT $ip . ' ' . $cmd . '\n';
-    #$client->set_timeout($gearman_timeout);
+    $client->add_servers("127.0.0.1");
+    print STDERR $ip . ' ' . $cmd . '\n';
+    $client->set_timeout(10000);
     #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
     ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
 
