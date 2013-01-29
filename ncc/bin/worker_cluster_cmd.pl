@@ -125,7 +125,7 @@ sub cluster_cmd {
     $config->check('SANDBOX');
     $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
     my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
-    $sshkey ="/ncc/etc/" . $cloud->{public_key} ;
+    $sshkey ="/.ssh/" . $cloud->{public_key} ;
 
     my $json2       = new JSON;
     my $json_config = $json2->allow_blessed->convert_blessed->encode($config);
@@ -152,21 +152,72 @@ sub cluster_cmd {
        my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
        my $json_cmd       = new JSON ;
        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
-
-       $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
-       
-       print  STDERR $json_cloud_str ;
-      if ($cloud->{driver} ne "LOCAL") {
-    #        print  STDERR "calling worker_cloud_command";
-    #    if ( $action ne "status" && $cloud->{driver} ne "LOCAL") {
-          $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
-          print "debug :". $ret . "\n";
-       } 
-       else {
-          $ret= get_local_instances_status($config);
-           print "debug :". $ret . "\n";
-        }   
+       my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
+       my $memd = new Cache::Memcached {
+               'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
+               'debug'   => 0,
+               'compress_threshold' => 10_000,
+       };     
+       if ($action eq "actions" ) {
+            my $json_todo = $memd->get("actions");
+           if (!$json_todo )
+           {
+                  print STDERR "No actions in memcache \n";
+                  report_action( "localhost", "fetch_event",  "ER0015");
+                  my $json_action      = new JSON;
+                  return '{"return":'.$json_cloud_str.',' .  $json_action->allow_nonref->utf8->encode(\@actions).'}';
+           }
+           return   $json_todo ;
+       }
+       if ($action eq "heartbeat" ) {
+           my $json_status = $memd->get("status");
+           if (!$json_status )
+           {
+                  print STDERR "No heartbeat in memcache \n";
+                  report_action( "localhost", "fetch_heartbeat",  "ER0015");
+                  my $json_action      = new JSON;
+                  return '{"return":'.$json_cloud_str.',' .  $json_action->allow_nonref->utf8->encode(\@actions).'}';
+           }
+           return   $json_status ;
+       }
+       elsif ( $action eq "status") {
+        $ret= get_local_instances_status($config);
         return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
+       }
+       else 
+       {
+           
+        my $json_todo = $memd->get("actions");
+        if (!$json_todo )
+        {
+               print STDERR "No actions in memcache \n";
+               report_action( "localhost", "fetch_event",  "ER0015");
+               my $json_action      = new JSON;
+               return '{"return":'.$json_cloud_str.',' .  $json_action->allow_nonref->utf8->encode(\@actions).'}';
+        }
+        my $todo =  $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
+        ->allow_singlequote->allow_barekey->decode($json_todo);
+
+        push  @{$todo->{actions}} , {
+                 event_ip       => "unknown",
+                 event_type     => "instances",
+                 event_state    => "stopped" ,
+                 do_level       => "instances" ,
+                 do_group       =>  $group,
+                 do_action      => "$action" 
+        };    
+        $json_todo =  $json_cloud->allow_blessed->convert_blessed->encode($todo);
+        print STDERR "Delayed actions :" . $json_todo ."\n";     
+        $memd->set( "actions",  $json_todo);
+        report_action( "localhost", "delayed_action",  "ER0017");
+        return '{"return":'.$json_cloud_str.',"instances":' .  $ret .'}';
+      }
+      # $json_cloud_str =' {"command":'.$json_cmd_str.',"cloud":'.$json_cloud_str.'}'; 
+      # print  STDERR $json_cloud_str ;
+      #  if ( $action ne "status" && $cloud->{driver} ne "LOCAL") {
+      #    $ret= worker_cloud_command($json_cloud_str,$gearman_ip);
+      #    print "debug :". $ret . "\n";
+       
     }  
     if ( $level eq "services" ){
         if ( $action eq "sql" ) {
@@ -1692,7 +1743,7 @@ sub service_sync_database($$$) {
 sub instance_check_ssh($){
     my $ip =shift;
     my $command="ssh -q -i "
-    . $SKYBASEDIR
+    . $SKYDATADIR
     . $sshkey. " "
     . ' -o "BatchMode=yes"  -o "StrictHostKeyChecking=no" '
     . $ip
@@ -1991,27 +2042,15 @@ sub service_do_command($$$) {
             ->allow_singlequote->allow_barekey->decode($json_todo);
                 
              print STDERR "debug local status : " . $json_status;
-          if ( Scramble::Common::ClusterUtils::is_ip_from_status_present($status,$self->{ip})==1) {
-             print STDERR "Service Ip is found in status \n";   
-             if ( Scramble::Common::ClusterUtils::is_ip_from_status_running($status,$self->{ip})==0) {
-               my $status_instance='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
-                print STDERR "debug cloud instance  : not running sending "  . $status_instance;
-                
-                my $cloud_status_json = worker_cloud_command($status_instance,$gearman_ip);
-                print STDERR "debug cloud status : " .$cloud_status_json;
-               
-                my $cloud_status = $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
-            ->allow_singlequote->allow_barekey->decode($cloud_status_json);
-                
-                my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($cloud_status,$self->{ip});
-               
-
-               # my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($status,$self->{ip});
-                
-                # not running but present need to start 
-                my $start_instance='{"level":"instances","command":{"action":"start","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
-                worker_cloud_command($start_instance,$gearman_ip);
-                
+          if ( Scramble::Common::ClusterUtils::is_ip_from_status_running($status,$self->{ip})==0) {
+            push  @{$todo->{actions}} , {
+                    event_ip       => $self->{ip},
+                    event_type     => "instances",
+                    event_state    => "stopped" ,
+                    do_level       => "instances" ,
+                    do_group       =>  $node,
+                    do_action      => "start" 
+                  };  
                  push  @{$todo->{actions}} , {
                     event_ip       => $self->{ip},
                     event_type     => "instances",
@@ -2034,36 +2073,7 @@ sub service_do_command($$$) {
                   $memd->set( "actions",  $json_todo);
                   report_status( $self, $param,  "ER0016", $node );
                   return "ER0016";
-              }
-         } else 
-         {
-              print STDERR "Service Ip is not found in status \n";
-             my $launch_instance='{"level":"instances","command":{"action":"launch","group":"ScrambleDB","type":"all","ip":"'.$self->{ip}.'"},"cloud":'. $json_cloud_str. '}';
-             worker_cloud_command($launch_instance,$gearman_ip);
-              push  @{$todo->{actions}} , {
-                    event_ip       => $self->{ip},
-                    event_type     => "instances",
-                    event_state    => "running" ,
-                    do_level       => "services" ,
-                    do_group       => $node,
-                    do_action      => "bootstrap_ncc" 
-                  };     
-                   push  @{$todo->{actions}} , {
-                    event_ip       => $self->{ip},
-                    event_type     => "instances",
-                    event_state    => "running" ,
-                    do_level       => "services" ,
-                    do_group       => $node,
-                    do_action      => $cmd 
-                  };       
-                  
-                  $json_todo =  $json_cloud->allow_blessed->convert_blessed->encode($todo);
-                  print STDERR "Delayed actions :" . $json_todo ."\n";     
-                  $memd->set( "actions",  $json_todo);
-                  report_status( $self, $param,  "ER0017", $node );
-                  return "ER0017";
-            
-         } 
+          }
     } 
     if ( $cmd eq "install" ) {
          if (   $self->{mode} eq "mariadb"
@@ -2280,7 +2290,7 @@ sub bootstrap_config() {
           "{command:{action:'write_config',group:'localhost',type:'all'}}";
          my $action =  
         "scp -i "
-              . $SKYBASEDIR
+              . $SKYDATADIR
               . $sshkey." "
               . $SKYBASEDIR
               . "/ncc/etc/cloud.cnf "
@@ -2312,7 +2322,7 @@ sub bootstrap_binaries() {
             
             $command =
                 "scp -q -i  "
-              . $SKYBASEDIR
+              . $SKYDATADIR
               . $sshkey ." "
               . $SKYDATADIR
               . "/skystack.tar.gz "
@@ -2322,7 +2332,7 @@ sub bootstrap_binaries() {
             pop(@dest);
               $command =
                 "ssh -q -i  "
-              . $SKYBASEDIR
+              . $SKYDATADIR
               . $sshkey. " "
               . $_
               . " \"tar -xvz -f /tmp/skystack.tar.gz -C "
@@ -2353,7 +2363,7 @@ sub bootstrap_ncc() {
 
             $command =
                 "scp -q -i "
-              . $SKYBASEDIR
+              . $SKYDATADIR
               . $sshkey. " "
               . $SKYDATADIR
               . "/ncc.tar.gz "
@@ -2361,7 +2371,7 @@ sub bootstrap_ncc() {
             system($command);
             $command =
                 "ssh -q -i "
-              . $SKYBASEDIR
+              . $SKYDATADIR
               . $sshkey. " "
               . $_
               . " \"tar -xzv -f /tmp/ncc.tar.gz -C "

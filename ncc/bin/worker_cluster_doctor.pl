@@ -149,3 +149,4 @@ sub get_active_memcache() {
     }    
     return 0;
 }
+

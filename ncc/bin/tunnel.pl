@@ -14,7 +14,7 @@ $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
 $config->check('SANDBOX');
 
 my $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
-my $sshkey = $SKYBASEDIR . "/ncc/etc/" . $cloud->{public_key} ;
+my $sshkey = $SKYDATADIR . "/.ssh/" . $cloud->{public_key} ;
 my $cmd= "ssh -f -i ". $sshkey . " -L 4730:127.0.0.1:4730 ".  $cloud->{elastic_ip} . " -N < /dev/null > ".$SKYDATADIR. "/log/tunnel.log 2>&1 & ";
 
 system ($cmd);

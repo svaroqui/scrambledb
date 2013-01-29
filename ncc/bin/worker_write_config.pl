@@ -45,7 +45,6 @@ our  %ERRORMESSAGE = (
 );
 
 
-
 our $database = "";
 our $SKYBASEDIR = $ ENV {SKYBASEDIR};
 our $SKYDATADIR = $ ENV {SKYDATADIR};
@@ -491,21 +490,20 @@ sub write_memcached_config($){
   # replace_config($file ,"proxy-backend-addresses","proxy-backend-addresses=".  $masters );
  }
 
+sub get_memory_from_status($){
+ my $host_info =shift;
+ return 100;
+}
 sub write_mysql_config(){
  my $host_info ;
     my $err = "000000";
     my @masters;
     foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
+         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if (is_ip_localhost($host_info->{ip})) {
-           system(`cat /proc/meminfo |  grep "MemTotal" | awk '{print \$2}'`); 
-           my $ram =$? ;
-             replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $ram*$host_info->{mem_pct}/100);
-             if ($ram eq "0") {
-            
-             }    
-        }
+        my $ram =get_memory_from_status();
+        my $mem = $ram*$host_info->{mem_pct}/100);    
+        replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem;        
     }
     return 0 ;
 }

@@ -50,6 +50,10 @@ if [ ! -d $SKYDATADIR/backup ];
 then
   mkdir $SKYDATADIR/backup  
 fi
+if [ ! -d $SKYDATADIR/.ssh ];
+then
+  mkdir $SKYDATADIR/.ssh  
+fi
 
 echo 0 > /proc/sys/net/ipv4/tcp_tw_recycle
 echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
@@ -59,7 +63,7 @@ echo 1 > /proc/sys/net/ipv4/tcp_no_metrics_save
 
 
 GEARMAND=$SKYBASEDIR/gearmand/sbin/gearmand
-PIDFILE=$SKYBASEDIR/ncc/tmp/gearmand.pid
+PIDFILE=$SKYBASEDIR/tmp/gearmand.pid
 LOG=$SKYDATADIR/log
 WORKER=$SKYBASEDIR/ncc/bin/worker_node_cmd.pl 
 WORKERCLUSTER=$SKYBASEDIR/ncc/bin/worker_cluster_cmd.pl 
