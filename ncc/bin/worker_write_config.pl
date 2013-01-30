@@ -136,7 +136,7 @@ sub write_cmd {
     write_lua_script();
     print STDOUT "write lua script from config\n"; 
     write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
-     print STDOUT "write tarantool from config\n";
+    print STDOUT "write tarantool from config\n";
   #  write_mysql_config();
 
     return  $console ;
@@ -272,50 +272,45 @@ sub write_keepalived_config($){
 
 sub write_lua_script(){
 
-my $i=100;
-
-
-my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
+ my $i=100;
+ my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
 
  my $host_info;
-foreach my $host (keys(%{$config->{proxy}})) {
+ foreach my $host (keys(%{$config->{proxy}})) {
     $host_info = $config->{proxy}->{default};
     $host_info = $config->{proxy}->{$host};
-     open my $in ,  '<', $SKYBASEDIR."/ncc/scripts/". $host_info->{script} or die "Can't write new file: $!";
-     open my $out, '>', $SKYBASEDIR."/ncc/scripts/$host.lua" or die "Can't write new file: $!";
-       while (<$in>) {
+    open my $in ,  '<', $SKYBASEDIR."/ncc/scripts/". $host_info->{script} or die "Can't write new file: $!";
+    open my $out, '>', $SKYBASEDIR."/ncc/scripts/$host.lua" or die "Can't write new file: $!";
+    while (<$in>) {
        # s/^$strin(.*)$/$strout/gi;
-      if (/-- insert here --/) {
-        my $nosql_info; 
-        foreach my $nosql (keys(%{$config->{nosql}})) {
-        $nosql_info = $config->{nosql}->{default};
-        $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" && $nosql_info->{mode} eq "memcache" && $nosql_info->{cloud} eq $cloud_name ){
-         print $out  get_lua_connection_pool_server_id() ."\n";
-         print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
-         print $out "local memcache_port = " . $nosql_info->{port} ."\n";
+         if (/-- insert here --/) {
+          my $nosql_info; 
+          foreach my $nosql (keys(%{$config->{nosql}})) {
+            $nosql_info = $config->{nosql}->{default};
+            $nosql_info = $config->{nosql}->{$nosql};
+            if  ( $nosql_info->{status} eq "master" && $nosql_info->{mode} eq "memcache" && $nosql_info->{cloud} eq $cloud_name ){
+                print $out  get_lua_connection_pool_server_id() ."\n";
+                print $out "local memcache_master=\"" . $nosql_info->{ip} ."\"\n"; 
+                print $out "local memcache_port = " . $nosql_info->{port} ."\n";
 
-         print $out "if not proxy.global.config.rwsplit then\n";
-	 print $out "proxy.global.config.rwsplit = {\n";
-	 print $out "       com_queries_ro   = 0,\n";
-         print $out "       com_queries_rw   = 0,\n";
-         if ($host_info->{lua_debug}  ) {
-            print $out "	is_debug = true \n"; 
-         }   
-         else 
-        {
-           print $out "	is_debug = false  \n"; 
-        }
-          
-	 print $out "}\n";
-     print $out "end\n";
+                print $out "if not proxy.global.config.rwsplit then\n";
+                print $out "proxy.global.config.rwsplit = {\n";
+                print $out "       com_queries_ro   = 0,\n";
+                print $out "       com_queries_rw   = 0,\n";
+                if ($host_info->{lua_debug}  ) {
+                   print $out "	is_debug = true \n"; 
+                }   
+                else 
+                {
+                  print $out "	is_debug = false  \n"; 
+                }
 
-        
-    }
-   }
-    
-      } 
-      print $out $_;
+                print $out "}\n";
+                print $out "end\n";
+            }
+          }
+        } 
+        print $out $_;
     }
     close $out;
    # system("rm -f $file.old");
@@ -494,6 +489,8 @@ sub get_memory_from_status($){
  my $host_info =shift;
  return 100;
 }
+
+
 sub write_mysql_config(){
  my $host_info ;
     my $err = "000000";
@@ -501,9 +498,9 @@ sub write_mysql_config(){
     foreach my $host (keys(%{$config->{db}})) {
          $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        my $ram =get_memory_from_status();
-        my $mem = $ram*$host_info->{mem_pct}/100);    
-        replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem;        
+        my $ram =get_memory_from_status($host_info);
+        my $mem = $ram*$host_info->{mem_pct}/100;    
+        replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
     }
     return 0 ;
 }
@@ -571,7 +568,7 @@ sub write_mha_config($){
             print $out "password=$host_info->{mysql_password}\n";
             print $out "remote_workdir=$host_info->{datadir}/mha\n";
             print $out "master_binlog_dir=$host_info->{datadir}/sandboxes/$host/data\n";
-            print $out "ssh_options=\"-i $SKYBASEDIR/ncc/etc/". $cloud->{public_key} . "\"\n";
+            print $out "ssh_options=\"-i $SKYDATADIR/.ssh/". $cloud->{public_key} . "\"\n";
             print $out "basedir=$SKYBASEDIR\n";
             print $out "\n";
             $i++;

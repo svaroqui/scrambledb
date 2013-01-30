@@ -172,11 +172,20 @@ make
 make install
 
 
-
 cd $DEPOTDIR
 rm -rf MySQL-Sandbox-3.0.25
 tar xzf MySQL-Sandbox-3.0.25.tar.gz
 cd  MySQL-Sandbox-3.0.25
 $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/sandbox
 make test 
+make install
+
+
+cd $DEPOTDIR
+rm -rf Cache-Memcached-Queue-0.0.6
+wget http://search.cpan.org/CPAN/authors/id/B/BA/BANG/Cache-Memcached-Queue-0.0.6.tar.gz
+tar xzf Cache-Memcached-Queue-0.0.6.tar.gz
+cd Cache-Memcached-Queue-0.0.6
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/sandbox
+make test
 make install

@@ -63,52 +63,51 @@ echo 1 > /proc/sys/net/ipv4/tcp_no_metrics_save
 
 
 GEARMAND=$SKYBASEDIR/gearmand/sbin/gearmand
-PIDFILE=$SKYBASEDIR/tmp/gearmand.pid
+PIDFILE=$SKYDATADIR/tmp/gearmand.pid
 LOG=$SKYDATADIR/log
 WORKER=$SKYBASEDIR/ncc/bin/worker_node_cmd.pl 
 WORKERCLUSTER=$SKYBASEDIR/ncc/bin/worker_cluster_cmd.pl 
 WORKERCONFIG=$SKYBASEDIR/ncc/bin/worker_write_config.pl
 WORKERHEARBEAT=$SKYBASEDIR/ncc/bin/worker_heartbeat.pl
 WORKERDOCTOR=$SKYBASEDIR/ncc/bin/worker_cluster_doctor.pl
+WORKERCLOUDDOCTOR=$SKYBASEDIR/ncc/bin/worker_cloud_doctor.pl
+
 WORKERCLOUD=$SKYBASEDIR/ncc/bin/worker_cloud_cmd.py
+
 PRIVATE=$2;
 
 start()
 {
  if [ "$PRIVATE" != "tunnel" ];
  then   
-  $GEARMAND -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log &
-  
+  $GEARMAND -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log 
   nohup $SKYBASEDIR/perl/bin/perl $WORKER  < /dev/null > $LOG/worker_node.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
-  
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null > $LOG/worker_cluster.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
-
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLUSTER < /dev/null >> $LOG/worker_cluster.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid
-  
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCONFIG < /dev/null > $LOG/worker_config.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
-
   nohup $SKYBASEDIR/perl/bin/perl $WORKERHEARBEAT < /dev/null > $LOG/worker_hearbeat.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
- 
   nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
-
+ else
+  nohup $SKYBASEDIR/perl/bin/perl $WORKERCLOUDDOCTOR < /dev/null > $LOG/worker_cloud_doctor.log 2>&1 & 
+  procid=$!
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid   
+  nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
+  procid=$!
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
  fi
- nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
- procid=$!
- echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
-  
-
+ 
 }
 
 stop()

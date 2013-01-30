@@ -122,7 +122,7 @@ def launching_ec2_instances(config):
 
 # Establish a connection with the job server on localhost--like the client,
 # multiple job servers can be used.
-worker = GearmanWorker(['127.0.0.1'])
+worker = GearmanWorker(['127.0.0.1:4731'])
 
 # register_task will tell the job server that this worker handles the "echo"
 # task

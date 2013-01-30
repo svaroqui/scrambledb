@@ -22,6 +22,11 @@ export PYTHONUSERBASE=$SKYBASEDIR/MySQL-python
 export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
 export LD_LIBRARY_PATH=$SKYBASEDIR/mysql-client/lib/:$SKYBASEDIR/boost/lib/
 
+cd $SKYBASEDIR/ncc
+
+GEARMAND=$SKYBASEDIR/gearmand/sbin/gearmand
+PIDFILE=$SKYDATADIR/tmp/gearmand.pid
+ 
 
 start()
 {
@@ -29,11 +34,20 @@ start()
 $SKYBASEDIR/perl/bin/perl $SKYBASEDIR/ncc/bin/tunnel.pl
 sleep 1 
 $SKYBASEDIR/ncc/init.d/clusterd start tunnel
+
+$GEARMAND -p4731 -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log 
+
+
+
+
 }
 
 stop()
 {
   kill `ps ax|grep ssh|grep 4730|grep 4730 |awk "{ print  $1 }" | head -n1` 
+  kill `cat $PIDFILE`
+  killall gearmand   
+  rm -f $PIDFILE  
   $SKYBASEDIR/ncc/init.d/clusterd stop 	
 }
  
@@ -46,6 +60,7 @@ case "$1" in
   stop)
     stop
   ;;
+
 
   restart)
     stop

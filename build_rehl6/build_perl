@@ -240,4 +240,9 @@ wget http://search.cpan.org/CPAN/authors/id/M/MA/MARKWKM/Test-Parser-1.9.tar.gz
 tar xzf Test-Parser-1.9.tar.gz &&  cd Test-Parser-1.9 && $SKYDESTDIR/perl/bin/perl  Makefile.PL PREFIX=$SKYDESTDIR/perl && make && make install
 
 
-
+cd $DEPOTDIR
+rm -rf Cache-Memcached-Queue-0.0.6
+wget http://search.cpan.org/CPAN/authors/id/B/BA/BANG/Cache-Memcached-Queue-0.0.6.tar.gz
+tar xzf Cache-Memcached-Queue-0.0.6.tar.gz
+cd Cache-Memcached-Queue-0.0.6
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install

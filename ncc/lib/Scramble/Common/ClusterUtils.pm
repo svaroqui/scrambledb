@@ -50,6 +50,19 @@ sub is_ip_from_status_running($$) {
   return 0; 
 }
 
+sub get_service_ip_from_status_name($$){
+  my $status =shift;
+  my $service_named =shift; 
+  foreach  my $instance (  @{ $status->{services_status}->{services}} ) {
+     foreach my $key (keys %$instance) {
+        if ( $key  eq $service_named)  {
+         return   $instance->{$key}->{ip};
+        }
+    } 
+  }  
+  return 0; 
+}
+
 
 
 sub is_ip_localhost($) {
@@ -84,6 +97,19 @@ my $status =shift;
     foreach my $key (keys %$instance) {
      if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
             return $instance->{$key}->{id};
+       }     
+    }
+   }
+  return 0; 
+}
+
+sub get_instance_status_from_ip($$){
+my $status =shift;
+ my $ip =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+     if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
+            return $instance->{$key}->{status};
        }     
     }
    }
