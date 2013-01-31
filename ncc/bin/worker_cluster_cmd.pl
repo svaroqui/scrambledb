@@ -73,27 +73,26 @@ my $cloud;
 my $sshkey;
 
 
-open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
-  or die "can't c   reate 'worker_cluster_cmd.log'\n";
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server( '', 0 );
 
 if ( $ret != GEARMAN_SUCCESS ) {
-    printf( STDERR "%s\n", $worker->error() );
+    Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Error: $worker->error()",1);
     exit(1);
 }
 
 $ret = $worker->add_function( "cluster_cmd", 0, \&cluster_cmd, 0 );
 if ( $ret != GEARMAN_SUCCESS ) {
-    printf( STDERR "%s\n", $worker->error() );
+    Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Error: $worker->error()",1);
 }
 
 while (1) {
 
     my $ret = $worker->work();
     if ( $ret != GEARMAN_SUCCESS ) {
-        printf( STDERR "%s\n", $worker->error() );
+        Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Error: $worker->error()",1);
+        
     }
 }
 
@@ -141,7 +140,7 @@ sub cluster_cmd {
 
     my $retjson="";
     my $action   = $json_text->{command}->{action};
-    if ($action ne "ping" )  {print STDERR "Receive command : $command\n";}
+    if ($action ne "ping" )  {Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Receive command : $command ",1);}
     my $group    = $json_text->{command}->{group};
     my $type     = $json_text->{command}->{type};
     my $query    = $json_text->{command}->{query};
@@ -160,7 +159,7 @@ sub cluster_cmd {
             my $json_todo = $memd->get("actions");
            if (!$json_todo )
            {
-                  print STDERR "No actions in memcache \n";
+                  Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No actions in memcache ",1);
                   report_action( "localhost", "fetch_event",  "ER0015");
                   my $json_action      = new JSON;
                   return  $json_action->allow_nonref->utf8->encode(\@actions);
@@ -172,10 +171,10 @@ sub cluster_cmd {
            my $json_status = $memd->get("status");
            if (!$json_status )
            {
-                  print STDERR "No heartbeat in memcache \n";
-                  report_action( "localhost", "fetch_heartbeat",  "ER0015");
-                  my $json_action      = new JSON;
-                  return   $json_action->allow_nonref->utf8->encode(\@actions);
+                 Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No heartbeat in memcache ",1);
+                 report_action( "localhost", "fetch_heartbeat",  "ER0015");
+                 my $json_action      = new JSON;
+                 return   $json_action->allow_nonref->utf8->encode(\@actions);
            }
            print STDERR $json_status ."\n";
            return   $json_status ;
@@ -190,7 +189,8 @@ sub cluster_cmd {
         my $json_todo = $memd->get("actions");
         if (!$json_todo )
         {
-               print STDERR "No actions in memcache \n";
+               Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No actions in memcache",1); 
+               
                report_action( "localhost", "fetch_event",  "ER0015");
                my $json_action      = new JSON;
                return   $json_action->allow_nonref->utf8->encode(\@actions);
@@ -209,7 +209,10 @@ sub cluster_cmd {
         };  
         
         $json_todo =  $json->allow_blessed->convert_blessed->encode($todo);
-        print STDERR "Delayed actions :" . $json_todo ."\n";     
+        Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Delayed actions",1);
+        Scramble::Common::ClusterUtils::log_json($json_todo,1);
+       
+         
         $memd->set( "actions",  $json_todo);
         report_action( "localhost", "delayed_action",  "ER0017");
         return '{"instances":' .  $ret .'}';
@@ -252,7 +255,7 @@ sub cluster_cmd {
            }
           
            if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
-               print  " processing " . $host . " on $myhost\n";
+               Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Processing $host on $myhost",1);  
                if ( $action eq "install" ) {
                    $ret = service_do_command( $host_info, $host, $action );
                }
@@ -403,6 +406,7 @@ sub is_filter_service($$$$$) {
     my $service_host = shift;
     my $host_name =  shift; 
     my $action_cloud_name = shift; 
+    Scramble::Common::ClusterUtils::log_debug("[is_filter_service] Info: Start",2); 
     my $pass = 0;
     
     if ( $action_group eq $host_name 
@@ -434,7 +438,7 @@ sub get_local_instances_status($) {
     my $i=0;
     my $host_info;
     my $state ;
-    
+    Scramble::Common::ClusterUtils::log_debug("[get_local_instances_status] Info: Start",2); 
     foreach my $ip ( @ips)  {
         if (instance_check_ssh($ip) ==0 )  {
            $state ="stopped";
@@ -469,13 +473,13 @@ sub get_status_diff($$) {
       if (  defined($previous_status->{services_status}->{services}[$i]->{$key}->{state}) )
       { 
            
-      print STDERR $key . "\n";    
+      Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info:search diff services $key",2);    
       if ( $service->{$key}->{state} ne $previous_status->{services_status}->{services}[$i]->{$key}->{state}
             || $service->{$key}->{code} ne $previous_status->{services_status}->{services}[$i]->{$key}->{code}
          )    
       {
-            print STDERR "trigger";
-          push @diff, {
+         Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Found diff services",2); 
+         push @diff, {
          name     => $key ,
          type     => "services",
          ip    => $service->{$key}->{ip} ,
@@ -496,7 +500,8 @@ sub get_status_diff($$) {
    foreach  my $instance (  @{ ${$status_r}->{instances_status}->{instances}} ) {
      foreach my $attr (keys %$instance) {
        my $skip=0; 
-       print STDERR "ici test ssh\n"; 
+       Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Testing ssh instances $instance $attr",2);    
+     
        if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
           (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
 
@@ -505,16 +510,16 @@ sub get_status_diff($$) {
            
             if ((defined($instance->{$attr}->{state}) ? $instance->{$attr}->{state} : "" ) eq "running"){
              if( instance_check_ssh($instance->{$attr}->{ip}) ==0 ) {
-                  print STDERR "skipping because ssh failed\n";
+                  Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Skipping because ssh failed ",1);   
                   ${$status_r}->{instances_status}->{instances}[$i]->{$attr}->{state}="pending";
                      $skip=1;  
                
-`   `         } 
+          } 
 
          } 
          if ($skip==0 )   {
-           print STDERR "trigger";
-          
+           Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Found diff instances",2);  
+         
            push @diff, {
             name     => $instance->{$attr}->{id} ,
             type     => "instances",
@@ -532,12 +537,12 @@ sub get_status_diff($$) {
      }  
      my $json       = new JSON;
      my $json_status_diff = '{"events":' . $json->allow_blessed->convert_blessed->encode(\@diff).'}';
-     print STDERR   $json_status_diff . "\n";
+     Scramble::Common::ClusterUtils::log_json($json_status_diff,2);  
      return $json_status_diff;
 }
 
 sub gttid_reinit(){
-  
+  Scramble::Common::ClusterUtils::log_debug("[gttid_reinit] Info: Start ",2);  
   my $sql ="replace into mysql.TBLGTID select CRC32(concat(table_schema, table_name)), 0,1  from information_schema.tables;";
   my $master_host= Scramble::Common::ClusterUtils::get_active_db($config);
   mysql_do_command($master_host,$sql); 
@@ -547,6 +552,7 @@ sub gttid_reinit(){
 sub dbt2_parse_mix($) {
     
     my $filename = shift;
+    Scramble::Common::ClusterUtils::log_debug("[dbt2_parse_mix] Info: Start ",1);  
     my $self ;
     my $current_time;
     my $previous_time;
@@ -735,8 +741,8 @@ sub dbt2_parse_mix($) {
                 name => $transaction{$idx}};
     }
     my $json       = new JSON;
-     my $json_result = ',"results":' . $json->allow_blessed->convert_blessed->encode($self);
-     print STDERR $json_result    . "\n";
+    my $json_result = ',"results":' . $json->allow_blessed->convert_blessed->encode($self);
+    Scramble::Common::ClusterUtils::log_debug("[dbt2_parse_mix] Info: End ",1);  
    return $json_result;
 }
 
@@ -759,11 +765,12 @@ sub mysql_do_command($$) {
             {RaiseError=>1, mysql_no_autocommit_cmd => 1}
         );
         use Error qw(:try);
-        try {      
+        try { 
+            Scramble::Common::ClusterUtils::log_debug("[mysql_do_command] Info: $dsn $sql ",1); 
             my $sth = $dbh->do($sql);           
         }
         catch Error with {
-            print STDERR "Error in mysql_do_command :".$sql." to host:".$dsn . "\n";
+            Scramble::Common::ClusterUtils::log_debug("[mysql_do_command] Error: $dsn $sql ",1); 
             return 0;
         };
         $dbh->disconnect;
@@ -772,6 +779,7 @@ sub mysql_do_command($$) {
 
 sub spider_is_ddl_all_node($) {
     my $lquery = shift;
+     Scramble::Common::ClusterUtils::log_debug("[spider_is_ddl_all_node] Info: start  ",1);  
     my @tokens = tokenize_sql($lquery);
     my $create = 99;
     my $next_i = 1;
@@ -818,7 +826,7 @@ sub spider_is_ddl_all_node($) {
 sub spider_rewrite_query_like() {
 
     my $host_info;
-
+    Scramble::Common::ClusterUtils::log_debug("[spider_rewrite_query_like] start  ",1);  
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         if ( $config->{db}->{$host}->{status} eq "master" ) {
             $host_info = $config->{db}->{default};
@@ -859,6 +867,7 @@ sub spider_swap_table_name($) {
     my $destq  = "";
     my @tokens = tokenize_sql($oriq);
     my $next_i = 1;
+   Scramble::Common::ClusterUtils::log_debug("[spider_swap_table_name] start  ",1);    
     for my $token (@tokens) {
         print STDERR $token . "\n";
         if ( lc $token eq "create" ) {
@@ -922,8 +931,9 @@ sub spider_node_join($$) {
         $host_info->{mysql_password}
     );
     my $sql =
-" select table_schema, table_name from information_schema.tables where TABLE_SCHEMA<>'mysql' AND TABLE_SCHEMA<>'information_schema'";
-    print STDERR $sql;
+   "select table_schema, table_name from information_schema.tables where TABLE_SCHEMA<>'mysql' AND TABLE_SCHEMA<>'information_schema'";
+    Scramble::Common::ClusterUtils::log_debug("[spider_node_join] $dsn: $sql  ",1);     
+    
     my $result = $dbh->selectall_arrayref( $sql, { Slice => {} } );
     my $createsql = '';
     my $sth2;
@@ -939,8 +949,7 @@ sub spider_node_join($$) {
           . $result->[$i]{table_schema} . ",t="
           . $result->[$i]{table_name}
           . " --execute";
-
-        print STDERR $onlinealter;
+        Scramble::Common::ClusterUtils::log_debug("[spider_node_join] $onlinealter  ",1);     
         worker_node_command( $onlinealter, $host_router->{ip} );
     }
     $dbh->disconnect;
@@ -957,9 +966,9 @@ sub spider_node_sql($$$$$$$) {
     my $err    = "000000";
     my $result = "";
 
-# do not produce per node action if only DDL on the proxy (tiggers,views,procedures,functions)
+    # do not produce per node action if only DDL on the proxy (tiggers,views,procedures,functions)
     if ( $ddlallnode == 2 ) {
-        print STDERR "Skip sql action for data node " . $node . "\n";
+        Scramble::Common::ClusterUtils::log_debug("[spider_node_sql] Skip sql action for service $node  ",1);   
         return 0;
     }
     if (
@@ -991,8 +1000,8 @@ sub spider_node_sql($$$$$$$) {
                 my $unquote_tbl = $createtable;
                 $unquote_tbl =~ s/`//g;
                 my $requete =
-"SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name='$unquote_tbl' and table_schema='$database' and COLUMN_KEY='PRI' LIMIT 1 ";
-                print STDERR $requete . "\n";
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE table_name='$unquote_tbl' and table_schema='$database' and COLUMN_KEY='PRI' LIMIT 1 ";
+                Scramble::Common::ClusterUtils::log_debug("[spider_node_sql] $dsn: $requete ",2);    
                 my $sth = $dbh->prepare($requete);
                 $sth->execute();
                 while ( my @row = $sth->fetchrow_array ) {
@@ -1022,7 +1031,7 @@ sub spider_create_table_info($$) {
     my $monitoring = "5012";
 
     if ( $ddlallnode == 0 ) {
-        print STDERR "Create spider table on all proxy node \n";
+        Scramble::Common::ClusterUtils::log_debug("[spider_create_table_info] Create spider table on all proxy node ",2);
         my $cptpart = 0;
         foreach my $host ( keys( %{ $config->{db} } ) ) {
             $host_info = $config->{db}->{default};
@@ -1080,7 +1089,8 @@ sub spider_create_table_info($$) {
                     $host_info->{mysql_password}
                 );
                 my $requete = $query . " \n" . $engine . "\n";
-                print STDOUT $requete;
+                Scramble::Common::ClusterUtils::log_debug("[spider_create_table_info] $dsn: $requete ",2); 
+               
                 my $sth = $dbh->do($requete);
             }
         }
@@ -1097,6 +1107,7 @@ sub service_sql_database($) {
     my $query = shift;
     my $host_info;
     my $err = "000000";
+    Scramble::Common::ClusterUtils::log_debug("[service_sql_database] start ",2); 
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
@@ -1119,22 +1130,12 @@ sub service_sql_database($) {
                   . $host_info->{mysql_user}
                   . "  -p$host_info->{mysql_password} -e\""
                   . $query . "\"";
+                Scramble::Common::ClusterUtils::log_debug("[service_sql_database] $TRIG: $query ",2);   
                 worker_node_command( $TRIG, $host_info->{ip} );
-                print STDERR "dsn: "
-                  . $dsn . " : "
-                  . $host_info->{mysql_user} . " "
-                  . $host_info->{mysql_password} . " : "
-                  . $query . "\n";
-
-                # my $dbh = DBI->connect($dsn, $host_info->{mysql_user}, $host_info->{mysql_password});
-                # my $sth = $dbh->do($query);
-                # $sth->execute();
-                # $sth->finish();
-                # $dbh->disconnect();
-
+            
             }
             catch Error with {
-                print STDERR "ici7\n";
+                Scramble::Common::ClusterUtils::log_debug("[service_sql_database] Failed ",2);   
                 $err = "ER0003";
             }
 
@@ -1148,16 +1149,18 @@ sub service_remove_database($$) {
   my $node = shift;
   my $err = "000000";
   my $param = "$self->{datadir}/sandboxes/$node/stop";
-        $err   = worker_node_command( $param, $self->{ip} );
-        $param = "rm -rf $self->{datadir}/sandboxes/$node";
-        $err   = worker_node_command( $param, $self->{ip} );
+  Scramble::Common::ClusterUtils::log_debug("[service_remove_database] $self->{ip}: $param ",2);   
+  $err   = worker_node_command( $param, $self->{ip} );
+  $param = "rm -rf $self->{datadir}/sandboxes/$node";
+  $err   = worker_node_command( $param, $self->{ip} );
+  Scramble::Common::ClusterUtils::log_debug("[service_remove_database] $self->{ip}: $param ",2); 
   return $err;
 }
 
 sub service_status_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
-  my $host=shift;
+  my $host=shift;  
   my $mon= Scramble::Common::ClusterUtils::get_active_monitor($config);
   my $err; 
   my $cmd =
@@ -1183,7 +1186,7 @@ sub service_status_mycheckpoint($$$) {
           . " --disable-bin-log"
           . " --purge-days=" 
           . $mon->{purge_days};
-
+        Scramble::Common::ClusterUtils::log_debug("[service_status_mycheckpoint] $host_info->{ip}: $cmd ",2);    
         $err = worker_node_command( $cmd, $host_info->{ip} );
         if(  $err eq "00000" ){
             return 1;
@@ -1194,7 +1197,7 @@ sub service_status_mycheckpoint($$$) {
 }
 
 sub service_status_memcache_fromdb($) {
-     
+        
       my $host_info=shift;
       my  $dsn2 =
             "DBI:mysql:host="
@@ -1203,6 +1206,7 @@ sub service_status_memcache_fromdb($) {
           . $host_info->{mysql_port}
           . ";mysql_connect_timeout="
           . $mysql_connect_timeout;
+       Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] start : $dsn2",2);   
         
        my  $dbh2 = DBI->connect(
             $dsn2,
@@ -1211,15 +1215,16 @@ sub service_status_memcache_fromdb($) {
            {RaiseError=>0,PrintError=>1}
         );
         if (!$dbh2)  { 
-          print STDERR "Error Memcache UDF DB connect failed \n";
+          Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] Database connection failed : $dsn2 ",2);   
+        
           return 0;
         }
-         my $sql="SELECT memc_set('test','test',0)";
+        my $sql="SELECT memc_set('test','test',0)";
         my $res = 0;
        
         my $sth2 = $dbh2->do($sql);
         if (!$sth2)  {    
-             print STDERR "Error Mon connect memc_set \n";
+              Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] memc_set failed ",2); 
             
         }
         $sql="SELECT memc_get('test') as c1";
@@ -1230,26 +1235,28 @@ sub service_status_memcache_fromdb($) {
                 $result= defined ($result) ? $result : "no";
                  
                 if  ( $result eq "test" )   {
+                   Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] memc_get success ",2); 
                    $res=1;
                 } 
                 $stm->finish(); 
            }  
          else {
              $dbh2->disconnect;
-             return 0;
-             print STDERR "Error Mon connect memc_GET\n";
+             Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] memc_get failed ",2);
+             return 0;    
           }
            
           
         if ($res == 0 ) {
-             print STDERR "Setting UDF Memcache server\n";
+             
             my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
             $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
-            print STDERR "'". $mem_info->{ip} .":". $mem_info->{port}."'";
+            Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": memc_servers_set ",2);      
             try {
              my $sth = $dbh2->do($sql);
             }
             catch Error with {
+                 Scramble::Common::ClusterUtils::log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": failed memc_servers_set ",2);
                  print STDERR "Mon connect memc_servers_set\n";
                  $dbh2->disconnect;
                 return 0;
@@ -1285,7 +1292,7 @@ sub service_status_database($$) {
       . $port
       . ";mysql_connect_timeout="
       . $mysql_connect_timeout;
-    print STDERR $dsn;
+    Scramble::Common::ClusterUtils::log_debug("[service_status_database] $theip: dsn ",2);
     use Error qw(:try);
     try {
 
@@ -1297,6 +1304,8 @@ sub service_status_database($$) {
     }
     catch Error with {
         $err = "ER0003";
+        Scramble::Common::ClusterUtils::log_debug("[service_status_database] $theip: Failed connecting to db ",2)
+    
     };
  return $err;
 }
@@ -1306,7 +1315,8 @@ sub service_status_memcache($$) {
   my $node = shift;
   my $err = "000000";
   use Error qw(:try);
-  print STDERR "connecting to memcache \n";
+  Scramble::Common::ClusterUtils::log_debug("[service_status_memcache] $self->{ip}: Connecting to memcache "  ,2);  
+
   try {
 
     my $memd = new Cache::Memcached {
@@ -1318,9 +1328,13 @@ sub service_status_memcache($$) {
     $memd->set( "key_test", "test" );
     my $val = $memd->get("key_test");
     $err = "ER0005";
-    if ( $val eq "test" ) { $err = "000000"; }
+    if ( $val eq "test" ) { $err = "000000"; 
+        Scramble::Common::ClusterUtils::log_debug("[service_status_memcache] $self->{ip}: Success to memcache "  ,1); 
+    }
+    
   }  catch Error with {
     $err = "ER0005";
+    Scramble::Common::ClusterUtils::log_debug("[service_status_memcache] $self->{ip}: Error to memcache "  ,1); 
   };
   return $err;
 }
@@ -1337,7 +1351,7 @@ sub service_start_memcache($$) {
       . $SKYBASEDIR
       . "/ncc/etc/memcached."
       . $node . ".cnf";
-  print STDERR  "service_start_memcache : " . $param  ." on: ". $self->{ip};   
+  Scramble::Common::ClusterUtils::log_debug("[service_start_memcache] on $self->{ip}: ". $param  ,1);     
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1354,7 +1368,7 @@ sub service_start_tarantool($$) {
       . $SKYBASEDIR
       . "/ncc/etc/tarantool."
       . $node . ".cnf";
-  print STDERR  "service_start_tarantool : " . $param  ." on: ". $self->{ip};   
+  Scramble::Common::ClusterUtils::log_debug("[service_start_tarantool] on $self->{ip}: ". $param  ,1);  
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1363,22 +1377,24 @@ sub service_start_tarantool($$) {
 
 sub service_start_database($$) {
     my $self = shift;
-    my $node = shift;
-   
+    my $node = shift;   
     my $err = "000000";
-
-    
+   
     my $param = "$SKYDATADIR/sandboxes/$node/send_kill";
     $err = worker_node_command( $param, $self->{ip} );
+    Scramble::Common::ClusterUtils::log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
+    
 
     $param = "$SKYDATADIR/sandboxes/$node/start";
     $err = worker_node_command( $param, $self->{ip} );
-    
+    Scramble::Common::ClusterUtils::log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
+     
     my $memcaches =  Scramble::Common::ClusterUtils::get_all_memcaches($config);
     $param =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
           . "SELECT memc_servers_set('"
           . $memcaches . "');\"";
+    Scramble::Common::ClusterUtils::log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
     $err = worker_node_command( $param, $self->{ip} );
     return $err;
 }
@@ -1404,6 +1420,7 @@ sub service_start_mycheckpoint($$) {
           . " --database=mon_"
           . $host
           . " --http-port=80 &";
+   Scramble::Common::ClusterUtils::log_debug("[service_start_mycheckpoint] on $self->{ip}: ". $cmd  ,1);           
    $err = worker_node_command( $cmd , $self->{ip} );
    return $err;
 }
@@ -1424,6 +1441,7 @@ sub service_start_mysqlproxy($$) {
           . $SKYDATADIR
           . "/log/mysql-proxy."
           . $node . ".log  1>&2 ";
+  Scramble::Common::ClusterUtils::log_debug("[service_start_mysqlproxy] on $self->{ip}: ". $param  ,1);    
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1438,6 +1456,7 @@ sub service_start_keepalived($$) {
           . $SKYBASEDIR
           . "/ncc/etc/keepalived."
           . $node . ".cnf";
+  Scramble::Common::ClusterUtils::log_debug("[service_start_keepalived] on $self->{ip}: ". $param  ,1);                
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1456,6 +1475,7 @@ sub service_start_haproxy($$) {
           . $SKYBASEDIR
           . "/ncc/tmp/haproxy."
           . $node . ".pid ";
+  Scramble::Common::ClusterUtils::log_debug("[service_start_haproxy] on $self->{ip}: ". $param  ,1);        
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1485,6 +1505,7 @@ sub service_start_bench($$$$) {
       ."/" 
       . $node
       ."/client &";
+        Scramble::Common::ClusterUtils::log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1);
     $err = worker_node_command( $cmd, $self->{ip} );
      #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
     $cmd =
@@ -1501,11 +1522,12 @@ sub service_start_bench($$$$) {
       ."/" 
       . $node
       ."/driver"; 
+      Scramble::Common::ClusterUtils::log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1); 
      $err = worker_node_command( $cmd, $self->{ip} ); 
      $cmd="killall client";
+      Scramble::Common::ClusterUtils::log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1);
      $err = worker_node_command( $cmd, $self->{ip} ); 
      my $outfile =$SKYDATADIR. "/" .$node."/driver/mix.log";
-
      my $json_res = dbt2_parse_mix( $outfile );
      return $json_res;
 }
@@ -1516,6 +1538,7 @@ sub service_stop_database($$) {
     my $err = "000000";
 
     my $param = "$SKYDATADIR/sandboxes/$node/send_kill";
+    Scramble::Common::ClusterUtils::log_debug("[service_stop_database] on $self->{ip}: ". $param  ,1);
     $err = worker_node_command( $param, $self->{ip} );
     return $err;
 }
@@ -1529,7 +1552,7 @@ sub service_stop_mysqlproxy($$) {
           . $SKYBASEDIR
           . "/ncc/tmp/mysql-proxy."
           . $name . ".pid`";
- print STDERR  $param ."\n";
+  Scramble::Common::ClusterUtils::log_debug("[service_stop_mysqlproxy] on $self->{ip}: ". $param  ,1);   
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1543,6 +1566,7 @@ sub service_stop_memcache($$) {
           . $SKYBASEDIR
           . "/ncc/tmp/memcached."
           . $name . ".pid`";
+  Scramble::Common::ClusterUtils::log_debug("[service_stop_memcache] on $self->{ip}: ". $param  ,1);         
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1552,6 +1576,7 @@ sub service_stop_keepalived($$) {
   my $name = shift;
   my $err = "000000";
   my $param = "killall keepalived ";
+  Scramble::Common::ClusterUtils::log_debug("[service_stop_keepalived] on $self->{ip}: ". $param  ,1);  
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
 }
@@ -1562,8 +1587,9 @@ sub service_stop_haproxy($$) {
   my $err = "000000";
   my $param =
           "kill -9 `cat " . $SKYBASEDIR . "/ncc/tmp/haproxy." . $name . ".pid`";
- $err = worker_node_command( $param, $self->{ip} );
- return $err;
+  Scramble::Common::ClusterUtils::log_debug("[service_stop_haproxy] on $self->{ip}: ". $param  ,1);           
+  $err = worker_node_command( $param, $self->{ip} );
+  return $err;
 }
 
 sub service_stop_mycheckpoint($$) {
@@ -1575,7 +1601,9 @@ sub service_stop_mycheckpoint($$) {
           . $SKYBASEDIR
           . "/ncc/tmp/mycheckpoint."
           . $name . ".pid`";
+  Scramble::Common::ClusterUtils::log_debug("[service_stop_mycheckpoint] on $self->{ip}: ". $param  ,1);         
   $err = worker_node_command( $param, $self->{ip} );
+   
   return $err;
 }
 
@@ -1583,10 +1611,15 @@ sub service_install_bench($$) {
  my $self=shift;
  my $name = shift;
  my $cmd="mkdir ". $SKYDATADIR ."/".$name;
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench]  ". $cmd  ,1);      
+ 
  worker_node_command( $cmd, $self->{ip} );
  $cmd="mkdir ". $SKYDATADIR ."/".$name."/client";
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench]  ". $cmd  ,1);      
  worker_node_command( $cmd, $self->{ip} );
  $cmd="mkdir ". $SKYDATADIR ."/".$name."/driver";
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench]  ". $cmd  ,1);      
+ 
  worker_node_command( $cmd, $self->{ip} );
  
  
@@ -1597,9 +1630,13 @@ sub service_install_bench($$) {
       . $SKYDATADIR 
       ."/".$name
       ." --mysql";
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench]  ". $cmd  ,1);      
+ 
  worker_node_command( $cmd, $self->{ip} );
  my $master=  Scramble::Common::ClusterUtils::get_active_db($config);
  mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench] DROP DATABASE IF EXISTS dbt2 on master "  ,1);      
+ 
 
  $cmd=$SKYBASEDIR
       . "/dbt2/scripts/mysql/build_db.sh -w "
@@ -1614,7 +1651,8 @@ sub service_install_bench($$) {
       ." -h ".$master->{ip}
       ." -P ".$master->{mysql_port}
       ." -p".$master->{mysql_password}
-      ." -l -e INNODB"; ;
+      ." -l -e INNODB"; 
+ Scramble::Common::ClusterUtils::log_debug("[service_install_bench]  ". $cmd  ,1);      
  worker_node_command( $cmd, $self->{ip} );
  
 # "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
@@ -1630,7 +1668,7 @@ sub service_install_tarantool($$) {
       .  $SKYDATADIR 
       . "/"
       . $node ;
-  print STDERR  "service_start_tarantool : " . $param  ." on: ". $self->{ip};   
+  Scramble::Common::ClusterUtils::log_debug("[service_install_tarantool]  ". $param  ." on: ". $self->{ip},1);      
   $err = worker_node_command( $param, $self->{ip} );
   $param =
         "chown skysql:skysql "
@@ -1654,12 +1692,7 @@ sub service_install_database($$$) {
     my $node = shift;
     my $type = shift;
     my $err  = "000000";
-    if ( $type eq 'router' ) {
-
-        my $param = "$SKYBASEDIR/ncc/init.d/routerd start";
-        $err = worker_node_command( $param, $self->{ip} );
-        return $err;
-    }
+    
     my $SANDBOX =
         "low_level_make_sandbox --force --no_show" . "  "
       . " -c server-id=$self->{mysql_port} "
@@ -1672,50 +1705,64 @@ sub service_install_database($$$) {
       . " --basedir=$SKYBASEDIR/$self->{mysql_version} "
       . " --my_file=$self->{mysql_cnf}";
 
-    my $le_localtime = localtime;
-    print $LOG $le_localtime . " $SANDBOX\n";
-    print STDOUT $le_localtime . " $SANDBOX\n";
+    
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] $SANDBOX : ".$self->{ip},1);
     $err = worker_node_command( $SANDBOX, $self->{ip} );
     my $GRANT =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "GRANT replication slave ON *.* to \'$self->{replication_user}\'@\'%\' IDENTIFIED BY \'$self->{replication_password}\';"
       . "GRANT ALL ON *.* to \'$self->{mysql_user}\'@\'%\' IDENTIFIED BY \'$self->{mysql_password}\';"
       . "\"";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] Grant: $GRANT : ".$self->{ip},1);  
     worker_node_command( $GRANT, $self->{ip} );
 
     if ( $type eq 'spider' || $type eq 'monitor' ) {
+    
         my $SPIDER =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
+        "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
+        Scramble::Common::ClusterUtils::log_debug("[service_install_database] Spider : $SPIDER : ".$self->{ip},1);  
         $err = worker_node_command( $SPIDER, $self->{ip} );
+        
 
     }
     else {
         my $HANDLERSOCKET =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\"INSTALL PLUGIN handlersocket SONAME \'handlersocket.so\';\"";
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\"INSTALL PLUGIN handlersocket SONAME \'handlersocket.so\';\"";
+        Scramble::Common::ClusterUtils::log_debug("[service_install_database] HandlerSocket : $HANDLERSOCKET : ".$self->{ip},1);  
+       
         $err = worker_node_command( $HANDLERSOCKET, $self->{ip} );
     }
     my $GEARMANUDF =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gearmanudf.sql";
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gearmanudf.sql";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] HandlerSocket : $GEARMANUDF : ".$self->{ip},1);  
+       
     $err = worker_node_command( $GEARMANUDF, $self->{ip} );
 
     my $param =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "SELECT gman_servers_set('127.0.0.1');\"";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] Gearman : $param : ".$self->{ip},1);  
     $err = worker_node_command( $param, $self->{ip} );
 
     my $MEMCACHEUDF =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_memcacheudf.sql";
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_memcacheudf.sql";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] Memcache : $MEMCACHEUDF : ".$self->{ip},1);  
+    
     $err = worker_node_command( $MEMCACHEUDF, $self->{ip} );
 
     my $GTTID =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
+   "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] Table Global Unique Id : $GTTID : ".$self->{ip},1);  
+    
     $err = worker_node_command( $GTTID, $self->{ip} );
     my $memcaches =  Scramble::Common::ClusterUtils::get_all_memcaches($config);
 
     $param =
-"$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
+    "$SKYDATADIR/sandboxes/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "SELECT memc_servers_set('"
       . $memcaches . "');\"";
+    Scramble::Common::ClusterUtils::log_debug("[service_install_database] test memcache set : $param: ".$self->{ip},1);  
+      
     $err = worker_node_command( $param, $self->{ip} );
 
    # report_status( $self, "Install node", $err, $node );
@@ -1723,15 +1770,34 @@ sub service_install_database($$$) {
 }
 
 sub service_sync_database($$$) {
-    my $self   = shift;
-    my $node   = shift;
-    my $master = shift;
-  
-    print STDERR "mysql -h$master->{ip} ";
-
-#	my $param =   "mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'stop slave;change master to master_host=\\\"$master->{ip}\\\", master_user=\\\"$master->{replication_user}\\\", master_password=\\\"$master->{replication_password}\\\", master_port=$master->{mysql_port};\';mysqldump -u $self->{mysql_user} -p$self->{mysql_password} -h $master->{ip} -P$master->{mysql_port} --single-transaction --master-data --all-databases | mysql -u $self->{mysql_user} -p$self->{mysql_password} -h$self->{ip} -P$self->{mysql_port};mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'start slave;\' ";
-    my $param =
-"mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'stop slave;change master to master_host=\"$master->{ip}\", master_user=\"$master->{replication_user}\", master_password=\"$master->{replication_password}\", master_port=$master->{mysql_port};\';mysqldump -u $self->{mysql_user} -p$self->{mysql_password} -h $master->{ip} -P$master->{mysql_port} --single-transaction --master-data --all-databases | mysql -u $self->{mysql_user} -p$self->{mysql_password} -h$self->{ip} -P$self->{mysql_port};mysql -h$self->{ip} -P$self->{mysql_port} -u $self->{mysql_user} -p$self->{mysql_password} -e \'start slave;\' ";
+   my $self   = shift;
+   my $node   = shift;
+   my $master = shift;
+   Scramble::Common::ClusterUtils::log_debug("[service_sync_database] on master ip : ". $master->{ip},1);
+   my $param =
+    "mysql -h$self->{ip} ".
+    "-P$self->{mysql_port} ".
+    "-u $self->{mysql_user} ".
+    "-p$self->{mysql_password} ".
+    "-e \'stop slave;".
+    "change master to master_host=\"$master->{ip}\",".
+    "master_user=\"$master->{replication_user}\",".
+    "master_password=\"$master->{replication_password}\",".
+    "master_port=$master->{mysql_port};\';".
+    "mysqldump -u $self->{mysql_user} ".
+    "-p$self->{mysql_password} ".
+    "-h $master->{ip} -P$master->{mysql_port} ".
+    "--single-transaction --master-data --all-databases ".
+    "| mysql ".
+    "-u $self->{mysql_user} ".
+    "-p$self->{mysql_password} ".
+    "-h$self->{ip} ".
+    "-P$self->{mysql_port};".
+    "mysql -h$self->{ip} ".
+    "-P$self->{mysql_port} ".
+    "-u $self->{mysql_user} ".
+    "-p$self->{mysql_password} ".
+    "-e \'start slave;\'";
 
     worker_node_command( $param, $self->{ip} );
 }
@@ -1745,25 +1811,35 @@ sub instance_check_ssh($){
     . ' -o "BatchMode=yes"  -o "StrictHostKeyChecking=no" '
     . $ip
     .' "echo 2>&1" && echo "OK" || echo "NOK"';
-  my  $result = `$command`;
-  print STDERR "\nsortie du ssh test :".$command. " : " . $result . "test\n";
+    my  $result = `$command`;
+    Scramble::Common::ClusterUtils::log_debug("[instance_check_ssh] check ip : ". $ip,2);
+     
+ 
    $result =~ s/\n//g; 
      if ( $result eq "OK"){ 
-        return 1;
+         Scramble::Common::ClusterUtils::log_debug("[instance_check_ssh] ssh ok on ip : ". $ip,2);
+         return 1;
     }
-  return 0;
+    Scramble::Common::ClusterUtils::log_debug("[instance_check_ssh] ssh failed on ip : ". $ip,2);
+ 
+    return 0;
 }
 
 sub instance_check_scrambledb($){
     my $ip =shift;
+    Scramble::Common::ClusterUtils::log_debug("[instance_check_scrambledb] check ip : ". $ip,2);
+   
     my $command=
     ' "echo 2>&1" && echo "OK" || echo "NOK"';
     my  $result = worker_node_command($command,$ip);
-   print STDERR $result . " \n";
-    #$result =~ s/\n//g; 
+  
      if ( $result eq "000000"){ 
-        return 1;
+       Scramble::Common::ClusterUtils::log_debug("[instance_check_scrambledb] is running on ip : ". $ip,2);
+   
+       return 1;
     }
+    Scramble::Common::ClusterUtils::log_debug("[instance_check_scrambledb] is not running on ip : ". $ip,2);
+   
   return 0;
 }
 
@@ -1771,21 +1847,19 @@ sub instance_heartbeat_collector($$) {
     my $status =shift;
     my $json_status = shift ;
     my $json    = new JSON;
-    print STDERR "Receive heartbeat..\n";
-    #my $status =
-    #  $json->allow_nonref->utf8->relaxed->escape_slash->loose
-    #  ->allow_singlequote->allow_barekey->decode($json_status);
-   
     my $err = "000000";
     my $host_info;
     my $host_vip =  Scramble::Common::ClusterUtils::get_active_db($config);
-    my $source_ip = Scramble::Common::ClusterUtils::get_source_ip_from_status($status) ;
-    print STDERR "heratbeat from ". $source_ip;
-    my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
- 
-    print STDERR "Process the ping with memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";
-    
+    Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Heartbeat fetch active database: ". $host_vip,2);
    
+    my $source_ip = Scramble::Common::ClusterUtils::get_source_ip_from_status($status) ;
+    Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Heartbeat receive from ip: ". $source_ip,2);
+           
+   
+    my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
+    Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Process the ping with memcache: ". $mem_info->{ip} . ":" . $mem_info->{port},2);
+            
+    
       my $memd = new Cache::Memcached {
            'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
            'debug'   => 0,
@@ -1800,19 +1874,17 @@ sub instance_heartbeat_collector($$) {
        
         if ($previous_json_status )
        { 
-         
-          print STDERR $previous_json_status;
-        #   print STDERR "\n";
-        #    print STDERR "\n";
-        #    print STDERR $json_status;
-
-            my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
-            ->allow_singlequote->allow_barekey->decode($previous_json_status);
-            # pass a reference as the status need to be change in case of ssh failed 
-            my $json_triggers =  get_status_diff($previous_status,\$status);
-            worker_doctor_command($json_triggers,$gearman_ip);
-            $json_status= $json->allow_blessed->convert_blessed->encode($status);
-            print STDERR "after diff: ". $json_status;
+           Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Previous_json_status ",2);
+           Scramble::Common::ClusterUtils::log_json($previous_json_status,2);
+           my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+           ->allow_singlequote->allow_barekey->decode($previous_json_status);
+           
+           my $json_triggers =  get_status_diff($previous_status,\$status);
+           worker_doctor_command($json_triggers,$gearman_ip);
+           $json_status= $json->allow_blessed->convert_blessed->encode($status);
+           Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] After diff status ",2);
+           Scramble::Common::ClusterUtils::log_json($json_status,2);
+           
        }     
        
     #}  catch Error with {
@@ -1821,20 +1893,19 @@ sub instance_heartbeat_collector($$) {
     #};
 
     try {
-        print STDERR "\nStoring hearbeat to memcache..\n";
-       
+        Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Storing hearbeat to memcache ",2);
         $memd->set( "status".   $source_ip, $json_status );
         $memd->set( "status", $json_status );
         
         
        }  catch Error with {
-         print STDERR "bogus set memcache\n";
-        $err = "ER00012";
+       Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] Can't set status in memcache ",2);
+       $err = "ER00012";
     };
     my $json_todo = $memd->get("actions");
     if (!$json_todo )
     {
-              print STDERR "No actions in memcache heartbeat setting empty json  \n";
+              Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] No actions in memcache heartbeat setting empty json ",2);
               $memd->set( "actions", '{"actions":[]}' );
     }
     my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
@@ -1849,6 +1920,7 @@ sub instance_heartbeat_collector($$) {
         service_status_mycheckpoint($host_vip,$host_info,$host);
        } 
     }
+    gttid_reinit();
     return $err;
     
 }
@@ -1857,10 +1929,12 @@ sub instance_heartbeat_collector($$) {
 sub database_rolling_restart(){ 
  my $host_info;
  my $host_slave;
+ my $cloud_name = get_active_cloud_name($config);
+ Scramble::Common::ClusterUtils::log_debug("[database_rolling_restart] start ",1);   
  foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if  ( $host_info->{mode} eq "slave" ){
+        if  ( $host_info->{mode} eq "slave" && $host_info->{cloud} eq $cloud_name ){
                 $ret = service_do_command( $host_info, $host, "stop" );
                 $host_slave=$host_info;
         }         
@@ -1871,7 +1945,7 @@ sub database_rolling_restart(){
  foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if  ( $host_info->{status} eq "master" ){
+        if  ( $host_info->{status} eq "master" && $host_info->{cloud} eq $cloud_name){
            service_switch_database($host_slave); 
            $ret = service_do_command( $host_info, $host, "stop" );
        }         
@@ -1883,11 +1957,14 @@ sub database_rolling_restart(){
 sub config_switch_status($$){
     my $switchhost = shift;
     my $status = shift;
+    Scramble::Common::ClusterUtils::log_debug("[config_switch_status] start ",1);
+    
     my $file = "$SKYBASEDIR/ncc/etc/cloud.cnf";
     open my $in,  '<', $file       or die "Can't read old file: $!";
     open my $out, '>', "$file.new" or die "Can't write new file: $!";
     my $line = "";
     my $drap = 0;
+    
     while ( $line = <$in> ) {
 
         # print STDERR $line . " ". $drap . "\n";
@@ -1924,7 +2001,10 @@ sub service_switch_database($) {
     my $switchhost = shift;
     my $host_info;
     my $err = "000000";
+    Scramble::Common::ClusterUtils::log_debug("[service_switch_database] start ",1);
+    my $cloud_name = get_active_cloud_name($config);
     my $oldhost =  Scramble::Common::ClusterUtils::get_active_master_db_name($config);
+    
     config_switch_status($oldhost,"slave");
     config_switch_status($switchhost,"master");
      
@@ -1934,7 +2014,7 @@ sub service_switch_database($) {
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host eq $switchhost ) {
+        if ( $host eq $switchhost && $host_info->{cloud} eq $cloud_name) {
             my $cmd =
                 $SKYBASEDIR
               . "/perl/bin/perl "
@@ -1958,8 +2038,9 @@ sub service_switch_vip(){
   my $ip= Scramble::Common::ClusterUtils::get_my_ip_from_config($config);
   my $newlb= Scramble::Common::ClusterUtils::get_lb_name_from_ip($config,$ip);  
   my $oldlb= Scramble::Common::ClusterUtils::get_lb_peer_name_from_ip($config,$ip);   
-  print STDERR "Current lb from config " .  $newlb ."\n";
-  print STDERR "Passive lb from config " .  $oldlb ."\n";
+  Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] Current lb from config: ".$newlb ,1);
+  Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] Passive lb from config: ".$oldlb ,1);
+  
   $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
   #if (Scramble::Common::ClusterUtils::is_ip_localhost($ip)==1)  {
   #  print STDERR "nothing do do lb in the conf already master\n";
@@ -1979,7 +2060,8 @@ sub service_switch_vip(){
   ." broadcast"
   ." 10.0.0.10" 
   ." netmask 255.255.255.255 up";
-   print STDERR  $cmd2."\n";
+  Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] ".$cmd2 ,1);
+   
    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
    foreach (@ips) {  
          print STDERR  "removing loopback on ". $_ . "\n";  
@@ -1998,12 +2080,12 @@ sub service_do_command($$$) {
     my $cmd  = shift;
     my $param = "";
     my $err   = "000000";
-      print STDERR "Service Do command \n";
-
+    Scramble::Common::ClusterUtils::log_debug("[service_do_command] start " ,1);
+      
     if ( $cmd eq "start" && Scramble::Common::ClusterUtils::is_ip_localhost($self->{ip})==0) {
         # get the instances status from memcache 
         my $mem_info= Scramble::Common::ClusterUtils::get_active_memcache($config);
-        print STDERR "Get the status in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}."\n";      
+        Scramble::Common::ClusterUtils::log_debug("[service_do_command] Get the status in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port}  ,1);
         my $memd = new Cache::Memcached {
                'servers' => [ $mem_info->{ip} . ":" . $mem_info->{port} ],
                'debug'   => 0,
@@ -2017,14 +2099,14 @@ sub service_do_command($$$) {
         my $json_status = $memd->get("status");
         if (!$json_status )
         {
-           print STDERR "No status in memcache \n";
+           Scramble::Common::ClusterUtils::log_debug("[service_do_command] No status in memcache :"  ,1);
            report_status( $self, $param,  "ER0014", $node );
            return "ER0014";  
         }
         my $json_todo = $memd->get("actions");
         if (!$json_todo )
         {
-           print STDERR "No actions in memcache \n";
+           Scramble::Common::ClusterUtils::log_debug("[service_do_command] No actions in memcache :"  ,1);
            report_status( $self, $param,  "ER0015", $node );
            return "ER0015";  
         }
@@ -2035,17 +2117,20 @@ sub service_do_command($$$) {
         my $todo =  $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
          ->allow_singlequote->allow_barekey->decode($json_todo);
 
-        print STDERR "debug local status : " . $json_status;
+        Scramble::Common::ClusterUtils::log_debug("[service_do_command] Local status :"  ,1);
+        Scramble::Common::ClusterUtils::log_json($json_status  ,1); 
+
+
         if ( Scramble::Common::ClusterUtils::is_ip_from_status_running($status,$self->{ip})==0) {
 
-        use Cache::Memcached::Queue;
+        #use Cache::Memcached::Queue;
 
-        my $q = Cache::Memcached::Queue->new( name => 'actions_queue', 
-              max_enq => 100, 
-              servers => [{address => $mem_info->{ip} . ":" . $mem_info->{port}}, 
-              id => 1,
-                     id_prefix => 'MYQUEUE',
-        )->init;
+        #my $q = Cache::Memcached::Queue->new( name => 'actions_queue', 
+        #      max_enq => 100, 
+        #      servers => [{address => $mem_info->{ip} . ":" . $mem_info->{port}}, 
+        #      id => 1,
+        #             id_prefix => 'MYQUEUE',
+        #)->init;
 
         my $my_event = {
                  event_ip       => $self->{ip},
@@ -2055,7 +2140,7 @@ sub service_do_command($$$) {
                  do_group       =>  $node,
                  do_action      => "start" 
         };
-        $q->enq({value => $json_cloud->allow_blessed->convert_blessed->encode($my_event)});
+        #$q->enq({value => $json_cloud->allow_blessed->convert_blessed->encode($my_event)});
         push  @{$todo->{actions}} , $my_event;  
         $my_event ={
                  event_ip       => $self->{ip},
@@ -2066,7 +2151,6 @@ sub service_do_command($$$) {
                  do_action      => "bootstrap_ncc" 
         };
         push  @{$todo->{actions}}, $my_event ; 
-        $q->enq({value => $json_cloud->allow_blessed->convert_blessed->encode($my_event)});
         $my_event ={
                  event_ip       => $self->{ip},
                  event_type     => "instances",
@@ -2078,7 +2162,9 @@ sub service_do_command($$$) {
         push  @{$todo->{actions}} , $my_event;       
 
         $json_todo =  $json_cloud->allow_blessed->convert_blessed->encode($todo);
-        print STDERR "Delayed actions :" . $json_todo ."\n";     
+        
+        Scramble::Common::ClusterUtils::log_debug("[service_do_command] Delayed actions :" . $json_todo ,1);
+    
         $memd->set( "actions",  $json_todo);
         report_status( $self, $param,  "ER0016", $node );
         return "ER0016";
@@ -2115,7 +2201,7 @@ sub service_do_command($$$) {
             || $self->{mode} eq "haproxy" )
         {
            $err=service_status_database($self,$node);
-           print  "service_status_database". $err ;
+          
         }
         elsif ( $self->{mode} eq "memcache" ) {
            $err= service_status_memcache($self,$node);
@@ -2195,7 +2281,8 @@ sub worker_node_command($$) {
     my $client = Gearman::XS::Client->new();
     my $res ="000000";
     $client->add_servers($ip);
-    print STDOUT $ip . ' ' . $cmd . '\n';
+    Scramble::Common::ClusterUtils::log_debug("[worker_node_command] Worker_config_command for ip :". $ip ,1);
+    Scramble::Common::ClusterUtils::log_json($cmd,2);
     
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
 
@@ -2218,7 +2305,9 @@ sub worker_config_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    print STDERR "Worker_config_command for ip :". $ip ."\n";
+    Scramble::Common::ClusterUtils::log_debug("[worker_config_command] Worker_config_command for ip :". $ip ,1);
+    Scramble::Common::ClusterUtils::log_json($cmd,2);
+   
     #$client->set_timeout($gearman_timeout);
     ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
 
@@ -2264,7 +2353,7 @@ sub worker_doctor_command($$) {
 
 
 sub bootstrap_config() {
-    print STDERR "bootstrap_config\n"; 
+    Scramble::Common::ClusterUtils::log_debug("[bootstrap_config] Start bootstrap_config" ,1);
     my $my_home_user = $ENV{HOME};
     my $cmd =
         'string="`cat '
@@ -2285,12 +2374,15 @@ sub bootstrap_config() {
               . $_ . ":"
               . $SKYBASEDIR
               . "/ncc/etc" ;  
+        Scramble::Common::ClusterUtils::log_debug("[bootstrap_config] Calling system: " .$action ,1);
+    
         system( $action);
-        print STDERR $action;    
+          
+        
         $err = worker_config_command( $command, $_ );
         
     }
-    print STDERR "End bootstrap_config\n";
+    Scramble::Common::ClusterUtils::log_debug("[bootstrap_config] End bootstrap_config" ,1);
     return $err;
 }
 
@@ -2382,6 +2474,7 @@ sub stop_all_proxy() {
         $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
         if ( $host_info->{mode} eq "mysql-proxy" ) {
+            Scramble::Common::ClusterUtils::log_debug("[stop_all_proxy] service_do_command stop on ". $host ,2 );
             service_do_command( $host_info, $host, "stop" );
         }
     }
@@ -2389,14 +2482,15 @@ sub stop_all_proxy() {
 }
 
 sub start_all_proxy() {
-
+    Scramble::Common::ClusterUtils::log_debug( "[start_all_proxy] entering" ,2 );
     my $host_info;
     my $err = "000000";
     foreach my $host ( keys( %{ $config->{proxy} } ) ) {
         $host_info = $config->{proxy}->{default};
         $host_info = $config->{proxy}->{$host};
         if ( $host_info->{mode} eq "mysql-proxy" ) {
-            service_do_command( $host_info, $host, "start" );
+           Scramble::Common::ClusterUtils::log_debug( "[start_all_proxy] service_do_command start on ". $host ,2 );
+           service_do_command( $host_info, $host, "start" );
         }
     }
 }
@@ -2406,9 +2500,8 @@ sub report_status($$$) {
     my $cmd  = shift;
     my $err  = shift;
     my $host = shift;
-    print STDERR $cmd . '\n';
+    Scramble::Common::ClusterUtils::log_debug( "[report_status] ". $cmd , 1);
     my $le_localtime = localtime;
-    print STDERR $le_localtime . " $cmd\n";
     my $status ="na";
     if ( $self->{status}) { 
      $status=$self->{status};
@@ -2456,8 +2549,5 @@ sub report_action($$$) {
       . '","command":"'
       . $cmd  
       . '"}'
-   );
-   
+   );   
 }
-
-

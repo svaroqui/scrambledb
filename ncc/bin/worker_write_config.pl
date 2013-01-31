@@ -431,6 +431,11 @@ sub write_haproxy_config($){
     print $out "mode tcp\n";
     print $out "bind     ".$lb_info->{vip}.":".$lb_info->{port}."\n";
     print $out "default_backend  mysql-back\n";
+   
+    # TO be tested  
+    #tcp-smart-accept
+    #option Ê Êtcp-smart-connect
+    
     #print $out "frontend web-front\n";
     #print $out "mode tcp\n";
     #print $out "bind   ".$lb_info->{vip}.":80\n";

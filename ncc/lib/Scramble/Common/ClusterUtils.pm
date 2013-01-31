@@ -2,7 +2,7 @@ package Scramble::Common::ClusterUtils;
 use strict;
 use warnings FATAL => 'all';
 
-
+our $g_log_level=2;
 sub delete_pid_if_exists($$) {
     my $pidfile = shift;
     my $ip      = shift;
@@ -109,7 +109,7 @@ my $status =shift;
   foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
     foreach my $key (keys %$instance) {
      if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
-            return $instance->{$key}->{status};
+            return $instance->{$key}->{state};
        }     
     }
    }
@@ -414,7 +414,39 @@ sub get_source_ip_from_status($) {
   return "0.0.0.0"; 
 }
 
+sub log_json($$){  
+  my $json_text =shift;
+  my $level=shift;
+  
+  my $json      = new JSON;
+  my @perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($json_text);
 
+  
+  if ($level<=$g_log_level){  
+    use Data::Dumper;
+    $Data::Dumper::Terse     = 1;       
+    $Data::Dumper::Quotekeys = 0;
+    $Data::Dumper::Indent    = 1;       
+    $Data::Dumper::Pair      = ":";
+    $Data::Dumper::Indent    = 1;
+    $Data::Dumper::Useqq     = 0; 
+    print  STDERR Dumper(@perl_class);
+  
+}    
+}
+ 
+sub log_debug($$){  
+ # open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
+ # or die "can't c   reate 'worker_cluster_cmd.log'\n";  
+  my $text =shift;
+  my $level=shift;
+  if ($level<=$g_log_level){
+   my $le_localtime = localtime;
+   print STDERR $le_localtime ." ";
+   print STDERR $text;
+   print STDERR "\n";
+  }
+}
 
 sub get_table_name_from_sql($) {
     my $lquery = shift;

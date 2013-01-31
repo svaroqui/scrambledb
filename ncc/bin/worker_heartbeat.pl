@@ -27,7 +27,7 @@ $client->add_servers("localhost");
  
 sub gearman_client() {
 # get the status from my point of view  
-  my $command='{"level":"services","command":{"action":"status","group":"all","type":"all"}}';
+  my $command='{"level":"services", "command":{"action":"status","group":"all","type":"all"}}';
   (my $ret,my $result_services_status) = $client->do('cluster_cmd', $command);   
   if ($ret != GEARMAN_SUCCESS) {
         printf(STDOUT "ERROR GEARMAN %s\n", $client->error());    
@@ -63,7 +63,7 @@ sub gearman_client() {
 #my $json2 = encode_json \%IPs; 
 # print    $json2;
 
-$command='{"level":"services","command":{"action":"ping","group":"all","type":"db"},"host":{"ram":"'.$ram. '","interfaces":['. $json_interfaces .']},"services_status":'.$result_services_status.',"instances_status":'.$result_instances_status.'}';
+$command='{"level":"services","version":"1.0","command":{"action":"ping","group":"all","type":"db"},"host":{"ram":"'.$ram. '","interfaces":['. $json_interfaces .']},"services_status":'.$result_services_status.',"instances_status":'.$result_instances_status.'}';
   
 ( $ret,my  $result) = $client->do('cluster_cmd', $command);
     printf(STDOUT "%s\n", $command);
