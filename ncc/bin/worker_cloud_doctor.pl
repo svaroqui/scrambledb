@@ -199,7 +199,7 @@ sub cloud_vip_fix_route(){
   $cmd1="ip route flush cache" ; 
   worker_node_command($cmd1,"localhost");  
   
-  $cmd1="echo 2 > /proc/sys/net/ipv4/conf/eth1/rp_filter"
+  $cmd1="echo 2 > /proc/sys/net/ipv4/conf/eth1/rp_filter";
   worker_node_command($cmd1,"localhost");  
    
   
@@ -218,7 +218,7 @@ sub cloud_get_a_running_lb(){
   Scramble::Common::ClusterUtils::log_debug("[cloud_get_a_running_lb] Info: Try to found a running lb"  ,1);
   my $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
   my $cloud_status_json = worker_cloud_command($command,"127.0.0.1:4731");
-  $cloud_status_json= '{"instances_status":{"instances":'. $cloud_status_json ."}}";
+
   Scramble::Common::ClusterUtils::log_debug("[cloud_get_a_running_lb] Info: Retriving cloud status",1);
   Scramble::Common::ClusterUtils::log_json( $cloud_status_json,1);
   my $cloud_status = $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
@@ -309,7 +309,7 @@ sub gearman_client() {
 
   $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
   my $cloud_status_json = worker_cloud_command($command,"127.0.0.1:4731");
-  $cloud_status_json= '{"instances_status":{"instances":'. $cloud_status_json ."}}";
+ 
   print STDERR $cloud_status_json;
   Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Retriving cloud status",1);
   Scramble::Common::ClusterUtils::log_json( $cloud_status_json,1);
@@ -426,14 +426,16 @@ sub worker_cloud_command($$) {
     if ( $ret == GEARMAN_SUCCESS ) {
       if ( !defined $result ) {
          Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_command] Error: ". "Gearman no result ",1);
-        return  '{"return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
+        return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
      } else { 
-        return $result; 
+         Scramble::Common::ClusterUtils::log_json(  $result   ,1);
+   
+         return  '{"instances_status":{"instances":' . $result . ',"return":{"code":"000000","version":"1.0"},"question":'.$cmd.'}}'; 
      }
     
    }
    Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_command] Error: ". "Gearman failed ",1); 
-   return  '{"return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.' }';
+   return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
   
     
 }
