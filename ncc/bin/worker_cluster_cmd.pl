@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-#  Copyright (C) 2012 SkySQL AB.,Ltd.
+#  Copyright (C) 2012 Stephane Varoqui @SkySQL AB Co.,Ltd.
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 #   along with this program; if not, write to the Free Software
 #  Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
 
 use Scramble::Common::Config;
 use Scramble::Common::ClusterUtils;
@@ -162,9 +163,9 @@ sub cluster_cmd {
                   Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No actions in memcache ",1);
                   report_action( "localhost", "fetch_event",  "ER0015");
                   my $json_action      = new JSON;
-                  return  $json_action->allow_nonref->utf8->encode(\@actions);
+                  return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":}';
            }
-            print STDERR $json_todo ."\n";
+           print STDERR $json_todo ."\n";
            return   $json_todo ;
        }
        elsif ($action eq "heartbeat" ) {
@@ -174,18 +175,20 @@ sub cluster_cmd {
                  Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No heartbeat in memcache ",1);
                  report_action( "localhost", "fetch_heartbeat",  "ER0015");
                  my $json_action      = new JSON;
-                 return   $json_action->allow_nonref->utf8->encode(\@actions);
+                 return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":'. $json_action->allow_nonref->utf8->encode(\@actions)."}";
            }
            print STDERR $json_status ."\n";
            return   $json_status ;
        }
        elsif ( $action eq "status") {
         $ret= get_local_instances_status($config);
-        return  '{"instances":'. $ret .'}' ;
-       }
-       else 
-       {
-           
+        return  '{"return":{"code":"000000"},"instances":'. $ret .'}' ;
+       } 
+       elsif ( $action eq "actions_init") {
+          Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Set empty actions",1);
+          $memd->set( "actions", '{"return":{"code":"000000","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}' );
+       } 
+       elsif ( $action eq "start" || $action eq "launch" || $action eq "stop" || $action eq "terminate") {
         my $json_todo = $memd->get("actions");
         if (!$json_todo )
         {
@@ -200,13 +203,14 @@ sub cluster_cmd {
         ->allow_singlequote->allow_barekey->decode($json_todo);
 
         push  @{$todo->{actions}} , {
-                 event_ip       => "unknown",
-                 event_type     => "instances",
+                 event_ip       => "na",
+                 event_type     => "cloud",
                  event_state    => "stopped" ,
                  do_level       => "instances" ,
                  do_group       =>  $group,
                  do_action      => "$action" 
         };  
+        
         
         $json_todo =  $json->allow_blessed->convert_blessed->encode($todo);
         Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Delayed actions",1);
@@ -215,7 +219,7 @@ sub cluster_cmd {
          
         $memd->set( "actions",  $json_todo);
         report_action( "localhost", "delayed_action",  "ER0017");
-        return '{"instances":' .  $ret .'}';
+        return  '{"return":{"code":"000000","version":"1.0"},"question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode(\@actions)."}";
       }
       
        
@@ -246,6 +250,9 @@ sub cluster_cmd {
         }
         elsif ( $action eq "switch_vip"){
           $ret = service_switch_vip();
+        }
+        elsif ( $action eq "check_vip"){
+          $ret = service_check_vip();
         }
         foreach my $host ( sort( keys( %{ $config->{db} } ) ) ) {
            my $host_info = $config->{db}->{default};
@@ -500,7 +507,7 @@ sub get_status_diff($$) {
    foreach  my $instance (  @{ ${$status_r}->{instances_status}->{instances}} ) {
      foreach my $attr (keys %$instance) {
        my $skip=0; 
-       Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Testing ssh instances $instance $attr",2);    
+       Scramble::Common::ClusterUtils::log_debug("[get_status_diff] Info: Testing ssh instances  $attr",2);    
      
        if ( (defined ($instance->{$attr}->{state}) ? $instance->{$attr}->{state}:"") ne 
           (defined ($previous_status->{instances_status}->{instances}[$i]->{$attr}->{state}) ? $previous_status->{instances_status}->{instances}[$i]->{$attr}->{state} :"")
@@ -1549,8 +1556,8 @@ sub service_stop_mysqlproxy($$) {
     
   my $param =
             "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/mysql-proxy."
+          . $SKYDATADIR
+          . "/tmp/mysql-proxy."
           . $name . ".pid`";
   Scramble::Common::ClusterUtils::log_debug("[service_stop_mysqlproxy] on $self->{ip}: ". $param  ,1);   
   $err = worker_node_command( $param, $self->{ip} );
@@ -1563,8 +1570,8 @@ sub service_stop_memcache($$) {
   my $err = "000000";
   my $param =
             "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/memcached."
+          . $SKYDATADIR
+          . "/tmp/memcached."
           . $name . ".pid`";
   Scramble::Common::ClusterUtils::log_debug("[service_stop_memcache] on $self->{ip}: ". $param  ,1);         
   $err = worker_node_command( $param, $self->{ip} );
@@ -1586,7 +1593,7 @@ sub service_stop_haproxy($$) {
   my $name = shift;
   my $err = "000000";
   my $param =
-          "kill -9 `cat " . $SKYBASEDIR . "/ncc/tmp/haproxy." . $name . ".pid`";
+          "kill -9 `cat " . $SKYDATADIR . "/tmp/haproxy." . $name . ".pid`";
   Scramble::Common::ClusterUtils::log_debug("[service_stop_haproxy] on $self->{ip}: ". $param  ,1);           
   $err = worker_node_command( $param, $self->{ip} );
   return $err;
@@ -1598,8 +1605,8 @@ sub service_stop_mycheckpoint($$) {
   my $err = "000000";
   my $param =
             "kill -9 `cat "
-          . $SKYBASEDIR
-          . "/ncc/tmp/mycheckpoint."
+          . $SKYDATADIR
+          . "/tmp/mycheckpoint."
           . $name . ".pid`";
   Scramble::Common::ClusterUtils::log_debug("[service_stop_mycheckpoint] on $self->{ip}: ". $param  ,1);         
   $err = worker_node_command( $param, $self->{ip} );
@@ -1906,7 +1913,7 @@ sub instance_heartbeat_collector($$) {
     if (!$json_todo )
     {
               Scramble::Common::ClusterUtils::log_debug("[Instance_hearbeat_collector] No actions in memcache heartbeat setting empty json ",2);
-              $memd->set( "actions", '{"actions":[]}' );
+              $memd->set( "actions", '{"return":{"error":"000000","version":"1.0"},"actions":[]}' );
     }
     my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
     foreach my $host ( keys( %{ $config->{db} } ) ) {
@@ -2031,6 +2038,26 @@ sub service_switch_database($) {
     start_all_proxy();
     return $err;
 }
+sub service_check_vip(){
+  
+  return 1;
+  my $err   = "000000";
+  my $ip= Scramble::Common::ClusterUtils::get_my_ip_from_config($config);
+  my $lb= Scramble::Common::ClusterUtils::get_active_lb($config);  
+  if (Scramble::Common::ClusterUtils::is_ip_localhost($lb->{ip})==0)  {
+    my $cmd2 ="/sbin/ifconfig lo:0 "
+    . $lb->{vip} 
+    ." broadcast"
+    ." $lb->{vip}" 
+    ." netmask 255.255.255.255 up";
+    my $cmd1 ="/sbin/ifconfig lo:0 down";  
+    worker_node_command($cmd1,"localhost");
+    worker_node_command($cmd2,"localhost");
+
+  }
+   return  $err;
+}
+
 
 
 sub service_switch_vip(){
@@ -2040,6 +2067,9 @@ sub service_switch_vip(){
   my $oldlb= Scramble::Common::ClusterUtils::get_lb_peer_name_from_ip($config,$ip);   
   Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] Current lb from config: ".$newlb ,1);
   Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] Passive lb from config: ".$oldlb ,1);
+  
+
+
   
   $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
   #if (Scramble::Common::ClusterUtils::is_ip_localhost($ip)==1)  {
@@ -2058,18 +2088,20 @@ sub service_switch_vip(){
   my $cmd2 ="/sbin/ifconfig lo:0 "
   . $lb->{vip} 
   ." broadcast"
-  ." 10.0.0.10" 
+  ." $lb->{vip}" 
   ." netmask 255.255.255.255 up";
   Scramble::Common::ClusterUtils::log_debug("[service_witch_vip] ".$cmd2 ,1);
-   
+ 
    my @ips =  Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
    foreach (@ips) {  
-         print STDERR  "removing loopback on ". $_ . "\n";  
-        worker_node_command($cmd1 , $_);
+        #Scramble::Common::ClusterUtils::log_debug("removing loopback on ". $_ ,1);  
+        #worker_node_command($cmd1 , $_);
         if (Scramble::Common::ClusterUtils::is_ip_localhost($_)==0) {
-             print STDERR  "add loopback on ". $_ . "\n";  
-            worker_node_command($cmd2 , $_);
-        } 
+            #print STDERR  "add loopback on ". $_ . "\n";  
+            #worker_node_command($cmd2 , $_);
+        } else {
+        
+        }
    } 
    return $err; 
 }
@@ -2106,7 +2138,7 @@ sub service_do_command($$$) {
         my $json_todo = $memd->get("actions");
         if (!$json_todo )
         {
-           Scramble::Common::ClusterUtils::log_debug("[service_do_command] No actions in memcache :"  ,1);
+           Scramble::Common::ClusterUtils::log_debug("[service_do_command] No actions in memcache "  ,1);
            report_status( $self, $param,  "ER0015", $node );
            return "ER0015";  
         }
@@ -2133,11 +2165,11 @@ sub service_do_command($$$) {
         #)->init;
 
         my $my_event = {
-                 event_ip       => $self->{ip},
-                 event_type     => "instances",
+                 event_ip       => "na",
+                 event_type     => "cloud",
                  event_state    => "stopped" ,
                  do_level       => "instances" ,
-                 do_group       =>  $node,
+                 do_group       =>  $self->{ip},
                  do_action      => "start" 
         };
         #$q->enq({value => $json_cloud->allow_blessed->convert_blessed->encode($my_event)});
@@ -2281,8 +2313,9 @@ sub worker_node_command($$) {
     my $client = Gearman::XS::Client->new();
     my $res ="000000";
     $client->add_servers($ip);
-    Scramble::Common::ClusterUtils::log_debug("[worker_node_command] Worker_config_command for ip :". $ip ,1);
-    Scramble::Common::ClusterUtils::log_json($cmd,2);
+    Scramble::Common::ClusterUtils::log_debug("[worker_node_command] Info: Send to ip :". $ip ,1);
+    Scramble::Common::ClusterUtils::log_debug("[worker_node_command] Info: $cmd" ,1);
+    
     
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
 
@@ -2305,8 +2338,8 @@ sub worker_config_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    Scramble::Common::ClusterUtils::log_debug("[worker_config_command] Worker_config_command for ip :". $ip ,1);
-    Scramble::Common::ClusterUtils::log_json($cmd,2);
+    Scramble::Common::ClusterUtils::log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1);
+    Scramble::Common::ClusterUtils::log_debug($cmd,2);
    
     #$client->set_timeout($gearman_timeout);
     ( my $ret, my $result ) = $client->do( 'write_config', $cmd );

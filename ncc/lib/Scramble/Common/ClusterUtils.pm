@@ -65,6 +65,7 @@ sub get_service_ip_from_status_name($$){
 
 
 
+
 sub is_ip_localhost($) {
     
     my $testIP = shift;
@@ -97,6 +98,21 @@ my $status =shift;
     foreach my $key (keys %$instance) {
      if((defined ($instance->{$key}->{ip}) ? $instance->{$key}->{ip}:"" ) eq $ip) {
             return $instance->{$key}->{id};
+       }     
+    }
+   }
+  return 0; 
+}
+
+sub get_instance_from_status_name($$){
+my $status =shift;
+ my $name =shift;
+  foreach  my $instance (  @{ $status->{instances_status}->{instances}} ) {
+    foreach my $key (keys %$instance) {
+    
+     my $instance_info=$instance->{$key};
+     if($key eq $name) {
+            return $instance_info;
        }     
     }
    }
@@ -279,11 +295,14 @@ sub get_active_memcache($) {
     my $config =shift;
     my $nosql_info; 
       my $cloud_name = get_active_cloud_name($config);
+      my $lb = get_active_lb($config);
     foreach my $nosql (keys(%{$config->{nosql}})) {
         $nosql_info = $config->{nosql}->{default};
         $nosql_info = $config->{nosql}->{$nosql};
-        if  ( $nosql_info->{status} eq "master" &&  $nosql_info->{mode} eq "memcache"  && $nosql_info->{cloud} eq $cloud_name){
-           return $nosql_info;
+        if  (  $nosql_info->{mode} eq "memcache"  && $nosql_info->{cloud} eq $cloud_name){
+            # $nosql_info->{status} eq "master" &&
+            $nosql_info->{ip}=$lb->{vip};
+            return $nosql_info;
         }
     }    
     return 0;

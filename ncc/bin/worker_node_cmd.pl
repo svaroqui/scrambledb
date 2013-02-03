@@ -1,4 +1,13 @@
 #!/usr/bin/env perl
+# chkconfig: 2345 95 20
+# description: ScrambleDB is database virtualisation architeture
+# Startup script for ScrambleDB server and library
+# Copyright (C) 2012 Stephane Varoqui SkySQL AB 
+# All rights reserved.
+# processname: scrambledbd
+#
+# Use and distribution licensed under the LGPL license.  See
+# the COPYING file in this directory for full text.
 
 use strict;
 use warnings;

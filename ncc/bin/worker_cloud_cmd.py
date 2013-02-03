@@ -6,7 +6,8 @@ from libcloud.compute.providers import get_driver
 from boto.ec2.connection import EC2Connection
 
 import libcloud.security
-
+import logging
+logging.basicConfig(filename="/var/lib/skysql/log/boto.log", level=logging.DEBUG)
 
 # The function that will do the work
 def add_vcloud_node(worker, job):
@@ -44,8 +45,14 @@ def cloud_cmd(worker, job):
        res=stop_ec2_instances(config) 
 
    if config["command"]["action"] == "terminate": 
-       res=terminate_ec2_instances(config) 
-
+       terminate_ec2_adresse(config) 
+    
+   if config["command"]["action"] == "associate": 
+       associate_ec2_adresse(config) 
+       
+   if config["command"]["action"] == "disassociate": 
+       disassociate_ec2_adresse(config)  
+   
    print res   
    return res
 
@@ -76,21 +83,48 @@ def terminate_ec2_instances(config):
 
 
 def status_ec2_instances(config):
-   import boto
-   # boto.config.set('Boto','http_socket_timeout','20')  
-   print "ici1" 
-   import simplejson as json
-   print "ici2" 
-   conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
-   print "ici3"
-   reservations=conn.get_all_instances()
-   print reservations
-   d= [] 
-   for reservation in reservations:
-      for i in reservation.instances:  
-          d.append({i.id : {'id' : i.id , 'ip' : i.private_ip_address, 'state' : i.state}})
-   return  json.dumps(d)
+    import boto
+    #boto.config.set('Boto','http_socket_timeout','20')  
+    import simplejson as json 
+    conn = boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
+    print "ici3"
+    reservations=conn.get_all_instances()
+    #adresses=get_all_network_interfaces(allocation_id=[config["cloud"]["elastic_ip_id"]])
+    #adresses=get_all_network_interfaces()
+    import pprint 
+    
+    d= [] 
+    #pp.pprint(adresses)
+    for reservation in reservations:
+       for i in reservation.instances:
+          d.append({i.id : {'id' : i.id , 'ip' : i.private_ip_address, 'state' : i.state, 'interface' : i.networkInterfaceId, 'reservation' : reservation.id }})   
+    return  json.dumps(d)
 
+def associate_ec2_adresse(config):
+    import boto
+    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
+    conn.associate_address(allocation_id=config["cloud"]["elastic_ip_id"], network_interface_id=config["instance"]["interface"], allow_reassociation=True)
+    conn.attach_network_interface(  network_interface_id=config["cloud"]["interface_vip_id"],instance_id=config["instance"]["id"] , device_index=1 )    
+    #instance_id=config["instance"]["id"]
+    
+    return 1
+
+def disassociate_ec2_adresse(config):
+    import boto
+    
+    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
+    #conn.disassociate_address( allocation_id=config["cloud"]["elastic_ip_id"])
+    #conn.release_address(allocation_id=config["cloud"]["elastic_ip_id"])
+    print "ici"
+    filters = {'private_ip_address': '10.0.0.10'} 
+    addresses =conn.get_all_network_interfaces(filters=filters)
+    from pprint import pprint
+    for i in addresses:
+        print i.attachment.id
+        conn.detach_network_interface( i.attachment.id )    
+        print "icitest"
+    
+    return 1
 
 def launching_ec2_instances(config):
    import boto

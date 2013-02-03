@@ -464,7 +464,7 @@ sub write_haproxy_config($){
 
 sub write_memcached_config($){
     my $file = shift;
-   
+    my $lb= Scramble::Common::ClusterUtils::get_active_lb($config);
     my $i=100;
     my $nosql;
     foreach my $host (keys(%{$config->{nosql}})) {
@@ -477,8 +477,9 @@ sub write_memcached_config($){
         print $out "-p ".$nosql->{port}."\n";
         print $out "# user to run daemon nobody/apache/www-data\n";
         print $out "-u skysql\n";
-        print $out "-l ".$nosql->{ip}."\n";
-        print $out "-P ".$SKYBASEDIR."/ncc/tmp/memcached.". $host . ".pid\n";
+        
+        print $out "-l 0.0.0.0\n";
+        print $out "-P ".$SKYDATADIR."/tmp/memcached.". $host . ".pid\n";
 
         close $out;
        $i++;
@@ -523,7 +524,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
     open my $out, '>', "$file.$host.cnf" or die "Can't write new file: $!";
 
     print $out "[mysql-proxy]\n";
-    print $out "pid-file = mysql-proxy.pid\n";
+    print $out "pid-file = $SKYDATADIR/tmp/mysql-proxy.$host.pid\n";
     print $out "log-file = $SKYDATADIR/log/mysql-proxy.".$host .".log\n";
     print $out "log-level = ". $host_info->{log_level} ."\n";
     print $out "event-threads = ". $host_info->{event_threads} ."\n";

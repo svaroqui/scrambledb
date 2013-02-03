@@ -1,16 +1,18 @@
 #!/bin/sh
 
-# SCambleDB server and library
-# Copyright (C) 2012 Stephane Varoqui 
+# chkconfig: 2345 95 20
+# description: ScrambleDB is database virtualisation architeture
+# Startup script for ScrambleDB server and library
+# Copyright (C) 2012 Stephane Varoqui @SkySQL AB 
 # All rights reserved.
+# processname: scrambledbd
 #
-# Use and distribution licensed under the BSD license.  See
+# Use and distribution licensed under the LGPL license.  See
 # the COPYING file in this directory for full text.
 
 SKYDATADIR="/var/lib/skysql"
 SKYBASEDIR="/usr/local/skysql" 
-# SKYBASEDIR=$(dirname $0)/../..
-#cd $SKYBASEDIR
+
 export SKYBASEDIR=$SKYBASEDIR
 export SKYDATADIR=$SKYDATADIR
 export SKYUSER=skysql
@@ -30,16 +32,8 @@ PIDFILE=$SKYDATADIR/tmp/gearmand.pid
 
 start()
 {
-
-$SKYBASEDIR/perl/bin/perl $SKYBASEDIR/ncc/bin/tunnel.pl
-sleep 1 
-$SKYBASEDIR/ncc/init.d/clusterd start tunnel
-
-$GEARMAND -p4731 -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log 
-
-
-
-
+ $SKYBASEDIR/ncc/init.d/clusterd start tunnel
+ $GEARMAND -p4731 -P $PIDFILE  -d --log-file=$SKYDATADIR/log/gearmand.log 
 }
 
 stop()
