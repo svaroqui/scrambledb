@@ -88,9 +88,21 @@ sub cloud_start_scramble(){
  
     return 0;
 }
-
-
 sub cloud_check_ssh_tunnel(){
+    my $command='ps ax |grep ssh |grep "4730" | grep -vc grep';
+    my  $result = `$command`;
+    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: Checking Tunnel ",2);
+     
+ 
+   $result =~ s/\n//g; 
+     if ( $result eq 1){ 
+         Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: Tunnel is running ",2);
+         return 1;
+    }
+    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: Tunnel is not running ",2);
+    return 0;
+}
+sub cloud_check_ssh(){
     my $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
     my $sshkey = $SKYDATADIR . "/.ssh/" . $cloud->{public_key} ;
 
@@ -99,7 +111,7 @@ sub cloud_check_ssh_tunnel(){
     . ' -o "BatchMode=yes"  -o "StrictHostKeyChecking=no" -o "ConnectTimeout=2" '
     . $cloud->{elastic_ip} 
     .' "echo 2>&1" && echo "OK" || echo "NOK"';
-    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: Checking  : ".$command,2);
+    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh] Info: Checking  : ".$command,2);
      
  
     my  $result = `$command`;
@@ -107,10 +119,10 @@ sub cloud_check_ssh_tunnel(){
  
    $result =~ s/\n//g; 
      if ( $result eq "OK"){ 
-         Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: ssh ok on elastic ip : ". $cloud->{elastic_ip},2);
+         Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh] Info: ssh ok on elastic ip : ". $cloud->{elastic_ip},2);
          return 1;
     }
-    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh_tunnel] Info: ssh failed on elastic ip  : ". $cloud->{elastic_ip},2);
+    Scramble::Common::ClusterUtils::log_debug("[cloud_check_ssh] Info: ssh failed on elastic ip  : ". $cloud->{elastic_ip},2);
     return 0;
 }
 sub  cloud_is_memcache_running(){
@@ -265,9 +277,7 @@ sub gearman_client() {
  #my $test='{"level":"instances","command":{"action":"disassociate","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
  #my $cloud_test = worker_cloud_command($test,"127.0.0.1:4731");
  #return 0;            
-  if (cloud_check_ssh_tunnel() ==0) {
-        
-    cloud_create_tunnel();
+  if (cloud_check_ssh() ==0) {
     $ssh_error_retry=$ssh_error_retry+1;
     if ($ssh_error_retry==$max_ssh_error_retry) {
         $ssh_error_retry=0;
@@ -275,9 +285,12 @@ sub gearman_client() {
     }
     return 0;
   }
-  
+  if  (cloud_check_ssh_tunnel() ==0)  {
+         cloud_create_tunnel();
+  }
+   
   my $command='{"level":"instances","command":{"action":"actions","group":"all","type":"all"}}';
-  my $cluster_actions_json= worker_cluster_command($command,"localhost"); 
+  my $cluster_actions_json= worker_cluster_command($command,"127.0.0.1:4730"); 
   
   Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Fetching delayed actions",1);
   Scramble::Common::ClusterUtils::log_json( $cluster_actions_json,1) ;
@@ -291,7 +304,7 @@ sub gearman_client() {
         
           $command='{"level":"services","command":{"action":"start","group":"local","type":"memcache"}}';
           Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Starting Memcache ", 2);
-          my $cluster_memcache = worker_cluster_command($command,"localhost");     
+          my $cluster_memcache = worker_cluster_command($command,"127.0.0.1:4730");     
         } else {
          Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Try to fixe route to VIP issue", 2);
          cloud_vip_fix_route(); 
@@ -318,13 +331,10 @@ sub gearman_client() {
   
    
   $command='{"level":"instances","command":{"action":"heartbeat","group":"all","type":"all"}}';
-  my $cluster_status_json = worker_cluster_command($command,"localhost");    
+  my $cluster_status_json = worker_cluster_command($command,"127.0.0.1:4730");    
   my $status= $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
   ->allow_singlequote->allow_barekey->decode($cluster_status_json);
-   if (  cloud_check_return_error($cluster_status_json) ) {
-    
-    
-   }    
+   
 
   my $no_services=1;
 
@@ -334,6 +344,19 @@ sub gearman_client() {
         #my $event_ip = Scramble::Common::ClusterUtils::get_service_ip_from_status_name($status,$action->{do_group});
         my $event_ip = $action->{do_group};
         Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Found event on ". $event_ip, 2);
+        if( $action->{do_action} eq "world" ){
+                   Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: New instance show up bootstrap config ", 1); 
+                   $command='{"level":"services","command":{"action":"bootstrap_config","group":"all","type":"all"}}';
+                   worker_cluster_command($command,"127.0.0.1:4730");   
+                  
+                   Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: New instance show up starting local services ", 1);
+                   $command='{"level":"services","command":{"action":"start","group":"'.$action->{do_group} . '","type":"all"}}';
+                   worker_cluster_command($command,"127.0.0.1:4730");  
+                   my $command='{"level":"instances","command":{"action":"actions_init","group":"all","type":"all"}}';
+                   my $cluster_actions_json= worker_cluster_command($command,"localhost"); 
+                   return 0;
+        }    
+
         if ( Scramble::Common::ClusterUtils::is_ip_from_status_present($cloud_status,$event_ip)==1) {
               Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Service IP for action is found in status of the cloud API ", 2);
                      
@@ -356,10 +379,14 @@ sub gearman_client() {
               else  {
                 my $instance= Scramble::Common::ClusterUtils::get_instance_id_from_status_ip($cloud_status,$event_ip);
                     
-                 Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Instance exists and is running may  we can send stop action", 2); 
-                   
-                 my $cmd_instance_stop='{"level":"instances","command":{"action":"'.$action->{do_action} .'","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
+                
+                if( $action->{do_action} eq "world" ){
+                  
+                } else {
+                  Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Instance exists and is running may we  send stop or terminate action", 2); 
+                  my $cmd_instance_stop='{"level":"instances","command":{"action":"'.$action->{do_action} .'","group":"'.$instance.'","type":"all"},"cloud":'. $json_cloud_str. '}';
                   worker_cloud_command($cmd_instance_stop,"127.0.0.1:4731"); 
+                 } 
               }
           } else 
           {
@@ -391,7 +418,7 @@ sub worker_cluster_command($$) {
     Scramble::Common::ClusterUtils::log_debug( "[worker_cluster_command] ". $ip  ,1);
     Scramble::Common::ClusterUtils::log_json(  $cmd  ,1);
     
-    $client->set_timeout(2000);
+    $client->set_timeout(8000);
     #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
     ( my $ret, my $result ) = $client->do( 'cluster_cmd', $cmd );
 

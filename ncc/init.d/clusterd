@@ -111,7 +111,8 @@ start()
   nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
-  $SKYBASEDIR/ncc/bin/clmgr start local all   
+  $SKYBASEDIR/ncc/bin/clmgr instances world
+    
  else
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLOUDDOCTOR < /dev/null > $LOG/worker_cloud_doctor.log 2>&1 & 
   procid=$!

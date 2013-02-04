@@ -223,7 +223,15 @@ our $RULESET = {
         	'cloud'                        => { 'refvalues' => 'cloud'  },
                 'purge_days'                         => { 'default' => 1 }
 		
+	}},
+        'http'  	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+                'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['apache', 'nginx',] },
+                'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
+                'port'                         => { 'default' => 80  },
+        	'cloud'                        => { 'refvalues' => 'cloud'  },
+    		
 	}}
+        
 };
 
 

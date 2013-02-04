@@ -1,4 +1,5 @@
 #!/usr/local/skysql/perl/bin/perl
+
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
@@ -6,6 +7,25 @@ use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
 use JSON;
+
+sub get_json_local_infos(){
+  system("cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'"); 
+  my $ram =$? ;
+
+   my $interface;
+   my %IPs;
+    foreach (qx{ (LC_ALL=C /sbin/ifconfig -a 2>&1) }) {
+        $interface = $1 if /^(\S+?):?\s/;
+        next unless defined $interface;
+        $IPs{$interface}->{STATE} = uc($1) if /\b(up|down)\b/i;
+        $IPs{$interface}->{STATE} =defined( $IPs{$interface}->{STATE}) ?  $IPs{$interface}->{STATE} : "na";
+        $IPs{$interface}->{IP}    = $1     if /inet\D+(\d+\.\d+\.\d+\.\d+)/i; 
+        $IPs{$interface}->{IP} =defined( $IPs{$interface}->{IP}) ?  $IPs{$interface}->{IP} : "na";
+    }
+  my $json       = new JSON ;
+  my $json_interfaces = $json->allow_nonref->utf8->encode(\%IPs);
+  return $json_interfaces;
+ }
 
 
 
@@ -45,10 +65,22 @@ if ( ! defined $type ) {$type='all';}
 if ( ! defined $group ) {$group='all';}
 if ( ! defined $level ) {$level='service';}
 
-my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}}';
+use Data::Dumper;
+$Data::Dumper::Terse     = 1;       # don't output names where feasible
+$Data::Dumper::Quotekeys = 0;
+$Data::Dumper::Indent    = 1;       # mild pretty print
+$Data::Dumper::Pair      = ":";
+$Data::Dumper::Indent    = 1;
+$Data::Dumper::Useqq     = 0; 
 
-print "$command\n";
-
+my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
+my $json      = new JSON;
+ my $command_text =
+          $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
+    
+print ">>>>>>>>>>>>>>>\n";
+print  STDERR Dumper($command_text);
+print "<<<<<<<<<<<<<<<\n";
 
 sub gearman_client() {
   my $client = Gearman::XS::Client->new();
@@ -56,21 +88,14 @@ sub gearman_client() {
  
   (my $ret, my $result) = $client->do('cluster_cmd', $command);
     
-my $json      = new JSON;
-my @json_text =
-      $json->utf8->relaxed->allow_singlequote->allow_barekey->decode($result);
-use Data::Dumper;
-$Data::Dumper::Terse     = 1;       # don't output names where feasible
-    $Data::Dumper::Quotekeys = 0;
-    $Data::Dumper::Indent    = 1;       # mild pretty print
-    $Data::Dumper::Pair      = ":";
-    $Data::Dumper::Indent    = 1;
-    $Data::Dumper::Useqq     = 0; 
- print  STDERR Dumper(@json_text);
- #print STDOUT $result;
+    my $json      = new JSON;
+    my @json_text =
+          $json->utf8->relaxed->allow_singlequote->allow_barekey->decode($result);
+    
+     print  STDERR Dumper(@json_text);
+    
     
 }
-
 
 gearman_client();
 

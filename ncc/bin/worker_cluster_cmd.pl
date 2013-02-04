@@ -163,7 +163,7 @@ sub cluster_cmd {
                   Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No actions in memcache ",1);
                   report_action( "localhost", "fetch_event",  "ER0015");
                   my $json_action      = new JSON;
-                  return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":}';
+                  return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}';
            }
            print STDERR $json_todo ."\n";
            return   $json_todo ;
@@ -175,7 +175,7 @@ sub cluster_cmd {
                  Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: No heartbeat in memcache ",1);
                  report_action( "localhost", "fetch_heartbeat",  "ER0015");
                  my $json_action      = new JSON;
-                 return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":'. $json_action->allow_nonref->utf8->encode(\@actions)."}";
+                 return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}';
            }
            print STDERR $json_status ."\n";
            return   $json_status ;
@@ -188,7 +188,7 @@ sub cluster_cmd {
           Scramble::Common::ClusterUtils::log_debug("[cluster_cmd] Info: Set empty actions",1);
           $memd->set( "actions", '{"return":{"code":"000000","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}' );
        } 
-       elsif ( $action eq "start" || $action eq "launch" || $action eq "stop" || $action eq "terminate") {
+       elsif ( $action eq "start" || $action eq "launch" || $action eq "stop" || $action eq "terminate" || $action eq "world") {
         my $json_todo = $memd->get("actions");
         if (!$json_todo )
         {
@@ -201,7 +201,9 @@ sub cluster_cmd {
         my $json      = new JSON ;
         my $todo =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
         ->allow_singlequote->allow_barekey->decode($json_todo);
-
+        if ($action eq "world"){
+           $group=Scramble::Common::ClusterUtils::get_source_ip_from_command($json_text,$config);
+        }
         push  @{$todo->{actions}} , {
                  event_ip       => "na",
                  event_type     => "cloud",
@@ -412,7 +414,8 @@ sub is_filter_service($$$$$) {
     my $action_type = shift; 
     my $service_host = shift;
     my $host_name =  shift; 
-    my $action_cloud_name = shift; 
+    my $action_cloud_name = shift;
+    
     Scramble::Common::ClusterUtils::log_debug("[is_filter_service] Info: Start",2); 
     my $pass = 0;
     
@@ -420,7 +423,7 @@ sub is_filter_service($$$$$) {
          || $action_group eq "all" 
          || ($action_group eq "local" 
              && Scramble::Common::ClusterUtils::is_ip_localhost($service_host->{ip})==1 )
-   
+         || $action_group eq $service_host->{ip}  
        )     
      { 
         
@@ -1441,8 +1444,8 @@ sub service_start_mysqlproxy($$) {
           . "/mysql-proxy/bin/mysql-proxy --daemon --defaults-file=$SKYBASEDIR/ncc/etc/mysql-proxy."
           . $node
           . ".cnf --pid-file="
-          . $SKYBASEDIR
-          . "/ncc/tmp/mysql-proxy."
+          . $SKYDATADIR
+          . "/tmp/mysql-proxy."
           . $node
           . ".pid --log-file="
           . $SKYDATADIR
@@ -1479,8 +1482,8 @@ sub service_start_haproxy($$) {
           . "/ncc/etc/haproxy."
           . $node
           . ".cnf -p "
-          . $SKYBASEDIR
-          . "/ncc/tmp/haproxy."
+          . $SKYDATADIR
+          . "/tmp/haproxy."
           . $node . ".pid ";
   Scramble::Common::ClusterUtils::log_debug("[service_start_haproxy] on $self->{ip}: ". $param  ,1);        
   $err = worker_node_command( $param, $self->{ip} );
@@ -2407,6 +2410,20 @@ sub bootstrap_config() {
               . $_ . ":"
               . $SKYBASEDIR
               . "/ncc/etc" ;  
+        Scramble::Common::ClusterUtils::log_debug("[bootstrap_config] Calling system: " .$action ,1);
+    
+        system( $action);
+        
+         
+         $action =  
+        "scp -i "
+              . $SKYDATADIR
+              . $sshkey." "
+              . $SKYDATADIR
+              . $sshkey." "
+              . $_ . ":"
+              . $SKYDATADIR
+              . "/.ssh" ;  
         Scramble::Common::ClusterUtils::log_debug("[bootstrap_config] Calling system: " .$action ,1);
     
         system( $action);

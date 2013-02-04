@@ -1,7 +1,7 @@
 <cloud cloud1>
     status                 slave
-    user            	   xxxx
-    password        	   xxxx
+    user            	   xxx
+    password        	   xxx
     host            	   vcloud.hegerys.com
     version         	   1.5
     driver          	   VCLOUD
@@ -14,11 +14,11 @@
 <cloud cloud2>
     status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
-    password        	   xxx
+    password        	   xxxxxxxxxxxxxxxx 
     host            	   na
     version         	   1.5
     driver          	   EC2
-    template        	   ami-45f8702c   
+    template        	   ami-5faa3d36  
     key             	   SDS145000
     zone                   us-east-1b
     region                 us-east 

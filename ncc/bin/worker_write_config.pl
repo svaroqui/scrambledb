@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-#  Copyright (C) 2012 SkySQL AB Co.,Ltd.
+#  Copyright (C) 2012 Stephane Varoqui @SkySQL AB Co.,Ltd.
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -124,17 +124,20 @@ sub write_cmd {
     $query = $json_text->{command}->{query};
     $database = $json_text->{command}->{database};
     write_mysql_proxy_config($SKYBASEDIR."/ncc/etc/mysql-proxy");
-    print STDOUT "write mysql_proxy config\n"; 
+    print STDERR "write mysql_proxy config\n"; 
     write_mha_config($SKYBASEDIR. "/ncc/etc/mha.cnf");
-    print STDOUT "write mha config\n";  
+    print STDERR "write mha config\n";  
     write_keepalived_config($SKYBASEDIR. "/ncc/etc/keepalived");
-    print STDOUT "write keepalived config\n";  
+    print STDERR "write keepalived config\n";  
     write_haproxy_config($SKYBASEDIR."/ncc/etc/haproxy");
-    print STDOUT "write haproxy config\n";  
+    print STDERR "write haproxy config\n";  
     write_memcached_config($SKYBASEDIR."/ncc/etc/memcached");
-    print STDOUT "write memcached config\n"; 
+    print STDERR "write memcached config\n"; 
     write_lua_script();
-    print STDOUT "write lua script from config\n"; 
+    print STDERR "write lua script from config\n"; 
+    write_write_alias($SKYBASEDIR."/ncc/bin/alias.sh");
+    print STDERR "write  alias\n"; 
+    
     write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
     print STDOUT "write tarantool from config\n";
   #  write_mysql_config();
@@ -322,6 +325,59 @@ sub write_lua_script(){
   return 0; 
 }
 
+sub write_write_alias($){
+my $file= shift;
+my $host_info ;
+    my $err = "000000";
+    
+    open my $out, '>', "$file" or die "Can't write new file: $!";
+    foreach my $host (keys(%{$config->{db}})) {
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        my $cmd = 
+          "alias $host='"
+          .  $SKYBASEDIR
+          . "/mysql-client/bin/mysql "
+          . " --user="
+          . $host_info->{mysql_user}
+          . " --password="
+          . $host_info->{mysql_password}
+          . " --host="
+          . $host_info->{ip}
+          . " --port="
+          . $host_info->{mysql_port}
+          ."'";
+        print $out $cmd ."\n";
+    }   
+    foreach my $host (keys(%{$config->{lb}})) {
+        
+        $host_info = $config->{lb}->{$host};
+        my $theip= $host_info->{ip};
+        if ( $host_info->{mode} eq "keepalived" ) {
+           $theip = $host_info->{vip};
+        }
+        
+        my $cmd = 
+          "alias $host='"
+          .  $SKYBASEDIR
+          . "/mysql-client/bin/mysql "
+          . " --user="
+          . $host_info->{mysql_user}
+          . " --password="
+          . $host_info->{mysql_password}
+          . " --host="
+          . $theip
+          . " --port="
+          . $host_info->{port}
+          ."'";
+        print $out $cmd ."\n";
+    }   
+    
+    close $out;
+      system("chmod 777 $file" );
+return 0 ;
+}
+
 
 sub write_tarantool_config($) {
 my $file= shift;
@@ -344,7 +400,7 @@ my $file= shift;
     print $out "#\n";
     print $out "# Store the pid in this file. Relative to\n";
     print $out "# startup dir.\n";
-    print $out "pid_file = \"".$SKYBASEDIR."/ncc/tmp/tarantool.". $nosql .".pid\"\n";
+    print $out "pid_file = \"".$SKYDATADIR."/tmp/tarantool.". $nosql .".pid\"\n";
 
     print $out "\n";
     print $out "# Pipe the logs into the following process.\n";
@@ -408,7 +464,7 @@ sub write_haproxy_config($){
     #print $out "   group       haproxy\n";
     print $out "   daemon\n";
     print $out "   # turn on stats unix socket\n";
-    print $out "   stats socket ".$SKYBASEDIR."/ncc/tmp/stats\n";
+    print $out "   stats socket ".$SKYDATADIR."/tmp/stats\n";
     print $out "#---------------------------------------------------------------------\n";
     print $out "# common defaults that all the 'listen' and 'backend' sections will\n";
     print $out "# use if not designated in their block\n";

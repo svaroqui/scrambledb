@@ -92,6 +92,8 @@ sub is_ip_localhost($) {
     return 0;
 }
 
+   
+
 sub get_instance_id_from_status_ip($$){
 my $status =shift;
  my $ip =shift;
@@ -433,6 +435,28 @@ sub get_source_ip_from_status($) {
     }  
   return "0.0.0.0"; 
 }
+
+sub get_source_ip_from_command($$) {
+  my $status =shift;
+  my $config =shift;
+
+   my @serviceips=get_all_sercive_ips($config);  
+    
+   foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
+    foreach my $attr (keys %$interface) {
+          foreach my $service (@serviceips) {
+                    print STDERR $service ."/" .$interface->{$attr}->{IP} ;
+                    if ($service eq $interface->{$attr}->{IP} ){
+                        return $interface->{$attr}->{IP};
+                    }
+           
+        }
+         
+      }
+    }  
+  return "0.0.0.0"; 
+}
+
 
 sub log_json($$){  
   my $json_text =shift;

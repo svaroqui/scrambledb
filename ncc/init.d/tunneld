@@ -38,7 +38,7 @@ start()
 
 stop()
 {
-  kill `ps ax|grep ssh|grep 4730|grep 4730 |awk "{ print  $1 }" | head -n1` 
+  kill `ps ax|grep ssh|grep "-L 4730" |awk "{ print  $1 }" | head -n1` 
   kill `cat $PIDFILE`
   killall gearmand   
   rm -f $PIDFILE  

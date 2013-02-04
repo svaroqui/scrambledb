@@ -23,7 +23,7 @@ def cloud_cmd(worker, job):
    print job.data
    config=json.loads(job.data) 
    print config
-   res ='000000' 
+   res ='' 
    print config['command'] 
    
    print config['command']['action'] 
