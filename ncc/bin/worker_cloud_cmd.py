@@ -142,7 +142,7 @@ def disassociate_ec2_adresse(config):
     conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
     #conn.disassociate_address( allocation_id=config["cloud"]["elastic_ip_id"])
     #conn.release_address(allocation_id=config["cloud"]["elastic_ip_id"])
-    filters = {'private_ip_address': '10.0.0.10'} 
+    filters = {'private_ip_address': config["command"]["group"] } 
     addresses =conn.get_all_network_interfaces(filters=filters)
     from pprint import pprint
     for i in addresses:

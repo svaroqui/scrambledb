@@ -403,7 +403,7 @@ sub cloud_get_a_running_lb(){
             my $found_instance_json = $json_cloud->allow_nonref->utf8->encode($found_instance);
             Scramble::Common::ClusterUtils::log_json($found_instance_json ,1);
               
-            $command='{"level":"instances","command":{"action":"disassociate","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
+            $command='{"level":"instances","command":{"action":"disassociate","group":"'. $host_info->{ip}.'","type":"all"},"cloud":'. $json_cloud_str. '}';
             $cloud_status_json = worker_cloud_command($command,"127.0.0.1:4731");
             sleep(5);
             $command='{"level":"instances","command":{"action":"associate","group":"all","type":"all"},"cloud":'. $json_cloud_str. ',"instance":'.$found_instance_json.'}';

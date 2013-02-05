@@ -445,7 +445,7 @@ sub get_source_ip_from_command($$) {
    foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
     foreach my $attr (keys %$interface) {
           foreach my $service (@serviceips) {
-                    print STDERR $service ."/" .$interface->{$attr}->{IP} ;
+                    print STDERR $service ."/" .$interface->{$attr}->{IP} .";
                     if ($service eq $interface->{$attr}->{IP} ){
                         return $interface->{$attr}->{IP};
                     }
