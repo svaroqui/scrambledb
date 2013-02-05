@@ -253,6 +253,14 @@
     purge_days            1  
 </monitor>
 
+<http http1>
+    cloud		  cloud2
+    mode                  apache
+    status                    master
+    port                  80  
+    ip                    10.0.0.102
+</http>
+
 <db db10>
     status                    master
     mode                    mariadb
@@ -384,3 +392,4 @@
     smtp_host             127.0.0.1
     cloud		  cloud3
 </monitor>
+

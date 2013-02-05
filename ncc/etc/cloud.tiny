@@ -45,7 +45,7 @@
 
 <db db1>
     mode                    mariadb
-	status				master
+    status		    master
     cloud		    cloud2		
     ip                      10.0.0.102
     peer                    db1
@@ -72,7 +72,7 @@
 
 <db db2>
     mode                    mariadb
-	status 				slave
+    status 		    slave
     cloud		    cloud2		
     ip                      10.0.0.49
     peer		    db1
@@ -94,6 +94,13 @@
 #    cloud                   cloud2
 #</db>
 
+<http http1>
+    cloud		  cloud2
+    mode                  apache
+    status                    master
+    port                  80  
+    ip                    10.0.0.102
+</http>
 
 <proxy proxy1> 
     mode                    mysql-proxy
@@ -166,8 +173,8 @@
 
 
 <cloud cloud3>
-    status          slave
-    user            xxxx
+    status                  slave
+    user                    xxxx
     password        xxxx
     host            na
     version         1.5
@@ -340,6 +347,7 @@
     mysql_password	    skyvodka	
     cloud		    cloud3
 </lb>
+
 <lb lb12>
     ip                      127.0.0.1
     vip                     0.0.0.0
@@ -352,6 +360,7 @@
     device                  eth1 
     cloud		    cloud3
 </lb>
+
 <lb lb13>
     ip                      127.0.0.1
     vip                     0.0.0.0
@@ -366,13 +375,13 @@
 </lb>
 
 <bench bench10> 
-  mode                    dbt2
-  ip                      127.0.0.1  
-  warehouse               100
-  concurrency             16 
-  duration                600
-  datadir                 /var/lib/skysql/dbt2   
-   cloud		  cloud3  
+    mode                    dbt2
+    ip                      127.0.0.1  
+    warehouse               100
+    concurrency             16 
+    duration                600
+    datadir                 /var/lib/skysql/dbt2   
+    cloud		  cloud3  
 </bench>
 
 <monitor mon10>

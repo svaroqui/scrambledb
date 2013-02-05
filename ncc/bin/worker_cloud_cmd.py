@@ -7,7 +7,8 @@ from boto.ec2.connection import EC2Connection
 
 import libcloud.security
 import logging
-logging.basicConfig(filename="/var/lib/skysql/log/boto.log", level=logging.DEBUG)
+import os
+logging.basicConfig(filename=os.getenv('SKYDATADIR', '/var/lib/skysql') + "/log/boto.log", level=logging.DEBUG)
 
 # The function that will do the work
 def add_vcloud_node(worker, job):
@@ -45,15 +46,35 @@ def cloud_cmd(worker, job):
        res=stop_ec2_instances(config) 
 
    if config["command"]["action"] == "terminate": 
-       terminate_ec2_adresse(config) 
+       print "terminate instance .."  + config["command"]["group"] 
+       res=terminate_ec2_adresse(config) 
     
    if config["command"]["action"] == "associate": 
-       associate_ec2_adresse(config) 
+       print "associate elastic & vip .."  + config["command"]["group"]  
+       res=associate_ec2_adresse(config) 
+
+   if config["command"]["action"] == "status_vip": 
+       print "status vip .."  + config["command"]["group"] 
+       res=status_ec2_vip_interface(config)
+   
+   if config["command"]["action"] == "associate_vip": 
+       print "associate vip only .."  + config["command"]["group"]  
+       res=associate_ec2_vip(config)  
        
    if config["command"]["action"] == "disassociate": 
-       disassociate_ec2_adresse(config)  
-   
-   print res   
+       print "disassociate elastic ip & vip .."  + config["command"]["group"]  
+       res=disassociate_ec2_adresse(config)  
+  
+   if config["command"]["action"] == "status_eip": 
+       print "status elastic ip .."  + config["command"]["group"]   
+       res= status_ec2_eip(config)   
+   if config["command"]["action"] == "attach_vip": 
+       res=associate_ec2_vip(config)
+
+   if res ==0 :
+       res ="000000"   
+   if res ==1 :
+       res ="ERR0050"   
    return res
 
 def stop_ec2_instances(config):
@@ -105,8 +126,14 @@ def associate_ec2_adresse(config):
     conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
     conn.associate_address(allocation_id=config["cloud"]["elastic_ip_id"], network_interface_id=config["instance"]["interface"], allow_reassociation=True)
     conn.attach_network_interface(  network_interface_id=config["cloud"]["interface_vip_id"],instance_id=config["instance"]["id"] , device_index=1 )    
-    #instance_id=config["instance"]["id"]
     
+    return 1
+
+def associate_ec2_vip(config):  
+    import boto
+    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)    
+    print config["command"]["group"] 
+    conn.attach_network_interface(  network_interface_id=config["cloud"]["interface_vip_id"],instance_id=config["command"]["group"]  , device_index=1 )    
     return 1
 
 def disassociate_ec2_adresse(config):
@@ -115,7 +142,6 @@ def disassociate_ec2_adresse(config):
     conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
     #conn.disassociate_address( allocation_id=config["cloud"]["elastic_ip_id"])
     #conn.release_address(allocation_id=config["cloud"]["elastic_ip_id"])
-    print "ici"
     filters = {'private_ip_address': '10.0.0.10'} 
     addresses =conn.get_all_network_interfaces(filters=filters)
     from pprint import pprint
@@ -125,6 +151,51 @@ def disassociate_ec2_adresse(config):
         print "icitest"
     
     return 1
+
+def status_ec2_eip(config):
+    import boto
+    d=[]
+    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
+    eips=conn.get_all_addresses(addresses=[config["cloud"]["elastic_ip"]])
+    for i in eips:
+        print i.public_ip
+        print i.instance_id  
+        d.append({i.public_ip : { 'instance_id' : i.instance_id, 'association_id' : i.association_id }})
+    return json.dumps(d )
+   
+def status_ec2_vip_interface(config):
+    import boto
+    conn =boto.connect_ec2(aws_access_key_id=config["cloud"]["user"],aws_secret_access_key=config["cloud"]["password"],debug=1)       
+    addresses =conn.get_all_network_interfaces()
+    d=[]
+    for i in addresses:
+        print i.id
+        print i.status
+        attachment_id="na"
+        try:
+           i.attachment
+        except NameError:
+           i.attachment=None 
+        if i.attachment is None:  
+           attachment_id="na"
+           instance_id="na"
+        else:   
+           attachment_id=i.attachment.id   
+           instance_id=i.attachment.instance_id
+           
+        print attachment_id
+        print instance_id
+        print i.private_ip_address
+        d.append({i.id : {'id' : i.id , 'status' : i.status, 'attachment_id' : attachment_id  , 'instance_id' : instance_id, 'ip' : i.private_ip_address }})
+
+        return  json.dumps(d)
+
+         
+    return 0    
+
+def random_md5like_hash():
+    available_chars= string.hexdigits[:16]
+    return ''.join(random.choice(available_chars) for dummy in xrange(32))
 
 def launching_ec2_instances(config):
    import boto
@@ -145,8 +216,10 @@ def launching_ec2_instances(config):
       status = i.update()
    if status == 'running':
       print('running adding tag... ')
-      conn.create_tags([i.id], {"Name": config["command"]["group"]})
+      import hashlib
+      conn.create_tags([i.id], {"name": "ScrambleDB" +random_md5like_hash()})
       # i.add_tag("Name","{{ScambleDB}}")
+      
    else:
       print('Instance status: ' + status)
     

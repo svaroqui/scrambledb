@@ -62,6 +62,7 @@ sub gearman_client() {
            return 0;
   }
 
+  
   system("cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'"); 
   my $ram =$? ;
     

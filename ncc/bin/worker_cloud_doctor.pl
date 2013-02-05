@@ -73,6 +73,30 @@ sub cloud_is_scramble_running(){
     return 0;
 }
 
+
+sub cloud_is_eth1_up(){
+    my $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
+    my $sshkey = $SKYDATADIR . "/.ssh/" . $cloud->{public_key} ;
+    
+    my $command="ssh -q -i "
+    . $sshkey. " "
+    . ' -o "BatchMode=yes"  -o "StrictHostKeyChecking=no" '
+    . $cloud->{elastic_ip} 
+    .' "ifconfig | grep eth1 | grep -vc grep "';
+    my  $result = `$command`;
+    Scramble::Common::ClusterUtils::log_debug("[cloud_is_eth1_up] Info: Checking eth1 ". $cloud->{elastic_ip},2);
+     
+ 
+   $result =~ s/\n//g; 
+     if ( $result eq 1){ 
+         Scramble::Common::ClusterUtils::log_debug("[cloud_is_eth1_up] Info: eth1 is ip ". $cloud->{elastic_ip},2);
+         return 1;
+    }
+    Scramble::Common::ClusterUtils::log_debug("[cloud_is_scramble_running] Info: eth1 is not up ".$cloud->{elastic_ip},2);
+   
+    return 0;
+}
+
 sub cloud_start_scramble(){
     
     my $cloud = Scramble::Common::ClusterUtils::get_active_cloud($config);
@@ -190,12 +214,138 @@ sub cloud_check_return_error($){
  }  
 }
 
-sub cloud_vip_fix_route(){
+sub cloud_get_status_from_json_interfaces($$) {
+    my $cloud_status_json=shift;
+    my $ip=shift;
+    my $json = new JSON;
+    my $status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+      ->allow_singlequote->allow_barekey->decode($cloud_status_json);
   
+    
+    my $name =shift;
+     foreach  my $instance (  @{ $status->{interfaces_status}->{interfaces}} ) {
+        foreach my $key (keys %$instance) {
+        print STDERR $key;
+        my $instance_info=$instance->{$key};
+         if ( $instance_info->{ip} eq $ip)  { 
+                  return $instance_info->{status};
+          }    
+       }
+      }
+     return 0; 
+
+}
+
+sub cloud_get_instance_id_from_json_interfaces($$) {
+    my $cloud_status_json=shift;
+    my $ip=shift;
+    my $json = new JSON;
+    my $status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+      ->allow_singlequote->allow_barekey->decode($cloud_status_json);
+  
+    
+    my $name =shift;
+     foreach  my $instance (  @{ $status->{interfaces_status}->{interfaces}} ) {
+        foreach my $key (keys %$instance) {
+        print STDERR $key;
+        my $instance_info=$instance->{$key};
+         if ( $instance_info->{ip} eq $ip)  { 
+                  return $instance_info->{instance_id};
+          }    
+       }
+      }
+     return 0; 
+
+}
+
+
+sub cloud_get_instance_id_from_eip($){
+     my $cloud_eip_json=shift;
+     my $vip=shift;
+     
+     Scramble::Common::ClusterUtils::log_debug("[cloud_get_instance_id_from_eip] getting elastic ip status",1); 
+    Scramble::Common::ClusterUtils::log_json( $cloud_eip_json,1);  
+    my $json = new JSON;
+    my $status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+      ->allow_singlequote->allow_barekey->decode($cloud_eip_json);
+    foreach  my $instance (  @{ $status->{eips}} ) {
+        foreach my $key (keys %$instance) {
+        print STDERR $key;
+        my $instance_info=$instance->{$key};
+        return $instance_info->{instance_id} ;
+                  
+            
+       }
+      }
+     return "na"; 
+    
+}
+sub is_interface_attach_to_elastic_ip($$){
+    my $cloud_eip_json=shift;
+    my $instance_id= shift ;
+    Scramble::Common::ClusterUtils::log_debug("[is_interface_attach_to_elastic_ip] getting elastic ip status",1); 
+    Scramble::Common::ClusterUtils::log_json( $cloud_eip_json,1);  
+     my $json = new JSON;
+    my $status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
+      ->allow_singlequote->allow_barekey->decode($cloud_eip_json);
+    
+     foreach  my $instance (  @{ $status->{eips}} ) {
+        foreach my $key (keys %$instance) {
+        print STDERR $key;
+        my $instance_info=$instance->{$key};
+         if ( $instance_info->{instance_id} eq $instance_id)  { 
+                  return 1;
+          }    
+       }
+      }
+     return 0; 
+
+    
+}
+
+sub cloud_vip_fix_route($){
+  my $json_cloud_str=shift;
   my $err   = "000000";  
   my $gateway= "10.0.0.1"; 
   my $lb = Scramble::Common::ClusterUtils::get_active_lb($config);
   Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Fixing route to the vip",1); 
+  
+  Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info:check status of interface",1);
+ 
+  my $command='{"level":"instances","command":{"action":"status_vip","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
+  my $cloud_interfaces_json = worker_cloud_interface_status($command,"127.0.0.1:4731");
+  Scramble::Common::ClusterUtils::log_json( $cloud_interfaces_json,1);  
+  my $vip_status=cloud_get_status_from_json_interfaces($cloud_interfaces_json,$lb->{vip}) ; 
+  my $vip_instance_id= cloud_get_instance_id_from_json_interfaces($cloud_interfaces_json,$lb->{vip}) ;   
+ Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Interface is atache to instance ". $vip_instance_id,1);
+  
+ $command='{"level":"instances","command":{"action":"status_eip","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
+ my $cloud_eip_json = worker_cloud_eip_status($command,"127.0.0.1:4731"); 
+      
+
+
+  if ($vip_status eq "in-use")  { 
+       Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Interface is already used",1);
+       if (is_interface_attach_to_elastic_ip($cloud_eip_json,$vip_instance_id)==1){
+           Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Interface attached to elastic ip  ",1);
+           Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: try to test the interface ",1);
+           if ( cloud_is_eth1_up()==0){
+            $command="ifup eth1";
+            worker_node_command($command,"localhost"); 
+           } 
+        }        
+        else
+        {
+           Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Interface not  attached  to elastic ip  ",1);
+           Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: detach the interface ",1);
+           
+        }
+  } else {
+    Scramble::Common::ClusterUtils::log_debug("[cloud_vip_fix_route] Info: Interface not attached try attaching",1); 
+     my $eip_instance_id= cloud_get_instance_id_from_eip($cloud_eip_json);
+     $command='{"level":"instances","command":{"action":"attach_vip","group":"'. $eip_instance_id.'","type":"all"},"cloud":'. $json_cloud_str. '}';
+     my $ret = worker_cloud_command($command,"127.0.0.1:4731");
+  }  
   my $cmd1="ip route add default via $gateway dev eth0 tab 1";
   worker_node_command($cmd1,"localhost");  
   
@@ -215,7 +365,7 @@ sub cloud_vip_fix_route(){
   worker_node_command($cmd1,"localhost");  
    
   
- return  $err;
+  return  $err;
   
 
 }
@@ -229,7 +379,7 @@ sub cloud_get_a_running_lb(){
    
   Scramble::Common::ClusterUtils::log_debug("[cloud_get_a_running_lb] Info: Try to found a running lb"  ,1);
   my $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
-  my $cloud_status_json = worker_cloud_command($command,"127.0.0.1:4731");
+  my $cloud_status_json = worker_cloud_status($command,"127.0.0.1:4731");
 
   Scramble::Common::ClusterUtils::log_debug("[cloud_get_a_running_lb] Info: Retriving cloud status",1);
   Scramble::Common::ClusterUtils::log_json( $cloud_status_json,1);
@@ -273,10 +423,10 @@ sub gearman_client() {
   my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
   my $json_cloud       = new JSON ;
   my $json_cloud_str = $json_cloud->allow_nonref->utf8->encode($cloud);
-  
- #my $test='{"level":"instances","command":{"action":"disassociate","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
- #my $cloud_test = worker_cloud_command($test,"127.0.0.1:4731");
- #return 0;            
+ 
+  #my $test='{"level":"instances","command":{"action":"disassociate","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
+  #my $cloud_test = worker_cloud_command($test,"127.0.0.1:4731");
+  #return 0;            
   if (cloud_check_ssh() ==0) {
     $ssh_error_retry=$ssh_error_retry+1;
     if ($ssh_error_retry==$max_ssh_error_retry) {
@@ -307,7 +457,7 @@ sub gearman_client() {
           my $cluster_memcache = worker_cluster_command($command,"127.0.0.1:4730");     
         } else {
          Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Try to fixe route to VIP issue", 2);
-         cloud_vip_fix_route(); 
+         cloud_vip_fix_route($json_cloud_str); 
         } 
 
         return 0;
@@ -321,7 +471,7 @@ sub gearman_client() {
  if (cloud_have_actions( $cluster_actions) ==0){ return 0};
 
   $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"},"cloud":'. $json_cloud_str. '}';
-  my $cloud_status_json = worker_cloud_command($command,"127.0.0.1:4731");
+  my $cloud_status_json = worker_cloud_status($command,"127.0.0.1:4731");
  
   print STDERR $cloud_status_json;
   Scramble::Common::ClusterUtils::log_debug("[cloud_doctor] Info: Retriving cloud status",1);
@@ -335,7 +485,9 @@ sub gearman_client() {
   my $status= $json_cloud->allow_nonref->utf8->relaxed->escape_slash->loose
   ->allow_singlequote->allow_barekey->decode($cluster_status_json);
    
-
+ if ( cloud_is_eth1_up()==0){
+      cloud_vip_fix_route($json_cloud_str); 
+ }   
   my $no_services=1;
 
   foreach  my $action (  @{ $cluster_actions->{actions}} ) {
@@ -437,6 +589,97 @@ sub worker_cluster_command($$) {
     
 }
 
+sub worker_cloud_eip_status($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+   
+    Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_eip_status] Info: ". $ip  ,1);
+    Scramble::Common::ClusterUtils::log_json(  $cmd  ,1);
+    
+    $client->set_timeout(10000);
+    #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
+    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+      if ( !defined $result ) {
+         Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_eip_status] Error: ". "Gearman no result ",1);
+        return  '{"eips":[] , "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
+     } else { 
+        print STDOUT $result;
+         Scramble::Common::ClusterUtils::log_json(  $result   ,1);
+           return  '{"eips":'.$result.', "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
+     }
+    
+   }
+   Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_eip_status] Error: ". "Gearman failed ",1); 
+    return  '{"eips":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
+    
+}
+
+sub worker_cloud_interface_status($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+   
+    Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_interface_status] Info: ". $ip  ,1);
+    Scramble::Common::ClusterUtils::log_json(  $cmd  ,1);
+    
+    $client->set_timeout(10000);
+    #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
+    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+      if ( !defined $result ) {
+         Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_interface_status] Error: ". "Gearman no result ",1);
+        return  '{"interfaces_status":{"interfaces":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+     } else { 
+        print STDOUT $result;
+         Scramble::Common::ClusterUtils::log_json(  $result   ,1);
+         return  '{"interfaces_status":{"interfaces":' . $result . ',"return":{"code":"000000","version":"1.0"},"question":'.$cmd.'}}'; 
+     }
+    
+   }
+   Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_command] Error: ". "Gearman failed ",1); 
+   return  '{"interfaces_status":{"interfaces":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+  
+    
+}
+
+
+
+sub worker_cloud_status($$) {
+    my $cmd    = shift;
+    my $ip     = shift;
+    my $client = Gearman::XS::Client->new();
+    $client->add_servers($ip);
+   
+    Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_status] Info: ". $ip  ,1);
+    Scramble::Common::ClusterUtils::log_json(  $cmd  ,1);
+    
+    $client->set_timeout(10000);
+    #(my $ret,my $result) = $client->do_background('service_do_command', $cmd);
+    ( my $ret, my $result ) = $client->do( 'cloud_cmd', $cmd );
+
+    if ( $ret == GEARMAN_SUCCESS ) {
+      if ( !defined $result ) {
+         Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_status] Error: ". "Gearman no result ",1);
+        return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+     } else { 
+        print STDOUT $result;
+         Scramble::Common::ClusterUtils::log_json(  $result   ,1);
+         return  '{"instances_status":{"instances":' . $result . ',"return":{"code":"000000","version":"1.0"},"question":'.$cmd.'}}'; 
+     }
+    
+   }
+   Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_status] Error: ". "Gearman failed ",1); 
+   return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+  
+    
+}
+
 sub worker_cloud_command($$) {
     my $cmd    = shift;
     my $ip     = shift;
@@ -453,20 +696,18 @@ sub worker_cloud_command($$) {
     if ( $ret == GEARMAN_SUCCESS ) {
       if ( !defined $result ) {
          Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_command] Error: ". "Gearman no result ",1);
-        return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+        return  '{ "result":"failed", "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
      } else { 
-         Scramble::Common::ClusterUtils::log_json(  $result   ,1);
-   
-         return  '{"instances_status":{"instances":' . $result . ',"return":{"code":"000000","version":"1.0"},"question":'.$cmd.'}}'; 
+        print STDOUT $result;
+        return  '"result":"' . $result . '","return":{"code":"000000","version":"1.0"},"question":'.$cmd.'}'; 
      }
     
    }
    Scramble::Common::ClusterUtils::log_debug( "[worker_cloud_command] Error: ". "Gearman failed ",1); 
-   return  '{"instances_status":{"instances":[], "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}}';
+   return   return  '{ "result":"failed", "return":{"code":"ER0006","version":"1.0"},"question":'.$cmd.'}';
   
     
 }
-
 
 sub worker_node_command($$) {
     my $cmd    = shift;

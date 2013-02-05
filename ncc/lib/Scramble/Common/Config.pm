@@ -33,42 +33,7 @@ our $VERSION = '0.01';
 our $RULESET = {
 	'this'                  => { 'required' => ['AGENT', 'TOOLS'], 'refvalues' => 'db' },
 	'debug'                 => { 'default' => 0, 'boolean' => 1 },
-	'active_master_role'	=> { 'required' => ['AGENT', 'MONITOR'], 'refvalues' => 'role' },
-	'max_kill_retries'	=> { 'default' => 10, 'required' => ['AGENT'] },
-	'default_copy_method'	=> { 'required' => ['TOOLS'], 'refvalues' => 'copy_method' },
-	'clone_dirs'		=> { 'required' => ['TOOLS'], 'multiple' => 1 },
-	'role'			=> { 'required' => ['AGENT', 'MONITOR'], 'multiple' => 1, 'section' => {
-	'mode'			=> { 'required' => ['MONITOR'], 'values' => ['balanced', 'exclusive'] },
-	'hosts'			=> { 'required' => ['MONITOR'], 'refvalues' => 'db', 'multiple' => 1 },
-	'ips'			=> { 'required' => ['AGENT', 'MONITOR'], 'multiple' => 1 },
-	'prefer'		=> { 'refvalues' => 'hosts' }
-		}
-	},
-	'monitor'				=> { 'required' => ['MONITOR', 'CONTROL'], 'section' => {
-		'ip'				=> { 'required' => ['MONITOR', 'CONTROL'] },
-		'port'					=> { 'default' => '9988' },
-		'pid_path'				=> { 'required' => ['MONITOR'] },
-		'bin_path'				=> { 'required' => ['MONITOR'] },
-		'status_path'			=> { 'required' => ['MONITOR'] },
-		'ping_interval'			=> { 'default' => 1 },
-		'ping_ips'				=> { 'required' => ['MONITOR'], 'multiple' => 1 },
-		'flap_duration'			=> { 'default' => 60 * 60 },
-		'flap_count'			=> { 'default' => 3 },
-		'auto_set_online'		=> { 'default' => 0 },
-		'kill_host_bin'			=> { 'default' => 'kill_host' },
-		'careful_startup'		=> { 'default' => 1, 'boolean' => 1 },
-		'mode'					=> { 'default' => 'active', 'values' => ['passive', 'active', 'manual', 'wait'] },
-		'wait_for_other_master'	=> { 'default' => 120 }
-		}
-	},
-	'socket'				=> { 'create_if_empty' => ['AGENT', 'CONTROL', 'MONITOR'], 'section' => {
-		'type'					=> { 'default' => 'plain', 'required' => ['AGENT', 'CONTROL', 'MONITOR'], 'values' => [ 'plain', 'ssl' ] },
-		'cert_file'				=> { 'deprequired' => { 'type' => 'ssl' }, 'required' => [ 'AGENT', 'CONTROL', 'MONITOR'] },
-		'key_file'				=> { 'deprequired' => { 'type' => 'ssl' }, 'required' => [ 'AGENT', 'CONTROL', 'MONITOR'] },
-		'ca_file'				=> { 'deprequired' => { 'type' => 'ssl' }, 'required' => [ 'AGENT', 'MONITOR'] }
-		}
-	},
-	'copy_method'			=> { 'required' => ['TOOLS'], 'multiple' => 1, 'template' => 'default', 'section' => {
+        'copy_method'			=> { 'required' => ['TOOLS'], 'multiple' => 1, 'template' => 'default', 'section' => {
 		'backup_command'		=> { 'required' => 1 },
 		'restore_command'		=> { 'required' => 1 },
 		'incremental_command'           => { 'deprequired' => { 'incremental' => 1 } },
@@ -214,11 +179,11 @@ our $RULESET = {
 		
 	}} ,
          'monitor'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
-                'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mycheckpoint', 'cacti','mulin', "monyog"] },
-        	'smtp_from'			=> { 'default' => '' },
-                'smtp_to'			=> { 'default' => '' },
-                'smtp_host'			=> { 'default' => '' },
-                'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
+                'mode'                         => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mycheckpoint', 'cacti','mulin', "monyog"] },
+        	'smtp_from'		       => { 'default' => '' },
+                'smtp_to'		       => { 'default' => '' },
+                'smtp_host'                    => { 'default' => '' },
+                'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                         => { 'default' => 8080  },
         	'cloud'                        => { 'refvalues' => 'cloud'  },
                 'purge_days'                         => { 'default' => 1 }
@@ -227,9 +192,10 @@ our $RULESET = {
         'http'  	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
                 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['apache', 'nginx',] },
                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
-                'port'                         => { 'default' => 80  },
-        	'cloud'                        => { 'refvalues' => 'cloud'  },
-    		
+                'port'                        => { 'default' => 80  },
+        	'cloud'                       => { 'refvalues' => 'cloud'  },
+    		'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] }
+               
 	}}
         
 };
