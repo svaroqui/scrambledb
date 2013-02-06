@@ -3,7 +3,7 @@ package Scramble::Common::Log;
 use strict;
 use warnings FATAL => 'all';
 use Log::Log4perl qw(:easy);
-use English qw( PROGRAM_NAME );
+use English qw( -no_match_vars );
 
 our $VERSION = '0.01';
 

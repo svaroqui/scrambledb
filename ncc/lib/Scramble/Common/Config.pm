@@ -20,7 +20,7 @@ package Scramble::Common::Config;
 
 use strict;
 use warnings FATAL => 'all';
-use English qw( NR );
+use English qw( -no_match_vars );
 use Log::Log4perl qw(:easy);
 use List::Util qw(first);
 use File::stat qw();

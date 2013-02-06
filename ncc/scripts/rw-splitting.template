@@ -346,7 +346,18 @@ function disconnect_client()
   end
 end
 
+function todo(SQL)
+  if string.find(string.upper(SQL),"CREATE" ) == nil and  
+     string.find(string.upper(SQL),"DROP" ) == nil and
+     string.find(string.upper(SQL),"ALTER TABLE" ) == nil then 
 
+    return nil 
+  end
+     if not (string.find(string.upper(SQL),"SHOW" ) == nil) then
+	 return nil 
+     end 
+  return 1 	
+end
 
 
 function read_query( packet )
@@ -373,8 +384,7 @@ function read_query( packet )
 
 		return proxy.PROXY_SEND_RESULT
 	end
-
-	
+        
         if cmd.type == proxy.COM_QUERY then
           if is_debug then
 		print("[read_query] " .. proxy.connection.client.src.name)
@@ -445,6 +455,7 @@ function read_query( packet )
                                 
 			end
 		end -- TK_SQL_SELECT
+                
 	end -- is_not_in_transaction and COM_QUERY
 
 	-- no backend selected yet, pick a master
@@ -507,7 +518,12 @@ function read_query( packet )
                 i=i+1
             end 
             proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
-   
+            if todo(packet:sub(2)) == 1 then
+                i=i+1
+                sql = "SELECT gman_do('cluster_cmd','{command: {action:\"sql\" ,group:\"all\", type:\"all\", database: \"" ..  c.default_db .. "\", query: \"" .. sql  ..  "\"}}')"
+  		proxy.queries:append(i ,string.char(proxy.COM_QUERY) .. sql,, { resultset_is_needed = true } )
+            end       
+	
        end 
         
        if( proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then

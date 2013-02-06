@@ -14,7 +14,7 @@
 <cloud cloud2>
     status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
-    password        	   xxx
+    password        	   xxxx
     host            	   na
     version         	   1.5
     driver          	   EC2
