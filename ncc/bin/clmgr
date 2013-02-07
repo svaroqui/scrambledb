@@ -1,5 +1,5 @@
 #!/usr/local/skysql/perl/bin/perl
-
+use English qw( -no_match_vars );
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
@@ -75,9 +75,11 @@ $Data::Dumper::Useqq     = 0;
 
 my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
 my $json      = new JSON;
- my $command_text =
+my $command_text =
           $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
     
+ 
+
 print ">>>>>>>>>>>>>>>\n";
 print  STDERR Dumper($command_text);
 print "<<<<<<<<<<<<<<<\n";

@@ -1,9 +1,40 @@
+# Copyright (c) 2013 Stephane VAROQUI http://skysql.com/
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish, dis-
+# tribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the fol-
+# lowing conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABIL-
+# ITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+# SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+# IN THE SOFTWARE.
 
-package Scramble::Common::ClusterUtils;
+package Scramble::ClusterUtils;
+use Scramble::ClusterTransport;
 use strict;
+use vars qw($VERSION);
 use warnings FATAL => 'all';
+use JSON;
 
-our $g_log_level=2;
+$VERSION = '0.01';
+
+
+
+sub new($) {
+	my $self = shift;
+	return bless { }, $self; 
+}
+
 sub delete_pid_if_exists($$) {
     my $pidfile = shift;
     my $ip      = shift;
@@ -230,10 +261,6 @@ sub get_all_sercive_ips($) {
 
 
 
-
-
-
-
 sub get_active_cloud($) {
     my $config =shift;
     my $host_info;
@@ -244,7 +271,7 @@ sub get_active_cloud($) {
             return $host_info;
         }
     }
-   return 0; 
+   return "na"; 
 }
 
 sub get_active_cloud_name($) {
@@ -445,7 +472,7 @@ sub get_source_ip_from_command($$) {
    foreach  my $interface (  @{ $status->{host}->{interfaces}} ) {
     foreach my $attr (keys %$interface) {
           foreach my $service (@serviceips) {
-                    print STDERR $service ."/" .$interface->{$attr}->{IP} .";
+                  
                     if ($service eq $interface->{$attr}->{IP} ){
                         return $interface->{$attr}->{IP};
                     }
@@ -458,39 +485,8 @@ sub get_source_ip_from_command($$) {
 }
 
 
-sub log_json($$){  
-  my $json_text =shift;
-  my $level=shift;
-  
-  my $json      = new JSON;
-  my @perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($json_text);
 
-  
-  if ($level<=$g_log_level){  
-    use Data::Dumper;
-    $Data::Dumper::Terse     = 1;       
-    $Data::Dumper::Quotekeys = 0;
-    $Data::Dumper::Indent    = 1;       
-    $Data::Dumper::Pair      = ":";
-    $Data::Dumper::Indent    = 1;
-    $Data::Dumper::Useqq     = 0; 
-    print  STDERR Dumper(@perl_class);
-  
-}    
-}
- 
-sub log_debug($$){  
- # open my $LOG, q{>>}, $SKYDATADIR . "/log/worker_cluster_cmd.log"
- # or die "can't c   reate 'worker_cluster_cmd.log'\n";  
-  my $text =shift;
-  my $level=shift;
-  if ($level<=$g_log_level){
-   my $le_localtime = localtime;
-   print STDERR $le_localtime ." ";
-   print STDERR $text;
-   print STDERR "\n";
-  }
-}
+
 
 sub get_table_name_from_sql($) {
     my $lquery = shift;
@@ -556,6 +552,8 @@ sub replace_config_line($$$) {
     system("mv $file.new $file");
     system("chmod 660 $file");
 }
+
+
 
 sub uniq {
     my %seen;

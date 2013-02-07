@@ -16,8 +16,8 @@
 #  Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-package Scramble::Common::Config;
-
+package Scramble::ClusterConfig;
+use Scramble::ClusterLog; 
 use strict;
 use warnings FATAL => 'all';
 use English qw( -no_match_vars );
@@ -28,18 +28,17 @@ use File::stat qw();
 
 our $VERSION = '0.01';
 
-# TODO remember which config file was read
-
 our $RULESET = {
 	'this'                  => { 'required' => ['AGENT', 'TOOLS'], 'refvalues' => 'db' },
 	'debug'                 => { 'default' => 0, 'boolean' => 1 },
-        'copy_method'			=> { 'required' => ['TOOLS'], 'multiple' => 1, 'template' => 'default', 'section' => {
-		'backup_command'		=> { 'required' => 1 },
-		'restore_command'		=> { 'required' => 1 },
-		'incremental_command'           => { 'deprequired' => { 'incremental' => 1 } },
-		'incremental'			=> { 'default' => 0, 'boolean' => 1 },
-		'single_run'			=> { 'default' => 0, 'boolean' => 1 },
-		'true_copy'			=> { 'default' => 0, 'boolean' => 1 },
+        'copy_method'		=> { 
+                'required' => ['TOOLS'], 'multiple' => 1, 'template' => 'default', 'section' => {
+                    'backup_command'		=> { 'required' => 1 },
+                    'restore_command'		=> { 'required' => 1 },
+                    'incremental_command'       => { 'deprequired' => { 'incremental' => 1 } },
+                    'incremental'		=> { 'default' => 0, 'boolean' => 1 },
+                    'single_run'		=> { 'default' => 0, 'boolean' => 1 },
+                    'true_copy'			=> { 'default' => 0, 'boolean' => 1 },
 		}
 	},
 	'db' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
@@ -89,7 +88,7 @@ our $RULESET = {
 		'trap_period'			=> { 'default' => 10 },
 		'timeout'			=> { 'default' => 2 },
 		'restart_after'			=> { 'default' => 10000 },
-		'max_backlog'			=> { 'default' => 60 }		# XXX ugly
+		'max_backlog'			=> { 'default' => 60 }		
 		}
 	},
         

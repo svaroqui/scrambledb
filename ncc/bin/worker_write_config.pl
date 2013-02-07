@@ -20,8 +20,9 @@
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
-use Scramble::Common::Config;
-use Scramble::Common::ClusterUtils;
+use Scramble::ClusterConfig;
+use Scramble::ClusterUtils;
+use Scramble::ClusterTransport;
 use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
@@ -51,97 +52,66 @@ our $SKYDATADIR = $ ENV {SKYDATADIR};
 our $gearman_timeout = 2000;
 our $mysql_connect_timeout=3;
 our $console = "{result:{status:'00000'}}";
-our $config = new Scramble::Common::Config::;
+our $config = new Scramble::ClusterConfig::;
 my $conf=$SKYBASEDIR . "/ncc/etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
-open my $LOG , q{>>},  $SKYDATADIR."/log/worker_write_config.log"
-or die "can't create 'worker_write_config.log'\n";
-
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server('',0);
 if ($ret != GEARMAN_SUCCESS) {
-		printf(STDERR "%s\n", $worker->error());
-		exit(1);
+    printf(STDERR "%s\n", $worker->error());
+    exit(1);
 }
 
 $ret = $worker->add_function("write_config", 0, \&write_cmd, 0);
 if ($ret != GEARMAN_SUCCESS) {
-		printf(STDERR "%s\n", $worker->error());
+    printf(STDERR "%s\n", $worker->error());
 }
 
 while (1) {
 
-		my $ret = $worker->work();
-		if ($ret != GEARMAN_SUCCESS) {
-			printf(STDERR "%s\n", $worker->error());
-		}
+    my $ret = $worker->work();
+    if ($ret != GEARMAN_SUCCESS) {
+         printf(STDERR "%s\n", $worker->error());
+    }
 }
 
 
 
 sub write_cmd {
     my ($job, $options) = @_;
-    my $action;
-    my $group;
-    my $type;
-    my $query;
-    my $table = "";
+    
     my $command = $job->workload();
     my $json = new JSON;
     my $json_text = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
-    my $peer_host_info = "";
-    my $myhost = hostname;
-    my $ddlallnode = 0;
-    my $ddlallproxy = 0;
-    my $ret = "true";
     $console= "";
 
     $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
     $config->check('SANDBOX');
-    my $json2 = new JSON;
-    my $json_config   = $json2->allow_blessed->convert_blessed->encode($config );
-    $Data::Dumper::Terse = 1;        # don't output names where feasible
-    $Data::Dumper::Quotekeys = 0;
-    $Data::Dumper::Indent = 1;       # mild pretty print
-    $Data::Dumper::Pair = " = ";
-    $Data::Dumper::Indent = 2;
-    $Data::Dumper::Useqq = 0;
-
-
-
-  #  print  STDERR Dumper($config);
-  #  print  STDERR $json_config;
-
-
-
-
-    print STDERR "Receive command : $command\n";
-    $action = $json_text->{command}->{action};
-    $group = $json_text->{command}->{group};
-    $type = $json_text->{command}->{type};
-    $query = $json_text->{command}->{query};
-    $database = $json_text->{command}->{database};
+    my $json_config   = $json->allow_blessed->convert_blessed->encode($config );
+  
+    $log->log_debug("[worker_config] Receive command ".$command,1);
+  
     write_mysql_proxy_config($SKYBASEDIR."/ncc/etc/mysql-proxy");
-    print STDERR "write mysql_proxy config\n"; 
+    $log->log_debug("[worker_config] Info: mysql-proxy ",1);
     write_mha_config($SKYBASEDIR. "/ncc/etc/mha.cnf");
-    print STDERR "write mha config\n";  
+    $log->log_debug("[worker_config] Info: mha ",1);
     write_keepalived_config($SKYBASEDIR. "/ncc/etc/keepalived");
-    print STDERR "write keepalived config\n";  
+    $log->log_debug("[worker_config] Info: keepalived ",1);
     write_haproxy_config($SKYBASEDIR."/ncc/etc/haproxy");
-    print STDERR "write haproxy config\n";  
+    $log->log_debug("[worker_config] Info: haproxy ",1);
     write_memcached_config($SKYBASEDIR."/ncc/etc/memcached");
-    print STDERR "write memcached config\n"; 
+    $log->log_debug("[worker_config] Info: memcached ",1);
     write_lua_script();
-    print STDERR "write lua script from config\n"; 
+    $log->log_debug("[worker_config] Info: lua scripts ",1);
     write_write_alias($SKYBASEDIR."/ncc/bin/alias.sh");
-    print STDERR "write  alias\n"; 
-    
+    $log->log_debug("[worker_config] Info: alias ",1);
     write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
-    print STDOUT "write tarantool from config\n";
-  #  write_mysql_config();
-
+    $log->log_debug("[worker_config] Info: tarantool ",1);
+    write_mysql_config(); 
+    $log->log_debug("[worker_config] Info: mysql ",1);
+    
     return  $console ;
 
 }
@@ -158,8 +128,7 @@ sub replace_patern_infile($$$){
     {
         s/^$strin(.*)$/$strout/gi;
         print $out $_;
-        }
-
+    }
     close $out;
     system("rm -f $file.old");
     system("mv $file $file.old");
@@ -173,7 +142,7 @@ sub write_keepalived_config($){
  my $file= shift;
  my $i=100;
  my $lb_info;
- my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);   
+ my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);   
  foreach my $lb (keys(%{$config->{lb}})) {
 
     $lb_info = $config->{lb}->{default};
@@ -276,7 +245,7 @@ sub write_keepalived_config($){
 sub write_lua_script(){
 
  my $i=100;
- my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
+ my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);
 
  my $host_info;
  foreach my $host (keys(%{$config->{proxy}})) {
@@ -324,6 +293,10 @@ sub write_lua_script(){
   } 
   return 0; 
 }
+sub write_write_httpd($){
+
+}
+
 
 sub write_write_alias($){
 my $file= shift;
@@ -448,7 +421,7 @@ sub write_haproxy_config($){
  my $file= shift;
  my $i=100;
  my $lb_info;
- my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);   
+ my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);   
  foreach my $lb (keys(%{$config->{lb}})) {
 
     $lb_info = $config->{lb}->{default};
@@ -520,7 +493,7 @@ sub write_haproxy_config($){
 
 sub write_memcached_config($){
     my $file = shift;
-    my $lb= Scramble::Common::ClusterUtils::get_active_lb($config);
+    my $lb= Scramble::ClusterUtils::get_active_lb($config);
     my $i=100;
     my $nosql;
     foreach my $host (keys(%{$config->{nosql}})) {
@@ -552,25 +525,43 @@ sub get_memory_from_status($){
  return 100;
 }
 
+sub get_json_from_file($){
+    my $file =shift;
+    use JSON;
+
+    my $json;
+    {
+      local $/; #Enable 'slurp' mode
+      open my $fh, "<", $file;
+      $json = <$fh>;
+      close $fh;
+    }
+  return $json;
+}
+
 
 sub write_mysql_config(){
- my $host_info ;
+    my $host_info ;
     my $err = "000000";
     my @masters;
     foreach my $host (keys(%{$config->{db}})) {
-         $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
+        my $file = "$SKYDATADIR/tmp/template.$host.json";
+       
+     #  system  `$SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/$host_info->{template}  mysqld | sed 's/--//g' | awk -F'=' 'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }' > $file `;
+        get_mysql_diff($host,$host_info);
         my $ram =get_memory_from_status($host_info);
         my $mem = $ram*$host_info->{mem_pct}/100;    
-        replace_patern_infile("$SKYBASEDIR/sandboxes/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
+        replace_patern_infile("$SKYBASEDIR/".$host."/". $host_info->{template}, "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
     }
     return 0 ;
 }
 
 sub write_mysql_proxy_config($){
 my $file = shift;
-my $masters = Scramble::Common::ClusterUtils::get_all_masters($config);
-my $slaves =  Scramble::Common::ClusterUtils::get_all_slaves($config) ;
+my $masters = Scramble::ClusterUtils::get_all_masters($config);
+my $slaves =  Scramble::ClusterUtils::get_all_slaves($config) ;
 
 my $i=100;
 my $host_info;
@@ -613,8 +604,8 @@ sub write_mha_config($){
   my $host_info ;
   my $err = "000000";
   my $i=1;
-  my $cloud=Scramble::Common::ClusterUtils::get_active_cloud($config);
-  my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
+  my $cloud=Scramble::ClusterUtils::get_active_cloud($config);
+  my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);
   open my $out, '>', "$file.new" or die "Can't write new file: $!";
   foreach my $host (keys(%{$config->{db}}) ) {
         $host_info = $config->{db}->{default};
@@ -650,7 +641,7 @@ sub get_lua_connection_pool_server_id(){
    
     my @replicas; 
 
-    my $cloud_name = Scramble::Common::ClusterUtils::get_active_cloud_name($config);
+    my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);
     print STDERR "cloud_name" . $cloud_name;
     foreach my $host (keys(%{$config->{db}})) {
         $host_info = $config->{db}->{default};
@@ -685,7 +676,7 @@ sub write_certificat(){
     my $cmd='string="`cat '.$SKYBASEDIR.'/ncc/etc/id_rsa.pub`"; sed -e "\|$string|h; \${x;s|$string||;{g;t};a\\" -e "$string" -e "}" $HOME/.ssh/authorized_keys > $HOME/.ssh/authorized_keys2 ;mv $HOME/.ssh/authorized_keys $HOME/.ssh/authorized_keys_old;mv $HOME/.ssh/authorized_keys2 $HOME/.ssh/authorized_keys';
     my $err = "000000";
 
-    my @ips= Scramble::Common::ClusterUtils::get_all_sercive_ips($config);
+    my @ips= Scramble::ClusterUtils::get_all_sercive_ips($config);
     foreach  (@ips) {
   #   $err = gearman_client($cmd, $_);
       system("scp -i ". $SKYBASEDIR."/ncc/etc/id_rsa " . $SKYBASEDIR. "/ncc/etc/cloud.cnf ". $_.":".$SKYBASEDIR."/ncc/etc");
@@ -705,6 +696,20 @@ sub write_certificat(){
 
 
 
+sub get_mysql_diff($){
+ my $host=shift;
+ my $host_info=shift;
+ my $json = new JSON;
+  
+ my $command = "diff -B <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/$host_info->{template} mysqld | sort  | tr [:upper:] [:lower:] ) <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/$host/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] ) | grep -vE 'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user' | sed 's/\\> --//g' | awk -F'=' 'BEGIN { print \"{\"}  END { print \"\\\"scramble\\\":\\\"\\\"}\"}  {  print \"\\\"\"$1\"\\\":\\\"\"$2\"\\\",\" }'";     
 
+ my $result=Scramble::ClusterTransport::worker_node_command( $command, $host_info->{ip} ); 
+ my $mysql_variables =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
+             ->allow_singlequote->allow_barekey->decode($result);
+ $log->log_debug("[get_mysql_diff] read diff",2);
+ $log->log_json($mysql_variables,1);
+               
 
+ 
+}
 

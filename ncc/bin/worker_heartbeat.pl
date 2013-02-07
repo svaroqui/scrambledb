@@ -61,12 +61,10 @@ sub gearman_client() {
         printf(STDOUT "ERROR GEARMAN %s\n", $client->error());    
            return 0;
   }
-
-  
-  system("cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'"); 
-  my $ram =$? ;
+  $command="cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'";
+  my  $ram = `$command`;  
     
-
+  $ram =~ s/\n//g; 
 
    my $interface;
    my %IPs;

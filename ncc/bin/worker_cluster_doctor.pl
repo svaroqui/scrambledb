@@ -20,44 +20,47 @@
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
-use Scramble::Common::Config;
+use Scramble::ClusterConfig;
+use Scramble::ClusterUtils;
+use Scramble::ClusterLog;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
-use Gearman::XS::Worker;
 use JSON;
 use Cache::Memcached;
 use DBI;
 use Data::Dumper;
-use Scramble::Common::ClusterUtils;
+
+
 
 our $SKYBASEDIR = $ ENV {SKYBASEDIR};
 our $SKYDATADIR = $ ENV {SKYDATADIR};
 our $gearman_timeout = 2000;
 our $gearman_ip            ="localhost";
 our $console = "{result:{status:'00000'}}";
-our $config = new Scramble::Common::Config::;
+our $config = new Scramble::ClusterConfig::;
 my $conf="etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
 
+our $CLUSTERLOG = NEW Scramble::ClusterLog;
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server($gearman_ip,0);
 if ($ret != GEARMAN_SUCCESS) {
-    Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Error:  $worker->error()",1); 
+    $CLUSTERLOG->log_debug("[cluster_doctor] Error:  $worker->error()",1); 
     exit(1);
 }
 
 $ret = $worker->add_function("consult_cmd", 0, \&consult_cmd, 0);
 if ($ret != GEARMAN_SUCCESS) {
-     Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Error:  $worker->error()",1); 
+     $CLUSTERLOG->log_debug("[cluster_doctor] Error:  $worker->error()",1); 
 }
 
 while (1) {
 
     my $ret = $worker->work();
     if ($ret != GEARMAN_SUCCESS) {
-           Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Error:  $worker->error()",1); 
+           $CLUSTERLOG->log_debug("[cluster_doctor] Error:  $worker->error()",1); 
     }
 }
 
@@ -66,14 +69,14 @@ while (1) {
 sub consult_cmd() {
     my ($job, $options) = @_;
     my $command = $job->workload();
-    Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Info: Receive command : $command",1);
+    $CLUSTERLOG->log_debug("[cluster_doctor] Info: Receive command : $command",1);
     my $json = new JSON;
     my $diff_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($command);
     $console= "";
     $config->read("etc/cloud.cnf");
     $config->check('SANDBOX');
-    my $mem_info=Scramble::Common::ClusterUtils::get_active_memcache($config);
-    Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Info: ". "Get the actions in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port},1);
+    my $mem_info=Scramble::ClusterUtils::get_active_memcache($config);
+    $CLUSTERLOG->log_debug("[cluster_doctor] Info: ". "Get the actions in memcache: ". $mem_info->{ip} . ":" . $mem_info->{port},1);
    
         
     my $memd = new Cache::Memcached {
@@ -85,13 +88,13 @@ sub consult_cmd() {
       
         if (!$json_todo )
         {
-            Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Info: No actions in memcache",1);
+            $CLUSTERLOG->log_debug("[cluster_doctor] Info: No actions in memcache",1);
             return "ER0015";  
         }
         my $json_status = $memd->get("status");
         if (!$json_status )
         {
-           Scramble::Common::ClusterUtils::log_debug("[cluster_doctor] Info: No status in memcache",1);
+           $CLUSTERLOG->log_debug("[cluster_doctor] Info: No status in memcache",1);
            return "ER0015";  
         }
 
@@ -102,9 +105,9 @@ sub consult_cmd() {
          ->allow_singlequote->allow_barekey->decode($json_todo);
        foreach  my $action (  @{ $todo->{actions}} ) {
         foreach  my $trigger(  @{ $diff_status->{events}} ) {
-            Scramble::Common::ClusterUtils::log_debug("[consult_cmd] Info: testing action ip:$action->{event_ip} with trigger $trigger->{ip} ",2);
-            Scramble::Common::ClusterUtils::log_debug("[consult_cmd] Info: testing action type:$action->{event_type} with trigger $trigger->{type} ",2);
-            Scramble::Common::ClusterUtils::log_debug("[consult_cmd] Info: testing action state:$action->{event_state} with trigger $trigger->{state} ",2);
+            $CLUSTERLOG->log_debug("[consult_cmd] Info: testing action ip:$action->{event_ip} with trigger $trigger->{ip} ",2);
+            $CLUSTERLOG->log_debug("[consult_cmd] Info: testing action type:$action->{event_type} with trigger $trigger->{type} ",2);
+            $CLUSTERLOG->log_debug("[consult_cmd] Info: testing action state:$action->{event_state} with trigger $trigger->{state} ",2);
             
           
             if  ($action->{event_ip} eq $trigger->{ip} && 
@@ -113,10 +116,10 @@ sub consult_cmd() {
                 ){
                  
                   my $command= '{"level":"'.$action->{do_level}. '","command":{"action":"'.$action->{do_action}.'","group":"'.$action->{do_group}.'","type":"all"} } ';
-                  Scramble::Common::ClusterUtils::log_debug("[consult_cmd] Info: Test pass do action  ",1);
-                  Scramble::Common::ClusterUtils::log_json($command,1);
+                  $CLUSTERLOG->log_debug("[consult_cmd] Info: Test pass do action  ",1);
+                  Scramble::ClusterUtils::log_json($command,1);
                   worker_cluster_command($command,$gearman_ip);   
-                  Scramble::Common::ClusterUtils::log_debug("[consult_cmd] Info: Set empty actions",1);
+                  $CLUSTERLOG->log_debug("[consult_cmd] Info: Set empty actions",1);
                   
                   $memd->set( "actions", '{"return":{"code":"000000","version":"1.0"},"actions":[]}' );
                   sleep 1;
@@ -131,8 +134,8 @@ sub worker_cluster_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    Scramble::Common::ClusterUtils::log_debug("[worker_cluster_command] Info: Send to ip :". $ip ,1);
-    Scramble::Common::ClusterUtils::log_json($cmd,2);
+    $CLUSTERLOG->log_debug("[worker_cluster_command] Info: Send to ip :". $ip ,1);
+    Scramble::ClusterUtils::log_json($cmd,2);
    
    
     #$client->set_timeout($gearman_timeout);
@@ -142,7 +145,7 @@ sub worker_cluster_command($$) {
     if ( $ret == GEARMAN_SUCCESS ) {
       if ( !defined $result ) {
         return "ER0006";
-        Scramble::Common::ClusterUtils::log_debug("[worker_cluster_command] Error : No result",1);
+        $CLUSTERLOG->log_debug("[worker_cluster_command] Error : No result",1);
         
      } else { 
         return $result; 
@@ -150,7 +153,7 @@ sub worker_cluster_command($$) {
     } 
     else
     {
-      Scramble::Common::ClusterUtils::log_debug("[worker_cluster_command] Error : Gearman call failed",1);
+      $CLUSTERLOG->log_debug("[worker_cluster_command] Error : Gearman call failed",1);
     }
 
    return "ER0006";
