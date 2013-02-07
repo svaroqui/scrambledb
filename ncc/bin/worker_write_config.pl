@@ -22,7 +22,9 @@ use Class::Struct;
 use warnings FATAL => 'all';
 use Scramble::ClusterConfig;
 use Scramble::ClusterUtils;
+use Scramble::ClusterLog;
 use Scramble::ClusterTransport;
+
 use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
@@ -53,6 +55,7 @@ our $gearman_timeout = 2000;
 our $mysql_connect_timeout=3;
 our $console = "{result:{status:'00000'}}";
 our $config = new Scramble::ClusterConfig::;
+our $log = new Scramble::ClusterLog;
 my $conf=$SKYBASEDIR . "/ncc/etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');

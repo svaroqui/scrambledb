@@ -36,9 +36,8 @@ use DBI;
 
 our $SKYBASEDIR            = $ENV{SKYBASEDIR};
 our $SKYDATADIR            = $ENV{SKYDATADIR};
-# our $log                   = new Scramble::ClusterLog;
 our $config                = new Scramble::ClusterConfig::;
-our $log                = new Scramble::ClusterLog::;
+our $log                = new Scramble::ClusterLog;
 $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
 $config->check('SANDBOX');
 
@@ -197,7 +196,7 @@ sub cluster_cmd {
                  event_state    => "stopped" ,
                  do_level       => "instances" ,
                  do_group       =>  $group,
-                 do_action      => "$action" 
+                 do_action      =>  $action 
         };  
         
         
@@ -1302,7 +1301,7 @@ sub service_status_database($$) {
     }
     catch Error with {
         $err = "ER0003";
-        $log->log_debug("[service_status_database] $theip: Failed connecting to db ",2)
+        $log->log_debug("[service_status_database] $theip: Failed connecting to db ",2);
     
     };
  return $err;

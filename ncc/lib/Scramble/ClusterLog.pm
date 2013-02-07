@@ -196,7 +196,7 @@ sub report_status($$$$$) {
     my $cmd  = shift;
     my $err  = shift;
     my $host = shift;
-    self->log_debug( "[report_status] ". $cmd , 1);
+    $self->log_debug( "[report_status] ". $cmd , 1);
     my $le_localtime = localtime;
     my $status ="na";
     if ( $hostinfo->{status}) { 
