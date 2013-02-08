@@ -148,7 +148,8 @@ sub cluster_cmd {
                   $log->log_debug("[cluster_cmd] Info: No actions in memcache ",1);
                   $log->report_action( "localhost", "fetch_event",  "ER0015");
                   my $json_action      = new JSON;
-                  return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}';
+                  my @console =$log->get_actions();
+                  return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(\@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}';
            }
            print STDERR $json_todo ."\n";
            return   $json_todo ;
@@ -160,7 +161,9 @@ sub cluster_cmd {
                  $log->log_debug("[cluster_cmd] Info: No heartbeat in memcache ",1);
                  $log->report_action( "localhost", "fetch_heartbeat",  "ER0015");
                  my $json_action      = new JSON;
-                 return  '{"return":{"code":"ER0015","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}';
+                 my @console =$log->get_actions();
+                
+                 return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(\@console) .' , "version":"1.0","question":'.$json_cmd_str.',"instances":[]}';
            }
            print STDERR $json_status ."\n";
            return   $json_status ;
@@ -171,7 +174,7 @@ sub cluster_cmd {
        } 
        elsif ( $action eq "actions_init") {
           $log->log_debug("[cluster_cmd] Info: Set empty actions",1);
-          $memd->set( "actions", '{"return":{"code":"000000","version":"1.0"},"question":'.$json_cmd_str.',"actions":[]}' );
+          $memd->set( "actions", '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":[]}' );
        } 
        elsif ( $action eq "start" || $action eq "launch" || $action eq "stop" || $action eq "terminate" || $action eq "world") {
         my $json_todo = $memd->get("actions");
@@ -181,8 +184,9 @@ sub cluster_cmd {
    
                $log->report_action( "localhost", "fetch_event",  "ER0015");
                my $json_action      = new JSON;
-               my @actions =$log->get_actions();
-               return   $json_action->allow_nonref->utf8->encode(\@actions);
+               my @console =$log->get_actions();
+               return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}';
+               
         }
         my $json      = new JSON ;
         my $todo =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
@@ -207,7 +211,7 @@ sub cluster_cmd {
          
         $memd->set( "actions",  $json_todo);
         $log->report_action( "localhost", "delayed_action",  "ER0017");
-        return  '{"return":{"code":"000000","version":"1.0"},"question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode(\$log->get_actions())."}";
+        return  '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode(\$log->get_actions())."}";
       }
       
        

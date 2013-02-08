@@ -704,13 +704,17 @@ sub get_mysql_diff($){
  my $host_info=shift;
  my $json = new JSON;
   
- my $command = "diff -B <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/$host_info->{template} mysqld | sort  | tr [:upper:] [:lower:] ) <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/$host/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] ) | grep -vE 'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user' | sed 's/\\> --//g' | awk -F'=' 'BEGIN { print \"{\"}  END { print \"\\\"scramble\\\":\\\"\\\"}\"}  {  print \"\\\"\"$1\"\\\":\\\"\"$2\"\\\",\" }'";     
 
+
+
+ my $command = 'diff -B <( /usr/local/skysql/mariadb/bin/my_print_defaults  --defaults-file=/usr/local/skysql/ncc/etc/my.template mysqld | sort  | tr [:upper:] [:lower:] ) <( /usr/local/skysql/mariadb/bin/my_print_defaults  --defaults-file=/var/lib/skysql/sandboxes/node10/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] ) | grep \'>\' | grep -vE \'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user\' | sed \'s/\> --//g\' | awk -F\'=\' \'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }\'';
  my $result=Scramble::ClusterTransport::worker_node_command( $command, $host_info->{ip} ); 
- my $mysql_variables =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
-             ->allow_singlequote->allow_barekey->decode($result);
- $log->log_debug("[get_mysql_diff] read diff",2);
- $log->log_json($mysql_variables,1);
+ 
+
+#my $mysql_variables =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
+#             ->allow_singlequote->allow_barekey->decode($result);
+# $log->log_debug("[get_mysql_diff] read diff",2);
+# $log->log_json($mysql_variables,1);
                
 
  

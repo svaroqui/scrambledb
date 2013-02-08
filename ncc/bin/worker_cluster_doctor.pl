@@ -42,7 +42,7 @@ my $conf="etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
 
-our $CLUSTERLOG = NEW Scramble::ClusterLog;
+our $CLUSTERLOG = new Scramble::ClusterLog;
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server($gearman_ip,0);
@@ -117,7 +117,7 @@ sub consult_cmd() {
                  
                   my $command= '{"level":"'.$action->{do_level}. '","command":{"action":"'.$action->{do_action}.'","group":"'.$action->{do_group}.'","type":"all"} } ';
                   $CLUSTERLOG->log_debug("[consult_cmd] Info: Test pass do action  ",1);
-                  Scramble::ClusterUtils::log_json($command,1);
+                  $CLUSTERLOG->log_json($command,1);
                   worker_cluster_command($command,$gearman_ip);   
                   $CLUSTERLOG->log_debug("[consult_cmd] Info: Set empty actions",1);
                   
@@ -135,7 +135,7 @@ sub worker_cluster_command($$) {
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
     $CLUSTERLOG->log_debug("[worker_cluster_command] Info: Send to ip :". $ip ,1);
-    Scramble::ClusterUtils::log_json($cmd,2);
+    $CLUSTERLOG->log_json($cmd,2);
    
    
     #$client->set_timeout($gearman_timeout);

@@ -168,15 +168,7 @@ sub report_action($$$$) {
     my $cmd  = shift;
     my $err  = shift;
     my $le_localtime = localtime;
-    print '{"time":"'
-      . $le_localtime
-      . '","ip":"'
-      . $ip 
-      . '","code":"'
-      . $err
-      . '","command":"'
-      . $cmd  
-      . '"}';
+    
     push(@{$self->{actions}} ,
        '{"time":"'
       . $le_localtime

@@ -21,9 +21,10 @@
 
 
 package Scramble::ClusterTransport;
+use Scramble::ClusterUtils;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
-
+our $log = new Scramble::ClusterLog;
 
 use strict;
 use warnings FATAL => 'all';
@@ -36,8 +37,8 @@ sub worker_node_command($$) {
     my $client = Gearman::XS::Client->new();
     my $res ="000000";
     $client->add_servers($ip);
-    Scramble::ClusterUtils::log_debug("[worker_node_command] Info: Send to ip :". $ip ,1);
-    Scramble::ClusterUtils::log_debug("[worker_node_command] Info: $cmd" ,1);
+    $log->log_debug("[worker_node_command] Info: Send to ip :". $ip ,1);
+    $log->log_debug("[worker_node_command] Info: $cmd" ,1);
     
     
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
@@ -50,7 +51,7 @@ sub worker_node_command($$) {
 
     }
     else { $res = "ER0002"; }
-    report_action($ip,$cmd,$res);
+    $log->report_action($ip,$cmd,$res);
     return $res;
 
 }
@@ -61,8 +62,8 @@ sub worker_config_command($$) {
     my $ip     = shift;
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
-    Scramble::ClusterUtils::log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1);
-    Scramble::ClusterUtils::log_debug($cmd,2);
+    $log->log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1);
+    $log->log_debug($cmd,2);
    
     #$client->set_timeout($gearman_timeout);
     ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
