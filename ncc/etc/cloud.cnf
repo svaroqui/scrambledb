@@ -12,13 +12,14 @@
 </cloud>
 
 <cloud cloud2>
-    status                 slave
+    status                 master
     user            	   AKIAJR7YEOZPXASJCYDQ
     password        	   xxx
     host            	   na
     version         	   1.5
     driver          	   EC2
-    template        	   ami-45f8702c   
+    template        	   ami-5faa3d36
+
     key             	   SDS145000
     zone                   us-east-1b
     region                 us-east 
@@ -33,7 +34,7 @@
 </cloud>
 
 <cloud cloud3>
-    status                 master
+    status                 slave
     user                   xxxx
     password               xxxx
     host                   na

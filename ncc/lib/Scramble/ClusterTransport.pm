@@ -25,16 +25,17 @@ use Scramble::ClusterUtils;
 use Scramble::ClusterLog;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
-our $log = new Scramble::ClusterLog;
+
 
 use strict;
 use warnings FATAL => 'all';
 our $gearman_timeout       = 3000;
 
 
-sub worker_node_command($$) {
+sub worker_node_command($$$) {
     my $cmd    = shift;
     my $ip     = shift;
+    my $log    = shift; 
     my $client = Gearman::XS::Client->new();
     my $res ="000000";
     $client->add_servers($ip);
@@ -60,17 +61,21 @@ sub worker_node_command($$) {
        my $json = new JSON;
        $result= $json->allow_blessed->convert_blessed->encode($result_error);
     }
+    
     $log->report_action($ip,$cmd,$res,get_result_from_node_cmd($result));
-    return get_return_error_from_node_cmd($result);
+    return get_return_error_from_node_cmd($result) ;
+
 
 }
 
 
-sub worker_config_command($$) {
+sub worker_config_command($$$) {
     my $cmd    = shift;
     my $ip     = shift;
+    my $log    = shift; 
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
+    
     $log->log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1);
     $log->log_debug($cmd,2);
    
@@ -93,8 +98,11 @@ sub worker_config_command($$) {
 }
 
 sub worker_doctor_command($$) {
+    
     my $cmd    = shift;
     my $ip     = shift;
+    my $log    = shift; 
+    
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
 

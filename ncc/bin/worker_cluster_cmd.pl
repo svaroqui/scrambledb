@@ -211,7 +211,7 @@ sub cluster_cmd {
          
         $memd->set( "actions",  $json_todo);
         $log->report_action( "localhost", "delayed_action",  "ER0017","memd->set('actions',?)");
-        return  '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode(\$log->get_actions())."}";
+        return  '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode($log->get_actions())."}";
       }
       
        
@@ -952,7 +952,7 @@ sub spider_node_join($$) {
           . $result->[$i]{table_name}
           . " --execute";
         $log->log_debug("[spider_node_join] $onlinealter  ",1);     
-        Scramble::ClusterTransport::worker_node_command( $onlinealter, $host_router->{ip} );
+        Scramble::ClusterTransport::worker_node_command( $onlinealter, $host_router->{ip} ,$log);
     }
     $dbh->disconnect;
 }
@@ -1133,7 +1133,7 @@ sub service_sql_database($) {
                   . "  -p$host_info->{mysql_password} -e\""
                   . $query . "\"";
                 $log->log_debug("[service_sql_database] $TRIG: $query ",2);   
-                Scramble::ClusterTransport::worker_node_command( $TRIG, $host_info->{ip} );
+                Scramble::ClusterTransport::worker_node_command( $TRIG, $host_info->{ip} ,$log);
             
             }
             catch Error with {
@@ -1152,9 +1152,9 @@ sub service_remove_database($$) {
   my $err = "000000";
   my $param ="$SKYDATADIR/$node/stop";
   $log->log_debug("[service_remove_database] $self->{ip}: $param ",2);   
-  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
   $param = "rm -rf $SKYDATADIR/$node";
-  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
   $log->log_debug("[service_remove_database] $self->{ip}: $param ",2); 
   return $err;
 }
@@ -1189,7 +1189,7 @@ sub service_status_mycheckpoint($$$) {
           . " --purge-days=" 
           . $mon->{purge_days};
         $log->log_debug("[service_status_mycheckpoint] $host_info->{ip}: $cmd ",2);    
-        $err = Scramble::ClusterTransport::worker_node_command( $cmd, $host_info->{ip} );
+        $err = Scramble::ClusterTransport::worker_node_command( $cmd, $host_info->{ip} ,$log);
         if(  $err eq "00000" ){
             return 1;
         }    
@@ -1343,7 +1343,7 @@ sub service_status_memcache($$) {
 sub service_start_memcache($$) {
   my $self = shift;
   my $node = shift;
-  my $err = "000000";
+  my $err = "ER0019";
 
     # delete_pid_if_exists($SKYBASEDIR."/ncc/tmp/memcached.". $node .".pid",$self->{ip});
   my $param =
@@ -1353,14 +1353,16 @@ sub service_start_memcache($$) {
       . "/ncc/etc/memcached."
       . $node . ".cnf";
   $log->log_debug("[service_start_memcache] on $self->{ip}: ". $param  ,1);     
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ( $res ne "000000")   { $err=$res;}  
+    
   return $err;
 }
 
 sub service_start_tarantool($$) {
   my $self = shift;
   my $node = shift;
-  my $err = "000000";
+  my $err = "ER0019";
 
    
   my $param =
@@ -1370,7 +1372,8 @@ sub service_start_tarantool($$) {
       . "/ncc/etc/tarantool."
       . $node . ".cnf";
   $log->log_debug("[service_start_tarantool] on $self->{ip}: ". $param  ,1);  
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
   return $err;
 }
 
@@ -1379,24 +1382,27 @@ sub service_start_tarantool($$) {
 sub service_start_database($$) {
     my $self = shift;
     my $node = shift;   
-    my $err = "000000";
+    my $err = "ER0019";
    
     my $param = "$SKYDATADIR/$node/send_kill";
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
     $log->log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
-    
+    if ( $res ne "000000")   { $err=$res;}  
 
     $param = "$SKYDATADIR/$node/start";
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
     $log->log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
-     
+    if ( $res ne "000000")   { $err=$res;}
+ 
     my $memcaches =  Scramble::ClusterUtils::get_all_memcaches($config);
     $param =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} -e\""
           . "SELECT memc_servers_set('"
           . $memcaches . "');\"";
+          
     $log->log_debug("[service_start_database] on $self->{ip}: ". $param  ,1);        
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+    if ( $res ne "000000")   { $err=$res;}
     return $err;
 }
 
@@ -1422,7 +1428,8 @@ sub service_start_mycheckpoint($$) {
           . $host
           . " --http-port=80 &";
    $log->log_debug("[service_start_mycheckpoint] on $self->{ip}: ". $cmd  ,1);           
-   $err = Scramble::ClusterTransport::worker_node_command( $cmd , $self->{ip} );
+   my $res = Scramble::ClusterTransport::worker_node_command( $cmd , $self->{ip} ,$log);
+   if ( $res ne "000000")   { $err=$res;}  
    return $err;
 }
 
@@ -1443,14 +1450,15 @@ sub service_start_mysqlproxy($$) {
           . "/log/mysql-proxy."
           . $node . ".log  1>&2 ";
   $log->log_debug("[service_start_mysqlproxy] on $self->{ip}: ". $param  ,1);    
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ( $res ne "000000")   { $err=$res;}    
   return $err;
 }
 
 sub service_start_keepalived($$) {
   my $self = shift;
   my $node = shift;
-  my $err = "000000";  
+  my $err = "ER0019";  
   my $param =
             $SKYBASEDIR
           . "/keepalived/sbin/keepalived -f  "
@@ -1458,14 +1466,15 @@ sub service_start_keepalived($$) {
           . "/ncc/etc/keepalived."
           . $node . ".cnf";
   $log->log_debug("[service_start_keepalived] on $self->{ip}: ". $param  ,1);                
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
   return $err;
 }
 
 sub service_start_haproxy($$) {
   my $self = shift;
   my $node = shift;
-  my $err = "000000";  
+  my $err = "ER0019";  
   my $param =
             $SKYBASEDIR
           . "/haproxy/sbin/haproxy -f "
@@ -1477,7 +1486,8 @@ sub service_start_haproxy($$) {
           . "/tmp/haproxy."
           . $node . ".pid ";
   $log->log_debug("[service_start_haproxy] on $self->{ip}: ". $param  ,1);        
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
   return $err;
 }
 
@@ -1486,7 +1496,7 @@ sub service_start_bench($$$$) {
     my $node = shift;
     my $type = shift;
     my $bench_info= Scramble::ClusterUtils::get_active_lb($config);
-    my $err = "000000";
+    my $err = "ER0019";
    
  #  @abs_top_srcdir@/bin/client -u skysql -h 192.168.0.10 -a skyvodka -f -c 10 -s 10 -d dbt2 -l 3306  -o @abs_top_srcdir@/scripts/output/10/client
      
@@ -1507,7 +1517,7 @@ sub service_start_bench($$$$) {
       . $node
       ."/client &";
         $log->log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1);
-    $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
      #   @abs_top_srcdir@/src/driver -d localhost -l 100 -wmin 1 -wmax 10 -w 10 -sleep 10 -outdir @abs_top_srcdir@/scripts/output/10/driver -tpw 10 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0
     $cmd =
       $SKYBASEDIR
@@ -1524,10 +1534,10 @@ sub service_start_bench($$$$) {
       . $node
       ."/driver"; 
       $log->log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1); 
-     $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ); 
+     $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log); 
      $cmd="killall client";
-      $log->log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1);
-     $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ); 
+     $log->log_debug("[service_start_bench] on $self->{ip}: ". $cmd  ,1);
+     $err = Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log ); 
      my $outfile =$SKYDATADIR. "/" .$node."/driver/mix.log";
      my $json_res = dbt2_parse_mix( $outfile );
      return $json_res;
@@ -1536,17 +1546,17 @@ sub service_start_bench($$$$) {
 sub service_stop_database($$) {
     my $self = shift;
     my $node = shift;
-    my $err = "000000";
+    my $err = "ER0020";
 
     my $param = "$SKYDATADIR/$node/send_kill";
     $log->log_debug("[service_stop_database] on $self->{ip}: ". $param  ,1);
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
     return $err;
 }
 sub service_stop_mysqlproxy($$) {
   my $self = shift;
   my $name = shift;
-  my $err = "000000";
+  my $err = "ER0020";
     
   my $param =
             "kill -9 `cat "
@@ -1554,56 +1564,56 @@ sub service_stop_mysqlproxy($$) {
           . "/tmp/mysql-proxy."
           . $name . ".pid`";
   $log->log_debug("[service_stop_mysqlproxy] on $self->{ip}: ". $param  ,1);   
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
   return $err;
 }
 
 sub service_stop_memcache($$) {
   my $self = shift;
   my $name = shift;
-  my $err = "000000";
+  my $err = "ER0020";
   my $param =
             "kill -9 `cat "
           . $SKYDATADIR
           . "/tmp/memcached."
           . $name . ".pid`";
   $log->log_debug("[service_stop_memcache] on $self->{ip}: ". $param  ,1);         
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
   return $err;
 }
 
 sub service_stop_keepalived($$) {
   my $self = shift;
   my $name = shift;
-  my $err = "000000";
+  my $err = "ER0020";
   my $param = "killall keepalived ";
   $log->log_debug("[service_stop_keepalived] on $self->{ip}: ". $param  ,1);  
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
   return $err;
 }
 
 sub service_stop_haproxy($$) {
   my $self = shift;
   my $name = shift;
-  my $err = "000000";
+  my $err = "ER0020";
   my $param =
           "kill -9 `cat " . $SKYDATADIR . "/tmp/haproxy." . $name . ".pid`";
   $log->log_debug("[service_stop_haproxy] on $self->{ip}: ". $param  ,1);           
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
   return $err;
 }
 
 sub service_stop_mycheckpoint($$) {
   my $self = shift;
   my $name = shift;
-  my $err = "000000";
+  my $err = "ER0020";
   my $param =
             "kill -9 `cat "
           . $SKYDATADIR
           . "/tmp/mycheckpoint."
           . $name . ".pid`";
   $log->log_debug("[service_stop_mycheckpoint] on $self->{ip}: ". $param  ,1);         
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
    
   return $err;
 }
@@ -1614,14 +1624,14 @@ sub service_install_bench($$) {
  my $cmd="mkdir ". $SKYDATADIR ."/".$name;
  $log->log_debug("[service_install_bench]  ". $cmd  ,1);      
  
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+ Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
  $cmd="mkdir ". $SKYDATADIR ."/".$name."/client";
  $log->log_debug("[service_install_bench]  ". $cmd  ,1);      
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+ Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
  $cmd="mkdir ". $SKYDATADIR ."/".$name."/driver";
  $log->log_debug("[service_install_bench]  ". $cmd  ,1);      
  
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+ Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
  
  
  $cmd=$SKYBASEDIR
@@ -1633,7 +1643,7 @@ sub service_install_bench($$) {
       ." --mysql";
  $log->log_debug("[service_install_bench]  ". $cmd  ,1);      
  
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+ Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
  my $master=  Scramble::ClusterUtils::get_active_db($config);
  mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
  $log->log_debug("[service_install_bench] DROP DATABASE IF EXISTS dbt2 on master "  ,1);      
@@ -1654,7 +1664,7 @@ sub service_install_bench($$) {
       ." -p".$master->{mysql_password}
       ." -l -e INNODB"; 
  $log->log_debug("[service_install_bench]  ". $cmd  ,1);      
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} );
+ Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
  
 # "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
 # /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/ -s /tmp/mysql_sandbox5010.sock -u skysql  -pskyvodka -e INNODB
@@ -1670,13 +1680,13 @@ sub service_install_tarantool($$) {
       . "/"
       . $node ;
   $log->log_debug("[service_install_tarantool]  ". $param  ." on: ". $self->{ip},1);      
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
   $param =
         "chown skysql:skysql "
       . $SKYDATADIR 
       . "/"
       . $node;
-  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip});
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log);
   return $err;
 }
 
@@ -1708,7 +1718,7 @@ sub service_install_database($$$) {
 
     
     $log->log_debug("[service_install_database] $SANDBOX : ".$self->{ip},1);
-    my $result = Scramble::ClusterTransport::worker_node_command( $SANDBOX, $self->{ip} );
+    my $result = Scramble::ClusterTransport::worker_node_command( $SANDBOX, $self->{ip} ,$log);
     
     my $GRANT =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} -e\""
@@ -1716,14 +1726,14 @@ sub service_install_database($$$) {
       . "GRANT ALL ON *.* to \'$self->{mysql_user}\'@\'%\' IDENTIFIED BY \'$self->{mysql_password}\';"
       . "\"";
     $log->log_debug("[service_install_database] Grant: $GRANT : ".$self->{ip},1);  
-    Scramble::ClusterTransport::worker_node_command( $GRANT, $self->{ip} );
+    Scramble::ClusterTransport::worker_node_command( $GRANT, $self->{ip},$log );
 
     if ( $type eq 'spider' || $type eq 'monitor' ) {
     
         my $SPIDER =
         "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
         $log->log_debug("[service_install_database] Spider : $SPIDER : ".$self->{ip},1);  
-        $err = Scramble::ClusterTransport::worker_node_command( $SPIDER, $self->{ip} );
+        $err = Scramble::ClusterTransport::worker_node_command( $SPIDER, $self->{ip} ,$log);
         
 
     }
@@ -1732,31 +1742,31 @@ sub service_install_database($$$) {
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} -e\"INSTALL PLUGIN handlersocket SONAME \'handlersocket.so\';\"";
         $log->log_debug("[service_install_database] HandlerSocket : $HANDLERSOCKET : ".$self->{ip},1);  
        
-        $err = Scramble::ClusterTransport::worker_node_command( $HANDLERSOCKET, $self->{ip} );
+        $err = Scramble::ClusterTransport::worker_node_command( $HANDLERSOCKET, $self->{ip},$log );
     }
     my $GEARMANUDF =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gearmanudf.sql";
     $log->log_debug("[service_install_database] HandlerSocket : $GEARMANUDF : ".$self->{ip},1);  
        
-    $err = Scramble::ClusterTransport::worker_node_command( $GEARMANUDF, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $GEARMANUDF, $self->{ip},$log );
 
     my $param =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "SELECT gman_servers_set('127.0.0.1');\"";
     $log->log_debug("[service_install_database] Gearman : $param : ".$self->{ip},1);  
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
 
     my $MEMCACHEUDF =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_memcacheudf.sql";
     $log->log_debug("[service_install_database] Memcache : $MEMCACHEUDF : ".$self->{ip},1);  
     
-    $err = Scramble::ClusterTransport::worker_node_command( $MEMCACHEUDF, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $MEMCACHEUDF, $self->{ip},$log );
 
     my $GTTID =
    "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/gttid.sql";
     $log->log_debug("[service_install_database] Table Global Unique Id : $GTTID : ".$self->{ip},1);  
     
-    $err = Scramble::ClusterTransport::worker_node_command( $GTTID, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $GTTID, $self->{ip},$log );
     my $memcaches =  Scramble::ClusterUtils::get_all_memcaches($config);
 
     $param =
@@ -1765,7 +1775,7 @@ sub service_install_database($$$) {
       . $memcaches . "');\"";
     $log->log_debug("[service_install_database] test memcache set : $param: ".$self->{ip},1);  
       
-    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
 
    # $log->report_status( $self, "Install node", $err, $node );
     return $err;
@@ -1801,7 +1811,7 @@ sub service_sync_database($$$) {
     "-p$self->{mysql_password} ".
     "-e \'start slave;\'";
 
-    Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} );
+    Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
 }
 
 
@@ -1833,7 +1843,7 @@ sub instance_check_scrambledb($){
    
     my $command=
     ' "echo 2>&1" && echo "OK" || echo "NOK"';
-    my  $result = Scramble::ClusterTransport::worker_node_command($command,$ip);
+    my  $result = Scramble::ClusterTransport::worker_node_command($command,$ip,$log);
   
      if ( $result eq "000000"){ 
        $log->log_debug("[instance_check_scrambledb] is running on ip : ". $ip,2);
@@ -2046,8 +2056,8 @@ sub service_check_vip(){
     ." $lb->{vip}" 
     ." netmask 255.255.255.255 up";
     my $cmd1 ="/sbin/ifconfig lo:0 down";  
-    Scramble::ClusterTransport::worker_node_command($cmd1,"localhost");
-    Scramble::ClusterTransport::worker_node_command($cmd2,"localhost");
+    Scramble::ClusterTransport::worker_node_command($cmd1,"localhost",$log);
+    Scramble::ClusterTransport::worker_node_command($cmd2,"localhost",$log);
 
   }
    return  $err;
@@ -2342,7 +2352,7 @@ sub bootstrap_config() {
         system( $action);
           
         
-        $err = Scramble::ClusterTransport::worker_config_command( $command, $_ );
+        $err = Scramble::ClusterTransport::worker_config_command( $command, $_ ,$log);
         
     }
     $log->log_debug("[bootstrap_config] End bootstrap_config" ,1);

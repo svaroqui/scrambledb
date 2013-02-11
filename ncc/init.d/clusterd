@@ -117,7 +117,7 @@ start()
   nohup $SKYBASEDIR/perl/bin/perl $WORKERCLOUDDOCTOR < /dev/null > $LOG/worker_cloud_doctor.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid   
-  nohup $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
+  nohup python $WORKERCLOUD < /dev/null > $LOG/worker_cloud.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 
  fi
