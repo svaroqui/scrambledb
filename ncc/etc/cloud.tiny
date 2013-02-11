@@ -108,7 +108,7 @@
     cloud		    cloud2		
     hosts                   db1
     port 		    3307 
-    script                  rw-splitting.template
+    script                  scramble.template
 </proxy>
 
 <proxy proxy2>
@@ -126,7 +126,7 @@
     cloud		    cloud2		
     hosts                   db1
     port                    3307
-    script                  rw-splitting.template
+    script                  scramble.template
 </proxy>
 
 <nosql nosql1>
@@ -289,7 +289,7 @@
     ip                      127.0.0.1 
     hosts                   db10
     port 		    3307 
-    script                  rw-splitting.template
+    script                  scramble.template
     cloud		    cloud3
 </proxy>
 
@@ -298,7 +298,7 @@
     ip                      127.0.0.1 
     hosts                   db10
     port 		    3308
-    script                  rw-splitting.template
+    script                  scramble.template
     cloud		    cloud3
 </proxy>
 
