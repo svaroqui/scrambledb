@@ -30,8 +30,17 @@ local bit = require 'bit.numberlua'.bit32
 
 
 local backend_id_server = { 5010,5011}
+ local replication_dsn = {{ port = 5011, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'}}
+
 local memcache_master="127.0.0.1"
 local memcache_port = 11211
+if not proxy.global.config.rwsplit then
+proxy.global.config.rwsplit = {
+       com_queries_ro   = 0,
+       com_queries_rw   = 0,
+	is_debug = true 
+}
+end
 -- insert here --	    
 
 -- connection pool
@@ -278,7 +287,8 @@ function connect_server()
 			   ( cur_idle < min_idle_connections and 
 			     cur_idle < least_idle_conns ) then
 				least_idle_conns_ndx = i
-				least_idle_conns = s.idling_connections
+				least_idle_conns = s.pool.users[""].cur_idle_connections
+                                -- s.idling_connections
 			end
 		end
 	end
@@ -348,7 +358,18 @@ function disconnect_client()
   end
 end
 
+function todo(SQL)
+  if string.find(string.upper(SQL),"CREATE" ) == nil and  
+     string.find(string.upper(SQL),"DROP" ) == nil and
+     string.find(string.upper(SQL),"ALTER TABLE" ) == nil then 
 
+    return nil 
+  end
+     if not (string.find(string.upper(SQL),"SHOW" ) == nil) then
+	 return nil 
+     end 
+  return 1 	
+end
 
 
 function read_query( packet )
@@ -375,8 +396,7 @@ function read_query( packet )
 
 		return proxy.PROXY_SEND_RESULT
 	end
-
-	
+        
         if cmd.type == proxy.COM_QUERY then
           if is_debug then
 		print("[read_query] " .. proxy.connection.client.src.name)
@@ -447,6 +467,7 @@ function read_query( packet )
                                 
 			end
 		end -- TK_SQL_SELECT
+                
 	end -- is_not_in_transaction and COM_QUERY
 
 	-- no backend selected yet, pick a master
@@ -509,7 +530,12 @@ function read_query( packet )
                 i=i+1
             end 
             proxy.queries:append(i, string.char(proxy.COM_QUERY)  .. "SET binlog_format =\"MIXED\"", { resultset_is_needed = true } )
-   
+            if todo(packet:sub(2)) == 1 then
+                i=i+1
+                sql = "SELECT gman_do('cluster_cmd','{command: {action:\"sql\" ,group:\"all\", type:\"all\", database: \"" ..  c.default_db .. "\", query: \"" .. sql  ..  "\"}}')"
+  		proxy.queries:append(i ,string.char(proxy.COM_QUERY) .. sql,, { resultset_is_needed = true } )
+            end       
+	
        end 
         
        if( proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then

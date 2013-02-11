@@ -12,17 +12,17 @@ global_defs {
 vrrp_instance mysql_pool {
   # The interface we listen on.
   interface eth0
-  vrrp_unicast_bind 10.0.0.102
+  vrrp_unicast_bind 10.0.0.49
   vrrp_unicast_peer 10.0.0.47
   # The default state, one should be master, the others should be set to SLAVE.
-  state MASTER
+  state SLAVE
 
  # This should be the same on all participating load balancers.
   virtual_router_id 1
 
   priority 102
 
-  notify_master "/usr/local/skysql/ncc/clmgr services switch_vip"
+  notify_master "/usr/local/skysql/ncc/bin/clmgr services switch_vip"
   # Set the interface whose status to track to trigger a failover.  
   track_interface {
     eth0

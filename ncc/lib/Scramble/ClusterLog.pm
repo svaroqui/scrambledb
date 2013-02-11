@@ -48,7 +48,8 @@ our %ERRORMESSAGE = (
     "ER0014" => "No Memcached status for action",
     "ER0015" => "No Memcached actions ",
     "ER0016" => "Delayed start until instance start",
-    "ER0017" => "Delayed start until instance creation"
+    "ER0017" => "Delayed start until instance creation",
+    "ER0018" => "Remote command failed "
 
 );
 
@@ -162,23 +163,23 @@ sub debug() {
 }
 
 
-sub report_action($$$$) {
+sub report_action($$$$$) {
     my $self = shift;
     my $ip = shift;
     my $cmd  = shift;
     my $err  = shift;
+    my $res  = shift;
     my $le_localtime = localtime;
-    
+    my $action_add  = 
+       {
+        time       => $le_localtime,
+        ip         => $ip, 
+        command    => $cmd,
+        return     => $err,
+        result     => $res
+       };
     push(@{$self->{actions}} ,
-       '{"time":"'
-      . $le_localtime
-      . '","ip":"'
-      . $ip 
-      . '","code":"'
-      . $err
-      . '","command":"'
-      . $cmd  
-      . '"}'
+       $action_add
    );   
 }
 
@@ -189,6 +190,10 @@ sub report_status($$$$$) {
     my $err  = shift;
     my $host = shift;
     $self->log_debug( "[report_status] ". $cmd , 1);
+    $self->log_debug( "[report_status] ". $hostinfo , 1);
+    $self->log_debug( "[report_status] ". $err , 1);  
+    $self->log_debug( "[report_status] ". $host , 1);  
+    
     my $le_localtime = localtime;
     my $status ="na";
     if ( $hostinfo->{status}) { 
@@ -237,6 +242,7 @@ sub log_json($$$){
     }       
 }
  
+
 
 
 1;

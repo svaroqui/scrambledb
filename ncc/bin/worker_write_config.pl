@@ -547,16 +547,26 @@ sub write_mysql_config(){
     my $host_info ;
     my $err = "000000";
     my @masters;
+    my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);  
     foreach my $host (keys(%{$config->{db}})) {
-        $host_info = $config->{db}->{default};
+        my $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        my $file = "$SKYDATADIR/tmp/template.$host.json";
+        if ($host_info->{cloud} eq $cloud_name){  
+         my $file = "$SKYDATADIR/tmp/template.$host.json";
        
      #  system  `$SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/$host_info->{template}  mysqld | sed 's/--//g' | awk -F'=' 'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }' > $file `;
-        get_mysql_diff($host,$host_info);
-        my $ram =get_memory_from_status($host_info);
-        my $mem = $ram*$host_info->{mem_pct}/100;    
-        replace_patern_infile("$SKYBASEDIR/".$host."/". $host_info->{template}, "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
+       if (Scramble::ClusterUtils::is_ip_localhost($host_info->{ip}) ==1) {
+         my $change_variables =get_mysql_variables_diff($host,$host_info); 
+         foreach my $variable (keys(%{$change_variables})) {
+            if ( $variable ne "scramble" ) {
+                replace_patern_infile("$SKYDATADIR/".$host."/my.sandbox.cnf" , $variable,$variable. "=" .$change_variables->{$variable} );  
+            }
+         }
+         my $ram =get_memory_from_status($host_info);
+         my $mem = $ram*$host_info->{mem_pct}/100;    
+         replace_patern_infile("$SKYBASEDIR/".$host."/". $host_info->{template}, "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
+        }
+       }
     }
     return 0 ;
 }
@@ -699,24 +709,27 @@ sub write_certificat(){
 
 
 
-sub get_mysql_diff($){
+sub get_mysql_variables_diff($$){
  my $host=shift;
  my $host_info=shift;
  my $json = new JSON;
   
 
+ $log->log_debug("[get_mysql_diff] Read variables diff for service ".$host,2);
 
-
- my $command = 'diff -B <( /usr/local/skysql/mariadb/bin/my_print_defaults  --defaults-file=/usr/local/skysql/ncc/etc/my.template mysqld | sort  | tr [:upper:] [:lower:] ) <( /usr/local/skysql/mariadb/bin/my_print_defaults  --defaults-file=/var/lib/skysql/sandboxes/node10/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] ) | grep \'>\' | grep -vE \'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user\' | sed \'s/\> --//g\' | awk -F\'=\' \'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }\'';
- my $result=Scramble::ClusterTransport::worker_node_command( $command, $host_info->{ip} ); 
+ my $command ="bash -c 'diff -B <($SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/".$host_info->{mysql_cnf}." mysqld | sort  | tr [:upper:] [:lower:] ) <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYDATADIR/$host/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] )' ";
+ $command = $command . q% | grep '>' | grep -vE 'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user' | sed 's/\> --//g' | awk -F'=' 'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }'  | sed 's/""/"na"/g' | tr -d '\n' %;
  
-
-#my $mysql_variables =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
-#             ->allow_singlequote->allow_barekey->decode($result);
-# $log->log_debug("[get_mysql_diff] read diff",2);
-# $log->log_json($mysql_variables,1);
-               
-
+ #my $result_json =Scramble::ClusterTransport::worker_node_command( $command, $host_info->{ip} ); 
+ my  $result_json =  `$command`; 
+  $result_json =~ s/\n//g; 
+  
+ #$log->log_json($mysql_variables,1);
+    
+ my $mysql_variables =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
+             ->allow_singlequote->allow_barekey->decode($result_json);
+ 
+ return  $mysql_variables;
  
 }
 

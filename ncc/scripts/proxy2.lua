@@ -20,6 +20,10 @@
 
 require('Memcached')
 -- require('CRC32')
+luasql = require 'luasql.mysql'
+local _sqlEnv = assert(luasql.mysql())
+local _con = nil
+
 
 
 local commands    = require("proxy.commands")
@@ -30,31 +34,26 @@ local bit = require 'bit.numberlua'.bit32
 
 
 local backend_id_server = { 5010,5011}
+ local replication_dsn = {{ port = 5011, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'}}
+
 local memcache_master="127.0.0.1"
 local memcache_port = 11211
+if not proxy.global.config.rwsplit then
+proxy.global.config.rwsplit = {
+       com_queries_ro   = 0,
+       com_queries_rw   = 0,
+	is_debug = true 
+}
+end
 -- insert here --	    
 
--- connection pool
-         
 
-if not proxy.global.config.rwsplit then
-	proxy.global.config.rwsplit = {
-		min_idle_connections = 4,
-		max_idle_connections = 100,
-                com_queries_ro   = 0,
-                com_queries_rw   = 0,
-		is_debug = true  
-	}
-end
-
-local min_idle_connections = 4
-local max_idle_connections = 8
+       
 
 
 
 local is_in_transaction       = false
 local is_in_select_calc_found_rows = false
-
 
 
 function tablename_expand(tblname, db_name)
@@ -238,75 +237,7 @@ end
 local is_debug =1
 
 function connect_server() 
-	-- make sure that we connect to each backend at least ones to 
-	-- keep the connections to the servers alive
-	--
-	-- on read_query we can switch the backends again to another backend
 
-	if is_debug then
-		print()
-		print("[connect_server] ")
-	end
-
-	local least_idle_conns_ndx = 0
-	local least_idle_conns = 0
-
-	for i = 1, #proxy.global.backends do
-		local s = proxy.global.backends[i]
-		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
-		local cur_idle = pool.users[""].cur_idle_connections
-
-		if is_debug then
-			print("  [".. i .."].connected_clients = " .. s.connected_clients)
-			print("  [".. i .."].idling_connections = " .. cur_idle)
-			print("  [".. i .."].type = " .. s.type)
-			print("  [".. i .."].state = " .. s.state)
-		end
-
-		if s.state ~= proxy.BACKEND_STATE_DOWN then
-			-- try to connect to each backend once at least
-			if cur_idle == 0 then
-				proxy.connection.backend_ndx = i
-				if is_debug then
-					print("  [".. i .."] open new connection")
-				end
-				return
-			end
-
-			-- try to open at least min_idle_connections
-			if least_idle_conns_ndx == 0 or
-			   ( cur_idle < min_idle_connections and 
-			     cur_idle < least_idle_conns ) then
-				least_idle_conns_ndx = i
-				least_idle_conns = s.idling_connections
-			end
-		end
-	end
-
-	if least_idle_conns_ndx > 0 then
-		proxy.connection.backend_ndx = least_idle_conns_ndx
-	end
-
-	if proxy.connection.backend_ndx > 0 then 
-		local s = proxy.global.backends[proxy.connection.backend_ndx]
-		local pool     = s.pool -- we don't have a username yet, try to find a connections which is idling
-		local cur_idle = pool.users[""].cur_idle_connections
-
-		if cur_idle >= min_idle_connections then
-			-- we have 4 idling connections in the pool, that's good enough
-			if is_debug then
-				print("  using pooled connection from: " .. proxy.connection.backend_ndx)
-			end
-	
-			return proxy.PROXY_IGNORE_RESULT
-		end
-	end
-
-	if is_debug then
-		print("  opening new connection on: " .. proxy.connection.backend_ndx)
-	end
-
-	-- open a new connection 
 end
 
 --- 
@@ -316,36 +247,12 @@ end
 --
 -- auth.packet is the packet
 function read_auth_result( auth )
-	if auth.packet:byte() == proxy.MYSQLD_PACKET_OK then
-		-- auth was fine, disconnect from the server
-		proxy.connection.backend_ndx = 0
-	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_EOF then
-		-- we received either a 
-		-- 
-		-- * MYSQLD_PACKET_ERR and the auth failed or
-		-- * MYSQLD_PACKET_EOF which means a OLD PASSWORD (4.0) was sent
-		print("(read_auth_result) ... not ok yet");
-	elseif auth.packet:byte() == proxy.MYSQLD_PACKET_ERR then
-		-- auth failed
-	end
+
 end
 
 
 function disconnect_client()
-  if proxy.connection.backend_ndx == 0 then
-    -- currently we don't have a server backend assigned
-    --
-    -- pick a server which has too many idling connections and close one
-    for i = 1, #proxy.global.backends do
-      local s = proxy.global.backends[i]
-      if s.state ~= proxy.BACKEND_STATE_DOWN and 
-	s.pool.users[proxy.connection.client.username].cur_idle_connections > max_idle_connections then
-        -- try to disconnect a backend
-        proxy.connection.backend_ndx = i
-        return
-      end
-    end
-  end
+  
 end
 
 
@@ -363,18 +270,7 @@ function read_query( packet )
 	local norm_query
         local stmt
 
-	if cmd.type == proxy.COM_QUIT then
-		-- don't send COM_QUIT  We keep the connection open
-		proxy.response = {
-			type = proxy.MYSQLD_PACKET_OK,
-		}
 	
-		if is_debug then
-			-- print("  (QUIT) current backend   = " .. proxy.connection.backend_ndx)
-		end
-
-		return proxy.PROXY_SEND_RESULT
-	end
 
 	
         if cmd.type == proxy.COM_QUERY then
@@ -397,7 +293,7 @@ function read_query( packet )
 		if stmt.token_name == "TK_SQL_SELECT" then
 			is_in_select_calc_found_rows = false
 			local is_insert_id = false
-
+                            
 			for i = 1, #tokens do
 				local token = tokens[i]
 				-- SQL_CALC_FOUND_ROWS + FOUND_ROWS() have to be executed 
@@ -430,70 +326,67 @@ function read_query( packet )
 			end
 
 			if not is_insert_id   then
-                            local backend_ndx=0;
-                            for i = 1, #proxy.global.backends do
-                               if  proxy.global.backends[i].state == proxy.BACKEND_TYPE_RO  then  
-                                   if is_query_to_slave(tokens,i) then 
-                                     backend_ndx = i
-                                      break
-                                   end 
-				end 
-                            end     
-			    if backend_ndx > 0 then
-					proxy.connection.backend_ndx = backend_ndx
-			    end
+                           local backend_ndx=found_replicate(tokens);
+                          
+                           if backend_ndx >0 then 
+                            local replicat=replication_dsn[backend_ndx]
+                            _con = assert(_sqlEnv:connect(proxy.connection.client.default_db, replicat.user, replicat.password, replicat.ip, replicat.port))
+			    local result = nil
+                            local cur = assert(_con:execute(cmd.query))
+                            if (type(cur) == "number") then
+                                proxy.response.type = proxy.MYSQLD_PACKET_RAW;
+                                proxy.response.packets = {
+                                    "\000" .. -- fields
+                                    string.char(cur) ..
+                                    "\000" -- insert_id
+                                }
+                                result = proxy.PROXY_SEND_RESULT
+                            else
+                                -- Build up the result set.
+                                local fields = {}
+                                local colNames = cur:getcolnames()
+                                local colTypes = cur:getcoltypes()
+                                for a = 1, #colNames, 1 do
+                                    table.insert(fields, {name = colNames[a], type=proxy.MYSQL_TYPE_STRING})
+                                end
+                                local curRow = {}
+                                local rows = {}
+                                while (cur:fetch(curRow)) do
+                                    table.insert(rows, curRow)
+                                end
+                                proxy.response = {
+                                    type = proxy.MYSQLD_PACKET_OK,
+                                    resultset = {
+                                        fields = fields,
+                                        rows = rows
+                                    }
+                                }
+                                result = proxy.PROXY_SEND_RESULT
+                                
+                            end
+
+                            if (result ~= nil) then
+                                proxy.global.config.rwsplit.com_queries_ro=proxy.global.config.rwsplit.com_queries_ro+1
+                                print("com_queries_to_slave:" .. proxy.global.config.rwsplit.com_queries_ro)
+                                print("com_queries_to_master:" ..  proxy.global.config.rwsplit.com_queries_rw)
+                                return result
+                            end
+                          end -- we found a replicate 
+                             
 			else
-				print("   found a SELECT LAST_INSERT_ID(), staying on the same backend")
+			   print("   found a SELECT LAST_INSERT_ID(), staying on the same backend")
                                 
 			end
 		end -- TK_SQL_SELECT
+
+                
+
 	end -- is_not_in_transaction and COM_QUERY
 
-	-- no backend selected yet, pick a master
-	if proxy.connection.backend_ndx == 0 then
-		-- we don't have a backend right now
-		-- 
-		-- let's pick a master as a good default
-		--
-		proxy.connection.backend_ndx = lb.idle_failsafe_rw()
-	end
-
-	-- by now we should have a backend
-	--
-	-- in case the master is down, we have to close the client connections
-	-- otherwise we can go on
-	if proxy.connection.backend_ndx == 0 then
-                proxy.queries:append(1, packet, { resultset_is_needed = true })
-		return proxy.PROXY_SEND_QUERY
-	end
-
-	local s = proxy.connection.server
-
-	-- if client and server db don't match, adjust the server-side 
-	--
-	-- skip it if we send a INIT_DB anyway
-	if cmd.type ~= proxy.COM_INIT_DB  and c.default_db ~= s.default_db then
-		print("    server default db: " .. s.default_db)
-		print("    client default db: " .. c.default_db)
-		print("    syncronizing")
-		proxy.queries:append(2, string.char(proxy.COM_INIT_DB) .. c.default_db, { resultset_is_needed = true })
-	end
-
-	-- send to master
- 
-      
-	if is_debug then
-		if proxy.connection.backend_ndx > 0 then
-			local b = proxy.global.backends[proxy.connection.backend_ndx]
-			print("  sending to backend : " .. b.dst.name);
-			print("    is_slave         : " .. tostring(b.type == proxy.BACKEND_TYPE_RO));
-			print("    server default db: " .. s.default_db)
-			print("    server username  : " .. s.username)
-		end
-		print("    in_trans        : " .. tostring(is_in_transaction))
-		print("    in_calc_found   : " .. tostring(is_in_select_calc_found_rows))
-		print("    COM_QUERY       : " .. tostring(cmd.type == proxy.COM_QUERY))
-	end
+	
+        proxy.global.config.rwsplit.com_queries_rw=proxy.global.config.rwsplit.com_queries_rw+1
+        print("com_queries_to_slave:" .. proxy.global.config.rwsplit.com_queries_ro)
+        print("com_queries_to_master:" ..  proxy.global.config.rwsplit.com_queries_rw)
         local tbls  = {} 
    
        if  cmd.type == proxy.COM_QUERY  and stmt.token_name ~= "TK_SQL_SELECT" then
@@ -512,29 +405,31 @@ function read_query( packet )
    
        end 
         
-       if( proxy.global.backends[proxy.connection.backend_ndx].type == proxy.BACKEND_TYPE_RO and cmd.type == proxy.COM_QUERY ) then
-         proxy.global.config.rwsplit.com_queries_ro   = proxy.global.config.rwsplit.com_queries_ro+1
-       else
-         proxy.global.config.rwsplit.com_queries_rw   = proxy.global.config.rwsplit.com_queries_rw+1
-       end
-       print ("com_queries_ro :" ..  proxy.global.config.rwsplit.com_queries_ro)
-       print ("com_queries_rw :" ..  proxy.global.config.rwsplit.com_queries_rw)
+      
        proxy.queries:append(1, packet, { resultset_is_needed = true })
        return proxy.PROXY_SEND_QUERY
 end
 
 
-function is_query_to_slave(tokens,idx_backend ) 
---       while ( memcache:add("_lock","lock",1) == nil ) do 
---            print("lock")
---       end
-  local tbls  = {} 
-  print( " is_query_to_slave")
-  if  (not (tokens == nil)) then    
+function found_replicate(tokens ) 
+  local is_debug = proxy.global.config.rwsplit.is_debug  
+  
+  --       while ( memcache:add("_lock","lock",1) == nil ) do 
+  --            print("lock")
+  --       end
+ if  (not (tokens == nil)) then    
+     
+  local memcache= Memcached.Connect(memcache_master , memcache_port) 
+   
+  for k, v in ipairs(replication_dsn) do
+    local isgood=1
+    local tbls  = {} 
+    print(" is_query_to_slave")
             tbls = get_sql_tables(tokens)
-            local memcache= Memcached.Connect(memcache_master , memcache_port) 
+           
             local slaveGTID=0  
             local masterGTID=0  
+            
             for tbl,v in pairs(tbls) do
                 if is_debug then 
                   print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[1])
@@ -545,19 +440,19 @@ function is_query_to_slave(tokens,idx_backend )
                    if is_debug then
                      print ("   Fail back to master : No memcache entry in master")
                    end
-                   memcache:disconnect_all() 
-                   return 0
+                 
+                   isgood= 0
                 end 
                 if is_debug then 
-                  print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[idx_backend])
+                  print("    Get table from memcache   : " .. tbl .." sercer-id " ..  backend_id_server[k+1])
                 end
-                slaveGTID=memcache:get(crc(tbl) ..  backend_id_server[idx_backend] )
+                slaveGTID=memcache:get(crc(tbl) ..  backend_id_server[k+1] )
                 if slaveGTID==nil then
                    if is_debug then
                     print ("   Fail back to master : No memcache entry in slave")
                    end
-                   memcache:disconnect_all() 
-                   return 0
+                 
+                   isgood= 0
                    
                 end  
                 if is_debug then
@@ -567,16 +462,26 @@ function is_query_to_slave(tokens,idx_backend )
 
                 if  masterGTID ~=slaveGTID then 
                    print ("    Fail back to master : Replication Table Delay")
-                   memcache:disconnect_all() 
-                   return 0
-                 end 
-             
-            end -- for each table 
+                   isgood= 0
+                end 
+                if isgood == 1 then 
+                   -- we pass all test on this replicate  
+                   memcache:disconnect_all()
+                   return k
+                end    
 
-            end   
+            end -- for each table 
+                
             
-           memcache:disconnect_all() 
-            return 1
+          
+           
+      end  -- for each slave     
+       memcache:disconnect_all()
+ end  -- tokens NOT nil
+ 
+ return 0   
+
+
 --  memcache:increment( backend_id_server[proxy.connection.backend_ndx],1)                     
  --      memcache:delete( "_lock")       
 end 
@@ -589,25 +494,7 @@ function read_query_result( inj )
        
 
 	if inj.id ~= 1 then
-		-- ignore the result of the USE <default_db>
-		-- the DB might not exist on the backend, what do do ?
-		--
-		if inj.id == 2 then
-			-- the injected INIT_DB failed as the slave doesn't have this DB
-			-- or doesn't have permissions to read from it
-			if res.query_status == proxy.MYSQLD_PACKET_ERR then
-				proxy.queries:reset()
-
-				proxy.response = {
-					type = proxy.MYSQLD_PACKET_ERR,
-					errmsg = "can't change DB ".. proxy.connection.client.default_db ..
-						" to on slave " .. proxy.global.backends[proxy.connection.backend_ndx].dst.name
-				}
-
-				return proxy.PROXY_SEND_RESULT
-			end
-                        
-		end
+	
                 if (inj.id > 2) then
                     if res.query_status == proxy.MYSQLD_PACKET_ERR then
                     -- proxy.queries:reset()
@@ -626,17 +513,11 @@ function read_query_result( inj )
 	is_in_transaction = flags.in_trans
 	local have_last_insert_id = (res.insert_id and (res.insert_id > 0))
 
-	if not is_in_transaction and 
-	   not is_in_select_calc_found_rows and
-	   not have_last_insert_id then
-		-- release the backend
-		proxy.connection.backend_ndx = 0
-	elseif is_debug then
-		print("(read_query_result) staying on the same backend")
-		print("    in_trans        : " .. tostring(is_in_transaction))
-		print("    in_calc_found   : " .. tostring(is_in_select_calc_found_rows))
-		print("    have_insert_id  : " .. tostring(have_last_insert_id))
-	end
+	
 end
 
 
+
+
+
+   

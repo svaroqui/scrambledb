@@ -1,20 +1,26 @@
 #!/usr/bin/env perl
-# chkconfig: 2345 95 20
-# description: ScrambleDB is database virtualisation architeture
-# Startup script for ScrambleDB server and library
-# Copyright (C) 2012 Stephane Varoqui SkySQL AB 
-# All rights reserved.
-# processname: scrambledbd
+#  Copyright (C) 2012 Stephane Varoqui @SkySQL AB Co.,Ltd.
 #
-# Use and distribution licensed under the LGPL license.  See
-# the COPYING file in this directory for full text.
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#  Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
 
 use strict;
 use warnings;
-
-
+use JSON;
 use Getopt::Std;
-
 use Gearman::XS qw(:constants);
 use Gearman::XS::Worker;
 #use Proc::PID_File;
@@ -71,15 +77,35 @@ sub node_cmd {
     print STDOUT "<$command>\n";
 
 #open(my $res,"$command") || die "Failed: $!\n";
-system($command);
-if ( $? == -1 )
-{      
-        return "false"
-}   
+my  $res =  `$command`; 
+ $res =~ s/\n//g; 
+  my $json = new JSON;   
+ print STDERR $res; 
+ if (  $? == -1 )
+ {      
+       my $result  = 
+       {
+        command    => $command,
+        result     => "",
+        return     => "ER0018"
+       };
+      
+       my $json_result= $json->allow_blessed->convert_blessed->encode($result);
+       return $json_result;
+ }   
     else {
-        return "true"
+       
+       my $result  = 
+       {
+        command    => $command,
+        result     => $res,
+        return     => "000000"
+       };
+       
+       my $json_result= $json->allow_blessed->convert_blessed->encode($result);
+       return $json_result;
     }
-}
+ }
 
 exit;
 

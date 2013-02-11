@@ -22,6 +22,7 @@
 
 package Scramble::ClusterTransport;
 use Scramble::ClusterUtils;
+use Scramble::ClusterLog;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
 our $log = new Scramble::ClusterLog;
@@ -44,15 +45,23 @@ sub worker_node_command($$) {
     ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
 
     if ( $ret == GEARMAN_SUCCESS ) {
-        if ( $result eq "true" ) {
-            $res = "000000";
-        }
-        else { $res = "ER0003"; }
-
+        $log->log_debug("[worker_node_command] Info: $cmd".$result ,1);
+        
     }
-    else { $res = "ER0002"; }
-    $log->report_action($ip,$cmd,$res);
-    return $res;
+    else { 
+
+       
+       my $result_error  = 
+       {
+        command    => $cmd,
+        result     => "",
+        return     => "ER0002"
+       };
+       my $json = new JSON;
+       $result= $json->allow_blessed->convert_blessed->encode($result_error);
+    }
+    $log->report_action($ip,$cmd,$res,get_result_from_node_cmd($result));
+    return get_return_error_from_node_cmd($result);
 
 }
 
@@ -104,3 +113,32 @@ sub worker_doctor_command($$) {
 
 }
 
+sub get_return_error_from_node_cmd($){
+ my $result=shift; 
+ my $json      = new JSON;
+ print STDERR $result;
+ my $perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($result);
+ if (defined($perl_class->{return})) {
+      if ( $perl_class->{return}  eq "000000") {
+          return $perl_class->{return};
+      } 
+      return $perl_class->{return};
+ } else {
+   return "ER0030";
+ }  
+}
+
+sub get_result_from_node_cmd($){
+ my $result=shift; 
+ my $json      = new JSON;
+ print STDERR $result;
+ my $perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($result);
+ if (defined($perl_class->{result})) {
+      if ( $perl_class->{return}  eq "000000") {
+          return $perl_class->{result};
+      } 
+      return "";
+ } else {
+   return "";
+ }  
+}

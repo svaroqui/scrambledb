@@ -3,7 +3,7 @@ global
    maxconn     4000
    daemon
    # turn on stats unix socket
-   stats socket /usr/local/skysql/ncc/tmp/stats
+   stats socket /var/lib/skysql/tmp/stats
 #---------------------------------------------------------------------
 # common defaults that all the 'listen' and 'backend' sections will
 # use if not designated in their block

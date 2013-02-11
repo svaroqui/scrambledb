@@ -31,7 +31,7 @@ use JSON;
 
 use Scramble::ClusterUtils;
 use Scramble::ClusterConfig;
-
+use Scramble::ClusterLog;
 
 our $SKYBASEDIR            = $ENV{SKYBASEDIR};
 our $SKYDATADIR            = $ENV{SKYDATADIR};

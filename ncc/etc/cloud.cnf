@@ -12,7 +12,7 @@
 </cloud>
 
 <cloud cloud2>
-    status                 master
+    status                 slave
     user            	   AKIAJR7YEOZPXASJCYDQ
     password        	   xxx
     host            	   na
@@ -32,6 +32,19 @@
     interface_vip_id       eni-2704df4a 
 </cloud>
 
+<cloud cloud3>
+    status                 master
+    user                   xxxx
+    password               xxxx
+    host                   na
+    version                1.5
+    driver                 LOCAL
+    template               na   
+    key                    na
+    ex_vdc                 na
+    instance_type          na
+    public_key             id_rsa
+</cloud>
 
 <db default>
     cluster_interface       eth0
@@ -51,7 +64,7 @@
     peer                    db1
     mysql_version           mariadb
     mysql_port		    5010 
-    mysql_cnf		    etc/my.template
+    mysql_cnf		    my.template
     mem_pct                 30
     io_pct                  30
 </db>
@@ -64,7 +77,7 @@
 #    peer		    db1
 #    mysql_version	    mariadb
 #    mysql_port 	    5011
-#    mysql_cnf		    etc/my.template
+#    mysql_cnf		    my.template
 #    mem_pct                30
 #    io_pct                 30
 #</db>
@@ -80,7 +93,7 @@
     mysql_port 		    5012
     mem_pct		    30
     io_pct		    30
-    mysql_cnf		    etc/my.template
+    mysql_cnf		    my.template
 </db>
 
 #<db node20>
@@ -90,7 +103,7 @@
 #    peer                    node10,node11
 #    mysql_version           spider 
 #    mysql_port              5020
-#    mysql_cnf		     etc/my_proxy.cnf
+#    mysql_cnf		     my_proxy.cnf
 #    cloud                   cloud2
 #</db>
 
@@ -163,21 +176,6 @@
     admin_port              33025
     rows_per_wal            50000
 </nosql>
-
-
-<cloud cloud3>
-    status          slave
-    user            xxxx
-    password        xxxx
-    host            na
-    version         1.5
-    driver          LOCAL
-    template        na   
-    key             na
-    ex_vdc          na
-    instance_type   na
-    public_key      id_rsa
-</cloud>
 
 
 <lb lb1>
@@ -269,7 +267,7 @@
     mysql_version           mariadb
     mysql_port		    5010 
     mysql_server_id         5010
-    mysql_cnf		    etc/my.template
+    mysql_cnf		    my.template
     cloud		    cloud3
 </db>
 
@@ -281,7 +279,7 @@
     mysql_version	    mariadb
     mysql_port 		    5011
     mysql_server_id         5011
-    mysql_cnf		    etc/my.template
+    mysql_cnf		    my.template
     cloud		    cloud3
 </db>
 

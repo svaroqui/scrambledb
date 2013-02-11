@@ -22,7 +22,7 @@ vrrp_instance mysql_pool {
 
   priority 101
 
-  notify_master "/usr/local/skysql/ncc/clmgr services switch_vip"
+  notify_master "/usr/local/skysql/ncc/bin/clmgr services switch_vip"
   # Set the interface whose status to track to trigger a failover.  
   track_interface {
     eth1

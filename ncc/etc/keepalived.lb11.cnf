@@ -15,14 +15,14 @@ vrrp_instance mysql_pool {
   vrrp_unicast_bind 127.0.0.1
   vrrp_unicast_peer 127.0.0.1
   # The default state, one should be master, the others should be set to SLAVE.
-  state MASTER
+  state SLAVE
 
  # This should be the same on all participating load balancers.
   virtual_router_id 1
 
   priority 103
 
-  notify_master "/usr/local/skysql/ncc/clmgr services switch_vip"
+  notify_master "/usr/local/skysql/ncc/bin/clmgr services switch_vip"
   # Set the interface whose status to track to trigger a failover.  
   track_interface {
     eth2

@@ -9,7 +9,7 @@ slab_alloc_arena = 0.1
 #
 # Store the pid in this file. Relative to
 # startup dir.
-pid_file = "/usr/local/skysql/ncc/tmp/tarantool.nosql4.pid"
+pid_file = "/var/lib/skysql/tmp/tarantool.nosql4.pid"
 
 # Pipe the logs into the following process.
 logger="cat - >> /var/lib/skysql/log/tarantool.nosql4.log"

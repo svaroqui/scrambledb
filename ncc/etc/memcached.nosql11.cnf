@@ -3,5 +3,5 @@
 -p 11212
 # user to run daemon nobody/apache/www-data
 -u skysql
--l 127.0.0.1
--P /usr/local/skysql/ncc/tmp/memcached.nosql11.pid
+-l 0.0.0.0
+-P /var/lib/skysql/tmp/memcached.nosql11.pid

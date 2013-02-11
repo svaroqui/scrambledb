@@ -104,7 +104,7 @@ sub cluster_cmd {
     $config->check('SANDBOX');
    
     $log->init_console();    
-    $log->log_debug( "dqsdqsdqsdq" ,1);
+    
    
     my $cloud =Scramble::ClusterUtils::get_active_cloud($config);
    
@@ -146,7 +146,7 @@ sub cluster_cmd {
            if (!$json_todo )
            {
                   $log->log_debug("[cluster_cmd] Info: No actions in memcache ",1);
-                  $log->report_action( "localhost", "fetch_event",  "ER0015");
+                  $log->report_action( "localhost", "fetch_event",  "ER0015","memd->get('actions')");
                   my $json_action      = new JSON;
                   my @console =$log->get_actions();
                   return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(\@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}';
@@ -159,7 +159,7 @@ sub cluster_cmd {
            if (!$json_status )
            {
                  $log->log_debug("[cluster_cmd] Info: No heartbeat in memcache ",1);
-                 $log->report_action( "localhost", "fetch_heartbeat",  "ER0015");
+                 $log->report_action( "localhost", "fetch_heartbeat",  "ER0015","memd->get('status')" );
                  my $json_action      = new JSON;
                  my @console =$log->get_actions();
                 
@@ -182,7 +182,7 @@ sub cluster_cmd {
         {
                $log->log_debug("[cluster_cmd] Info: No actions in memcache",1); 
    
-               $log->report_action( "localhost", "fetch_event",  "ER0015");
+               $log->report_action( "localhost", "fetch_event",  "ER0015","memd->get('actions')");
                my $json_action      = new JSON;
                my @console =$log->get_actions();
                return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}';
@@ -210,7 +210,7 @@ sub cluster_cmd {
        
          
         $memd->set( "actions",  $json_todo);
-        $log->report_action( "localhost", "delayed_action",  "ER0017");
+        $log->report_action( "localhost", "delayed_action",  "ER0017","memd->set('actions',?)");
         return  '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode(\$log->get_actions())."}";
       }
       
@@ -395,9 +395,9 @@ sub cluster_cmd {
    }
    my $json_action      = new JSON; 
    my @actions = $log->get_actions();
-   print  $json_action->allow_nonref->utf8->encode(\@actions);
+  
    my @console = $log->get_console() ;
-   return '{"'.$level.'":[' . join(',' , @console) .']'. $retjson .' }';
+   return '{"'.$level.'":[' . join(',' , @console) .']'. $retjson .',"console":'. $json_action->allow_nonref->utf8->encode(\@actions).' }';
 
 }
 
@@ -1704,11 +1704,12 @@ sub service_install_database($$$) {
       . " --upper_directory=$SKYDATADIR "
       . " --install_version=5.5 --no_ver_after_name "
       . " --basedir=$SKYBASEDIR/$self->{mysql_version} "
-      . " --my_file=$self->{mysql_cnf}";
+      . " --my_file=$SKYBASEDIR/ncc/etc/$self->{mysql_cnf}";
 
     
     $log->log_debug("[service_install_database] $SANDBOX : ".$self->{ip},1);
-    $err = Scramble::ClusterTransport::worker_node_command( $SANDBOX, $self->{ip} );
+    my $result = Scramble::ClusterTransport::worker_node_command( $SANDBOX, $self->{ip} );
+    
     my $GRANT =
     "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} -e\""
       . "GRANT replication slave ON *.* to \'$self->{replication_user}\'@\'%\' IDENTIFIED BY \'$self->{replication_password}\';"
