@@ -37,6 +37,7 @@ our $RULESET = {
                 'log_level_write_config'        => { 'default' => 0 ,'values' => [0,1,2]},
                 'log_level_cluster_doctor'      => { 'default' => 0 ,'values' => [0,1,2]},
                 'log_level_cloud_doctor'        => { 'default' => 0 ,'values' => [0,1,2]},
+                'log_level_heartbeat'           => { 'default' => 0 ,'values' => [0,1,2]},
                 'log_level_cloud_api'           => { 'default' => 0 ,'values' => [0,1]},
                 'cluster_heartbeat_time'        => { 'default' => 10 },
                 'cloud_heartbeat_time'          => { 'default' => 20 }

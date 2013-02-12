@@ -5,6 +5,7 @@
 	log_level_write_config		0
 	log_level_cluster_doctor	0
 	log_level_cloud_doctor		2
+        log_level_heartbeat             2
 	log_level_cloud_api		0
 	cluster_heartbeat_time		10
 	cloud_heartbeat_time		20
@@ -114,7 +115,7 @@
 #	peer				node10,node11
 #	mysql_version			spider 
 #	mysql_port			5020
-#	mysql_cnf			my_proxy.cnf
+#	mysql_cnf			spider.template
 #	cloud				cloud2
 #</db>
 

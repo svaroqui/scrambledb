@@ -39,9 +39,8 @@ our $SKYDATADIR            = $ENV{SKYDATADIR};
 our $config                = new Scramble::ClusterConfig;
 our $log                   = new Scramble::ClusterLog;
 $config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
-$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
 $config->check('SANDBOX');
-$log->set_logs($config);
+
 
 our $gearman_ip            ="localhost";
 our $mysql_connect_timeout = 1;
@@ -61,7 +60,7 @@ if ( $ret != GEARMAN_SUCCESS ) {
     exit(1);
 }
 
-$ret = $worker->add_function( "cluster", 0, \&cluster_cmd, 0 );
+$ret = $worker->add_function( "cluster_cmd", 0, \&cluster_cmd, 0 );
 if ( $ret != GEARMAN_SUCCESS ) {
     $log->log_debug("[cluster_cmd] Error: $worker->error()",1,"cluster");
 }
@@ -99,14 +98,14 @@ sub cluster_cmd {
     
     $config->read($SKYBASEDIR ."/ncc/etc/cloud.cnf");
     $config->check('SANDBOX');
-   
+    $log->set_logs($config);
     $log->init_console();    
     
    
     my $cloud =Scramble::ClusterUtils::get_active_cloud($config);
    
     my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);
-    $log->log_debug($cloud_name,,"cluster"1);
+    $log->log_debug($cloud_name,1,"cluster");
     $sshkey ="/.ssh/" . $cloud->{public_key} ;
 
     my $json2       = new JSON;
@@ -772,7 +771,7 @@ sub mysql_do_command($$) {
             $log->log_debug("[mysql_do_command] Error: $dsn $sql ",1,"cluster"); 
             return 0;
         };
-        $dbh->disconnect;
+        if ($dbh)  { $dbh->disconnect};
         return 1;  
 }
 
@@ -1206,13 +1205,17 @@ sub service_status_memcache_fromdb($) {
           . ";mysql_connect_timeout="
           . $mysql_connect_timeout;
        $log->log_debug("[service_status_memcache_fromdb] start : $dsn2",2,"cluster");   
-        
+       use Error qw(:try);
+       try {
        my  $dbh2 = DBI->connect(
             $dsn2,
             $host_info->{mysql_user},
             $host_info->{mysql_password},
-           {RaiseError=>0,PrintError=>1}
+           {RaiseError=>1,mysql_no_autocommit_cmd => 1}
         );
+
+        
+        
         if (!$dbh2)  { 
           $log->log_debug("[service_status_memcache_fromdb] Database connection failed : $dsn2 ",2,"cluster");   
           return 0;
@@ -1250,17 +1253,18 @@ sub service_status_memcache_fromdb($) {
             my $mem_info= Scramble::ClusterUtils::get_active_memcache($config);
             $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
             $log->log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": memc_servers_set ",2,"cluster");      
-            try {
+           
              my $sth = $dbh2->do($sql);
-            }
-            catch Error with {
-                 $log->log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": failed memc_servers_set ",2,"cluster");
-                 $dbh2->disconnect;
-                return 0;
-
-            };  
+            
+           
         }
         $dbh2->disconnect;
+        }
+        catch Error with {
+                 $log->log_debug("[service_status_memcache_fromdb]: failed memc_servers  ",2,"cluster");
+                return 0;
+
+         }; 
         return 1;
 }
 
@@ -1835,7 +1839,7 @@ sub instance_check_ssh($){
 
 sub instance_check_scrambledb($){
     my $ip =shift;
-    $log->log_debug("[instance_check_scrambledb] check ip : ". $ip,2);
+    $log->log_debug("[instance_check_scrambledb] check ip : ". $ip,2,,"cluster");
    
     my $command=
     ' "echo 2>&1" && echo "OK" || echo "NOK"';
@@ -1883,7 +1887,7 @@ sub instance_heartbeat_collector($$) {
         if ($previous_json_status )
        { 
            $log->log_debug("[Instance_hearbeat_collector] Previous_json_status ",2,"cluster");
-           $log->log_json($previous_json_status,2);
+           $log->log_json($previous_json_status,2,"cluster");
            my $previous_status = $json->allow_nonref->utf8->relaxed->escape_slash->loose
            ->allow_singlequote->allow_barekey->decode($previous_json_status);
            
@@ -1891,7 +1895,7 @@ sub instance_heartbeat_collector($$) {
            Scramble::ClusterTransport::worker_doctor_command($json_triggers,$gearman_ip);
            $json_status= $json->allow_blessed->convert_blessed->encode($status);
            $log->log_debug("[Instance_hearbeat_collector] After diff status ",2,"cluster");
-           $log->log_json($json_status,2);
+           $log->log_json($json_status,2,"cluster");
            
        }     
        
@@ -1945,6 +1949,7 @@ sub database_rolling_restart(){
         if  ( $host_info->{mode} eq "slave" && $host_info->{cloud} eq $cloud_name ){
                 $ret = service_do_command( $host_info, $host, "stop" );
                 $host_slave=$host_info;
+                $ret = service_do_command( $host_info, $host, "start" );
         }         
        
   }
@@ -1956,6 +1961,7 @@ sub database_rolling_restart(){
         if  ( $host_info->{status} eq "master" && $host_info->{cloud} eq $cloud_name){
            service_switch_database($host_slave); 
            $ret = service_do_command( $host_info, $host, "stop" );
+           $ret = service_do_command( $host_info, $host, "start" );
        }         
        
   }

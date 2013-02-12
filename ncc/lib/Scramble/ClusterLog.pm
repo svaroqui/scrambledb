@@ -70,13 +70,14 @@ sub new {
     my $self  = 
        {
         _log_level => {
-            node            => 0,
-            transport       => 0,
-            cluster         => 0,
-            write_config    => 0,
-            cluster_doctor  => 0,
-            cloud_doctor    => 0,
-            cloud_api       => 0
+            node            => 2,
+            transport       => 2,
+            cluster         => 2,
+            write_config    => 2,
+            cluster_doctor  => 2,
+            cloud_doctor    => 2,
+            heartbeat       => 2,
+            cloud_api       => 2
         },
         console => [],
         actions => [],
@@ -95,6 +96,7 @@ sub set_logs($$){
     $self->{_log_level}->{"node"}=$config->{"scramble"}->{log_level_node}; 
     $self->{_log_level}->{"transport"}=$config->{"scramble"}->{log_level_transport};
     $self->{_log_level}->{"cluster"}=$config->{"scramble"}->{log_level_cluster};
+    $self->{_log_level}->{"heartbeat"}=$config->{"scramble"}->{log_level_heartbeat};
     $self->{_log_level}->{"write_config"}=$config->{"scramble"}->{log_level_write_config};
     $self->{_log_level}->{"cluster_doctor"}=$config->{"scramble"}->{log_level_cluster_doctor};
     $self->{_log_level}->{"cloud_doctor"}=$config->{"scramble"}->{log_level_cloud_doctor};
@@ -215,10 +217,7 @@ sub report_status($$$$$) {
     my $cmd  = shift;
     my $err  = shift;
     my $host = shift;
-    $self->log_debug( "[report_status] ". $cmd , 1);
-    $self->log_debug( "[report_status] ". $hostinfo , 1);
-    $self->log_debug( "[report_status] ". $err , 1);  
-    $self->log_debug( "[report_status] ". $host , 1);  
+  
     
     my $le_localtime = localtime;
     my $status ="na";

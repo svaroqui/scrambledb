@@ -25,8 +25,8 @@ use Gearman::XS qw(:constants);
 use Gearman::XS::Worker;
 use Scramble::ClusterLog;
 use Scramble::ClusterConfig;
-our $config                = new Scramble::ClusterConfig;
-our $log                = new Scramble::ClusterLog;
+our $config               = new Scramble::ClusterConfig;
+our $log                  = new Scramble::ClusterLog;
 $log->set_logs($config);
 my %opts;
 if (!getopts('h:p', \%opts)) {
