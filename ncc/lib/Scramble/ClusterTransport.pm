@@ -39,14 +39,14 @@ sub worker_node_command($$$) {
     my $client = Gearman::XS::Client->new();
     my $res ="000000";
     $client->add_servers($ip);
-    $log->log_debug("[worker_node_command] Info: Send to ip :". $ip ,1);
-    $log->log_debug("[worker_node_command] Info: $cmd" ,1);
+    $log->log_debug("[worker_node_command] Info: Send to ip :". $ip ,1,"transport");
+    $log->log_debug("[worker_node_command] Info: $cmd" ,1,"transport");
     
     
-    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd );
+    ( my $ret, my $result ) = $client->do( 'node_cmd', $cmd,"transport" );
 
     if ( $ret == GEARMAN_SUCCESS ) {
-        $log->log_debug("[worker_node_command] Info: $cmd".$result ,1);
+        $log->log_debug("[worker_node_command] Info: $cmd".$result ,1,"transport");
         
     }
     else { 
@@ -76,8 +76,8 @@ sub worker_config_command($$$) {
     my $client = Gearman::XS::Client->new();
     $client->add_servers($ip);
     
-    $log->log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1);
-    $log->log_debug($cmd,2);
+    $log->log_debug("[worker_config_command] Info: Worker_config_command for ip :". $ip ,1,"transport");
+    $log->log_debug($cmd,2,"transport");
    
     #$client->set_timeout($gearman_timeout);
     ( my $ret, my $result ) = $client->do( 'write_config', $cmd );
@@ -124,7 +124,7 @@ sub worker_doctor_command($$) {
 sub get_return_error_from_node_cmd($){
  my $result=shift; 
  my $json      = new JSON;
- print STDERR $result;
+ 
  my $perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($result);
  if (defined($perl_class->{return})) {
       if ( $perl_class->{return}  eq "000000") {
@@ -139,7 +139,7 @@ sub get_return_error_from_node_cmd($){
 sub get_result_from_node_cmd($){
  my $result=shift; 
  my $json      = new JSON;
- print STDERR $result;
+
  my $perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($result);
  if (defined($perl_class->{result})) {
       if ( $perl_class->{return}  eq "000000") {

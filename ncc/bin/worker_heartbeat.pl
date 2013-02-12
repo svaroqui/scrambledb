@@ -17,49 +17,43 @@
 #  Foundation, Inc.,
 #  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-
-
-
 use strict;
 use Class::Struct;
 use warnings FATAL => 'all';
 use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
+use Scramble::ClusterLog;
+use Scramble::ClusterConfig;
 use JSON;
 
 our $SKYDATADIR = $ ENV {SKYDATADIR};
+our $log = new Scramble::ClusterLog;
+our $config = new Scramble::ClusterConfig;
 
-# perl -le 'BEGIN{use Linux::MemInfo} %mem=get_mem_info; print $mem{"MemTotal"}'
-
-
-
-
-
+$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
+$log->set_logs($config);
 
 
-my $config_file = "etc/cloud.cnf";
-
-
-my $TIME=10;
+my $TIME=$config->{"scramble"}->{"cluster_heartbeat_time"};
 my $client = Gearman::XS::Client->new();
 $client->add_servers("localhost");
  
 sub gearman_client() {
-# get the status from my point of view  
+  # get the status from my point of view  
   my $command='{"level":"services", "command":{"action":"status","group":"all","type":"all"}}';
   (my $ret,my $result_services_status) = $client->do('cluster_cmd', $command);   
   if ($ret != GEARMAN_SUCCESS) {
-        printf(STDOUT "ERROR GEARMAN %s\n", $client->error());    
-           return 0;
+      $log->log_debug("[gearman_client] Error: ".$client->error(),1,"heartbeat");  
+      return 0;
   }
- # system("system_profiler SPHardwareDataType | grep -i memory  | awk  '{print \$2*1024*1024*1024}'"); 
+  # system("system_profiler SPHardwareDataType | grep -i memory  | awk  '{print \$2*1024*1024*1024}'"); 
 
   $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"}}';
   ($ret,my $result_instances_status) = $client->do('cluster_cmd', $command);   
   if ($ret != GEARMAN_SUCCESS) {
-        printf(STDOUT "ERROR GEARMAN %s\n", $client->error());    
-           return 0;
+      $log->log_debug("[gearman_client] Error: ".$client->error(),1,"heartbeat");      
+      return 0;
   }
   $command="cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'";
   my  $ram = `$command`;  
@@ -87,11 +81,13 @@ $command='{"level":"services","version":"1.0","command":{"action":"ping","group"
 ( $ret,my  $result) = $client->do('cluster_cmd', $command);
     printf(STDOUT "%s\n", $command);
     if ($ret != GEARMAN_SUCCESS) {
-        printf(STDOUT "%s\n", $client->error());
+        $log->log_debug("[gearman_client] Error: ".$client->error(),1,"heartbeat");      
+      
+     
     }
     else {
-        printf(STDOUT "%s\n",  $ret);
-	printf(STDOUT "%s\n",  $result);
+          $log->log_debug("[gearman_client] Return: ".$ret,1,"heartbeat");      
+          $log->log_debug("[gearman_client] Result: ".$result,1,"heartbeat");      
     }
 }
 

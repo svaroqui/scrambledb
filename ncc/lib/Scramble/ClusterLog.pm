@@ -69,25 +69,45 @@ sub new {
 	
     my $self  = 
        {
-        _log_level     => 2,
+        _log_level => {
+            node            => 0,
+            transport       => 0,
+            cluster         => 0,
+            write_config    => 0,
+            cluster_doctor  => 0,
+            cloud_doctor    => 0,
+            cloud_api       => 0
+        },
         console => [],
         actions => [],
                @_,
        };
+       
   return bless $self, $class;
 
 }
 #-------------------------------------------------------------------------------
 
 
+sub set_logs($$){
+    my $self = shift; 
+    my $config = shift;
+    $self->{_log_level}->{"node"}=$config->{"scramble"}->{log_level_node}; 
+    $self->{_log_level}->{"transport"}=$config->{"scramble"}->{log_level_transport};
+    $self->{_log_level}->{"cluster"}=$config->{"scramble"}->{log_level_cluster};
+    $self->{_log_level}->{"write_config"}=$config->{"scramble"}->{log_level_write_config};
+    $self->{_log_level}->{"cluster_doctor"}=$config->{"scramble"}->{log_level_cluster_doctor};
+    $self->{_log_level}->{"cloud_doctor"}=$config->{"scramble"}->{log_level_cloud_doctor};
+    $self->{_log_level}->{"cloud_api"}=$config->{"scramble"}->{log_level_cloud_api};
 
-
-
-sub log_debug($$$){  
+}
+sub log_debug($$$$){  
   my $self = shift;  
   my $message =shift;
   my $level=shift;
-  if ($level <= $self->{_log_level}){
+   my $module=shift;  
+ 
+  if ($level <= $self->{_log_level}->{$module}){
    my $le_localtime = localtime;
    print STDERR $le_localtime ." ";
    print STDERR $message;
@@ -105,6 +125,7 @@ sub init_console($){
  @{$self->{console}}=@cmd_console;
  @{$self->{actions}}=@cmd_action;
 }
+
 
 sub get_console($) {
  my $self = shift;   
@@ -225,16 +246,16 @@ sub report_status($$$$$) {
 }
 
 
-sub log_json($$$){ 
+sub log_json($$$$){ 
   my $self = shift;  
   my $json_text =shift;
   my $level=shift;
-  
+  my $module=shift;
   my $json      = new JSON;
   my @perl_class = $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($json_text);
 
   
-  if ($level <= $self->{_log_level}){  
+  if ($level <= $self->{_log_level}->{$module}){  
     use Data::Dumper;
     $Data::Dumper::Terse     = 1;       
     $Data::Dumper::Quotekeys = 0;

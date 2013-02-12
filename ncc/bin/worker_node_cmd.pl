@@ -23,12 +23,11 @@ use JSON;
 use Getopt::Std;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Worker;
-#use Proc::PID_File;
-#use Proc::Daemon;
-
-
-
-
+use Scramble::ClusterLog;
+use Scramble::ClusterConfig;
+our $config                = new Scramble::ClusterConfig;
+our $log                = new Scramble::ClusterLog;
+$log->set_logs($config);
 my %opts;
 if (!getopts('h:p', \%opts)) {
     usage();
@@ -42,24 +41,25 @@ my $worker = new Gearman::XS::Worker;
 
 my $ret = $worker->add_server($host, $port);
 if ($ret != GEARMAN_SUCCESS) {
-    printf(STDERR "%s\n", $worker->error());
+    $log->log_debug("[gearman_worker] Error: ".$worker->error(),1,"node"); 
     exit(1);
 }
 
 $ret = $worker->add_function("node_cmd", 0, \&node_cmd, 0);
 if ($ret != GEARMAN_SUCCESS) {
-    printf(STDOUT "%s\n", $worker->error());
+    $log->log_debug("[gearman_worker] Error: ".$worker->error(),1,"node"); 
+   
 }
 
 while (1) {
     my $ret = $worker->work();
     if ($ret != GEARMAN_SUCCESS) {
-    	printf(STDOUT "%s\n", $worker->error());
+    	$log->log_debug("[gearman_worker] Error: ".$worker->error(),1,"node"); 
     }
 	else 
 	{
-	 printf(STDOUT "%s\n", "GEARMAN WORKER SUCCESS!");
-
+          $log->log_debug("[gearman_worker] GEARMAN WORKER SUCCESS!","node"); 
+	
 	}
 }
 

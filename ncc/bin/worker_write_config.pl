@@ -59,6 +59,7 @@ our $log = new Scramble::ClusterLog;
 my $conf=$SKYBASEDIR . "/ncc/etc/cloud.cnf";
 $config->read($conf);
 $config->check('SANDBOX');
+$log->set_logs($config);
 
 my $worker = new Gearman::XS::Worker;
 my $ret = $worker->add_server('',0);
@@ -94,26 +95,26 @@ sub write_cmd {
     $config->check('SANDBOX');
     my $json_config   = $json->allow_blessed->convert_blessed->encode($config );
   
-    $log->log_debug("[worker_config] Receive command ".$command,1);
+    $log->log_debug("[worker_config] Receive command ".$command,1,"write_config");
   
     write_mysql_proxy_config($SKYBASEDIR."/ncc/etc/mysql-proxy");
-    $log->log_debug("[worker_config] Info: mysql-proxy ",1);
+    $log->log_debug("[worker_config] Info: mysql-proxy ",1,"write_config");
     write_mha_config($SKYBASEDIR. "/ncc/etc/mha.cnf");
-    $log->log_debug("[worker_config] Info: mha ",1);
+    $log->log_debug("[worker_config] Info: mha ",1,"write_config");
     write_keepalived_config($SKYBASEDIR. "/ncc/etc/keepalived");
-    $log->log_debug("[worker_config] Info: keepalived ",1);
+    $log->log_debug("[worker_config] Info: keepalived ",1,"write_config");
     write_haproxy_config($SKYBASEDIR."/ncc/etc/haproxy");
-    $log->log_debug("[worker_config] Info: haproxy ",1);
+    $log->log_debug("[worker_config] Info: haproxy ",1,"write_config");
     write_memcached_config($SKYBASEDIR."/ncc/etc/memcached");
-    $log->log_debug("[worker_config] Info: memcached ",1);
+    $log->log_debug("[worker_config] Info: memcached ",1,"write_config");
     write_lua_script();
-    $log->log_debug("[worker_config] Info: lua scripts ",1);
+    $log->log_debug("[worker_config] Info: lua scripts ",1,"write_config");
     write_write_alias($SKYBASEDIR."/ncc/bin/alias.sh");
-    $log->log_debug("[worker_config] Info: alias ",1);
+    $log->log_debug("[worker_config] Info: alias ",1,"write_config");
     write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
-    $log->log_debug("[worker_config] Info: tarantool ",1);
+    $log->log_debug("[worker_config] Info: tarantool ",1,"write_config");
     write_mysql_config(); 
-    $log->log_debug("[worker_config] Info: mysql ",1);
+    $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
     
     return  $console ;
 
@@ -715,7 +716,7 @@ sub get_mysql_variables_diff($$){
  my $json = new JSON;
   
 
- $log->log_debug("[get_mysql_diff] Read variables diff for service ".$host,2);
+ $log->log_debug("[get_mysql_diff] Read variables diff for service ".$host,2,"write_config");
 
  my $command ="bash -c 'diff -B <($SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/".$host_info->{mysql_cnf}." mysqld | sort  | tr [:upper:] [:lower:] ) <( $SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYDATADIR/$host/my.sandbox.cnf mysqld | sort  | tr [:upper:] [:lower:] )' ";
  $command = $command . q% | grep '>' | grep -vE 'pid-file|datadir|basedir|port|server-id|tmpdir|tmpdir|socket|user' | sed 's/\> --//g' | awk -F'=' 'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }'  | sed 's/""/"na"/g' | tr -d '\n' %;
