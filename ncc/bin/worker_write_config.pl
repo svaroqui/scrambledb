@@ -564,8 +564,12 @@ sub write_mysql_config(){
             }
          }
          my $ram =get_memory_from_status($host_info);
+         print STDERR $ram;
+         
          my $mem = $ram*$host_info->{mem_pct}/100;    
-         replace_patern_infile("$SKYBASEDIR/".$host."/". $host_info->{template}, "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
+         print STDERR $mem;
+         
+            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
         }
        }
     }

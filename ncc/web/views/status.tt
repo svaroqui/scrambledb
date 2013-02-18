@@ -1,0 +1,460 @@
+
+    <link rel="stylesheet" href="/javascripts/jqwidgets/styles/jqx.base.css" type="text/css" />
+    
+    <script type="text/javascript">
+        
+        $(document).ready(function () {
+            var theme = getDemoTheme();
+            // prepare the data
+            var timer;
+            function refreshmypage(){
+                //document.location=document.location.href;
+                 initGridServices();
+                  timer=setTimeout(refreshmypage,10*1000);
+
+           
+            }
+        timer=setTimeout(refreshmypage,10*1000);
+
+            var initGridServices = function () {
+             var source =
+            {
+                datatype: "json",
+                datafields: [
+                    { name: 'name', type: 'name' },
+                    { name: 'mode', type: 'string' },
+                    { name: 'ip', type: 'string' },
+                    { name: 'status', type: 'string' },
+                    { name: 'state', type: 'string' }
+                ],
+                url: "http://127.0.0.1:3000/services/status",
+                data: {
+                    featureClass: "P",
+                    style: "full",
+                    maxRows: 20
+                }
+            };
+            
+            var dataAdapter = new $.jqx.dataAdapter(source);
+             var columnCheckBox = null;
+             var updatingCheckState = false;
+             var editrow = -1;
+             // initialize jqxGrid. Disable the built-in selection.
+             var cellsrenderer = function (row, columnfield, value, defaulthtml, columnproperties) {
+                if (value =="running") {
+                     return '<div style="margin: 4px;float: left;' + columnproperties.cellsalign + '"><img width="16" height="16" src="/images/green.png" />  </div>'+ value; 
+                    
+                    //return '<span style="margin: 4px; float: ' + columnproperties.cellsalign + '; color: #008000;">' + value + '</span>';
+                }
+                else {
+                  //  return '' + value + '</span>';
+                     return '<div style="margin: 4px;float: left;' + columnproperties.cellsalign + '"><img width="16" height="16" src="/images/red.png" />  </div>'+ value; 
+                      
+                }
+            } 
+            $("#jqxgrid").jqxGrid(
+            {
+                source: dataAdapter,
+                editable: true,
+                theme: theme,
+                
+                enablehover: false,
+                selectionmode: 'none',
+                columns: [
+                  { text: '', datafield: 'available', columntype: 'checkbox', width: 40,
+                      renderer: function () {
+                          return '<div style="margin-left: 10px; margin-top: 5px;"></div>';
+                      },
+                      rendered: function (element) {
+                          $(element).jqxCheckBox({ theme: theme, width: 16, height: 16, animationShowDelay: 0, animationHideDelay: 0 });
+                          columnCheckBox = $(element);
+                          
+                          $(element).on('change', function (event) {
+                              var checked = event.args.checked;
+                              if (checked == null || updatingCheckState) return;
+                              var rowscount = $("#jqxgrid").jqxGrid('getdatainformation').rowscount;
+                              $("#jqxgrid").jqxGrid('beginupdate');
+                              if (checked) {
+                                  $("#jqxgrid").jqxGrid('selectallrows');
+                              }
+                              else if (checked == false) {
+                                  $("#jqxgrid").jqxGrid('clearselection');
+                              }
+                              for (var i = 0; i < rowscount; i++) {
+                                  $("#jqxgrid").jqxGrid('setcellvalue', i, 'available', event.args.checked);
+                              }
+                              $("#jqxgrid").jqxGrid('endupdate');
+                          });
+                      }
+                  },
+
+                    { text: 'Id', datafield: 'name', width: 80 },
+                    { text: 'Service', datafield: 'mode' , width: 90},
+                    { text: 'Ip', datafield: 'ip' },
+                    { text: 'Status', datafield: 'status' , width: 90 },
+                    { text: 'State', datafield: 'state' , cellsrenderer: cellsrenderer}
+                ]
+                });              
+            };
+
+
+    var initGridInstances = function () {
+             var source =
+            {
+                datatype: "json",
+                datafields: [
+                    { name: 'name', type: 'name' },
+                    { name: 'ip', type: 'string' },
+                    { name: 'state', type: 'string' }
+                ],
+                url: "http://127.0.0.1:3000/instances/status",
+                data: {
+                    featureClass: "P",
+                    style: "full",
+                    maxRows: 20
+                }
+            };
+            
+            var dataAdapter = new $.jqx.dataAdapter(source);
+             var columnCheckBox = null;
+             var updatingCheckState = false;
+             var editrow = -1;
+             // initialize jqxGrid. Disable the built-in selection.
+            $("#jqxgridinstances").jqxGrid(
+            {
+                source: dataAdapter,
+                editable: true,
+                theme: theme,
+                
+                enablehover: false,
+                selectionmode: 'none',
+                columns: [
+                  { text: '', datafield: 'available', columntype: 'checkbox', width: 40,
+                      renderer: function () {
+                          return '<div style="margin-left: 10px; margin-top: 5px;"></div>';
+                      },
+                      rendered: function (element) {
+                          $(element).jqxCheckBox({ theme: theme, width: 16, height: 16, animationShowDelay: 0, animationHideDelay: 0 });
+                          columnCheckBox = $(element);
+                          $(element).on('change', function (event) {
+                              var checked = event.args.checked;
+                              if (checked == null || updatingCheckState) return;
+                              var rowscount = $("#jqxgridinstances").jqxGrid('getdatainformation').rowscount;
+                              $("#jqxgridinstances").jqxGrid('beginupdate');
+                              if (checked) {
+                                  $("#jqxgridinstances").jqxGrid('selectallrows');
+                              }
+                              else if (checked == false) {
+                                  $("#jqxgridinstances").jqxGrid('clearselection');
+                              }
+                              for (var i = 0; i < rowscount; i++) {
+                                  $("#jqxgridinstances").jqxGrid('setcellvalue', i, 'available', event.args.checked);
+                              }
+                              $("#jqxgridinstances").jqxGrid('endupdate');
+                          });
+                      }
+                  },
+
+                    { text: 'Id', datafield: 'name', width: 80 },
+                    { text: 'Ip', datafield: 'ip' },
+                    { text: 'State', datafield: 'state' }
+                ]
+                });
+              
+            };
+
+
+
+             // create context menu
+            var contextMenu = $("#Menu").jqxMenu({ width: 100, height: 250, autoOpenPopup: false, mode: 'popup', theme: theme });
+            $("#jqxgrid").on('contextmenu', function () {
+                return false;
+            });
+            // handle context menu clicks.
+            $("#Menu").on('itemclick', function (event) {
+                 var args = event.args;
+                 var rowscount = $("#jqxgrid").jqxGrid('getdatainformation').rowscount;
+                   
+                 // get the clicked row's data and initialize the input fields.
+                    for (var i = 0; i < rowscount; i++) {
+                       
+                        var dataRecord = $("#jqxgrid").jqxGrid('getrowdata', i);
+                    
+                        if  ($("#jqxgrid").jqxGrid('getcellvalue',i,'available') ){
+                          var i = document.createElement("img");
+                          i.src = '/services/'+ $(event.args).text()+ '/'+ dataRecord.name+'/all';
+                      
+                          initGridServices();
+
+
+                          }
+                   }
+                  
+                
+            });
+            $("#jqxgrid").on('rowclick', function (event) {
+                if (event.args.rightclick) {
+                    var scrollTop = $(window).scrollTop();
+                    var scrollLeft = $(window).scrollLeft();
+                    contextMenu.jqxMenu('open', parseInt(event.args.originalEvent.clientX) + 5 + scrollLeft, parseInt(event.args.originalEvent.clientY) + 5 + scrollTop);
+                    return false;
+                }
+            });
+                
+             // select or unselect rows when the checkbox is checked or unchecked.
+             $("#jqxgrid").on('cellendedit', function (event) {
+                 if (event.args.value) {
+                     $("#jqxgrid").jqxGrid('selectrow', event.args.rowindex);
+                 }
+                 else {
+                     $("#jqxgrid").jqxGrid('unselectrow', event.args.rowindex);
+                 }
+                 if (columnCheckBox) {
+                     var selectedRowsCount = $("#jqxgrid").jqxGrid('getselectedrowindexes').length;
+                     var rowscount = $("#jqxgrid").jqxGrid('getdatainformation').rowscount;
+                     updatingCheckState = true;
+                     if (selectedRowsCount == rowscount) {
+                         $(columnCheckBox).jqxCheckBox('check')
+                     }
+                     else if (selectedRowsCount > 0) {
+                         $(columnCheckBox).jqxCheckBox('indeterminate');
+                     }
+                     else {
+                         $(columnCheckBox).jqxCheckBox('uncheck');
+                     }
+                     updatingCheckState = false;
+                 }
+            });
+            var initWidgets = function (tab) {
+                switch (tab) {
+                    case 0:
+                        initGridServices();
+                        break;
+                    case 1:
+                        initGridInstances();
+                        break;
+                     case 2:
+                       
+                        break;    
+                }
+            }
+            $('#jqxTabs').jqxTabs({ width: 600, height: 560, theme: theme, initTabContent: initWidgets });
+        });
+        
+        
+    </script>
+
+<div id="page">
+      <div id="sidebar">
+        <ul id="sidebar-items">
+          <li>
+            <h3>Join the community</h3>
+            <ul class="links">
+
+              <li><a href="/">ScrambleDB</a></li>
+              <li><a href="https://github.com/svaroqui/scrambledb">GitHub Community</a></li>
+            </ul>
+          </li>
+          
+          <li>
+            <h3>Browse the documentation</h3>
+
+            <ul class="links">
+              <li><a
+              href="https://github.com/svaroqui/scrambledb/wiki">Introduction</a></li>
+              <li><a href="">Cookbook</a></li>
+              <li><a href="https://github.com/svaroqui/scrambledb/wiki/Get-started">Deployment Guide</a></li>
+              <li><a
+              href=""
+              title="a tutorial to build a small blog engine with Dancer">Tutorial</a></li>
+            </ul>
+          </li>
+
+          <li>
+            <h3>Your application's environment</h3>
+
+            <ul>
+                <li>Location: <code>/Users/svar/scrambledb/ncc/web</code></li>
+                <li>Template engine: <code><% settings.template %></code></li>
+                <li>Logger: <code><% settings.logger %></code></li>
+                <li>Environment: <code><% settings.environment %></code></li>
+            </ul>
+
+          </li>
+        </ul>
+
+      </div>
+
+      <div id="content">
+        <div id="header">
+          <h1>ScrambleDB is dancing</h1>
+          <h2>You&rsquo;ve joined the dance floor!</h2>
+           
+        </div>
+         
+        <div id="getting-started">
+
+          <div id="about-content" style="display: none;">
+            <table>
+                <tbody>
+                <tr>
+                    <td>Perl version</td>
+                    <td><tt><% perl_version %></tt></td>
+                </tr>
+                <tr>
+                    <td>Dancer version</td>
+                    <td><tt><% dancer_version %></tt></td>
+                </tr>
+                <tr>
+                    <td>Backend</td>
+                    <td><tt><% settings.apphandler %></tt></td>
+                </tr>
+                <tr>
+                    <td>Appdir</td>
+                    <td><tt>/Users/svar/scrambledb/ncc/web</tt></td>
+                </tr>
+                <tr>
+                    <td>Template engine</td>
+                    <td><tt><% settings.template %></tt></td>
+                </tr>
+                <tr>
+                    <td>Logger engine</td>
+                    <td><tt><% settings.logger %></tt></td>
+                </tr>
+                <tr>
+                    <td>Running environment</td>
+                    <td><tt><% settings.environment %></tt></td>
+                </tr>
+                </tbody>
+            </table>
+          </div>
+        </div>
+
+
+        
+<div id='cloud'>
+        <script type="text/javascript">
+            $(document).ready(function () {
+                var theme = getDemoTheme();
+                var url = "http://127.0.0.1:3000/config/getclouds";
+                // prepare the data
+                var source =
+                {
+                    datatype: "json",
+                    datafields: [
+                        { name: 'id' },
+                        { name: 'driver' }
+                    ],
+                    id: 'id',
+                    url: url,
+                    async: false
+                };
+                var dataAdapter = new $.jqx.dataAdapter(source);
+                // Create a jqxDropDownList
+                $("#jqxWidget").jqxDropDownList({ selectedIndex: 0, source: dataAdapter, displayMember: "id", valueMember: "driver", width: 200, height: 25, theme: theme });
+                // subscribe to the select event.
+                $("#jqxWidget").on('select', function (event) {
+                    if (event.args) {
+                        var item = event.args.item;
+                        if (item) {
+                            var valueelement = $("<div></div>");
+                            valueelement.text("Value: " + item.value);
+                            var labelelement = $("<div></div>");
+                            labelelement.text("Label: " + item.label);
+                            $("#selectionlog").children().remove();
+                            $("#selectionlog").append(labelelement);
+                            $("#selectionlog").append(valueelement);
+                        }
+                    }
+                });
+            });
+        </script>
+        <div id='jqxWidget'>
+        </div>
+        <div style="font-size: 12px; font-family: Verdana;" id="selectionlog">
+        </div>
+    </div>
+
+
+
+
+
+        <div id='jqxWidget'>
+        <div id='jqxTabs'>
+            <ul>
+                <li style="margin-left: 30px;">
+                    <div style="height: 20px; margin-top: 5px;">
+                        <div style="float: left;">
+                            <img width="24" height="24" src="/images/database.png" />
+                        </div>
+                        <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
+                           Services
+                        </div>
+                     </div>
+                </li>
+                <li>
+                    <div style="height: 20px; margin-top: 5px;">
+                        <div style="float: left;">
+                            <img width="24" height="24" src="/images/server.png" />
+                        </div>
+                       <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
+                           Instances
+                        </div>
+                   </div>     
+                </li>
+                 <li>
+                    <div style="height: 20px; margin-top: 5px;">
+                        <div style="float: left;">
+                            <img width="24" height="24" src="/images/bar_chart.png" />
+                        </div>
+                       <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
+                           Monitor
+                        </div>
+                    </div>        
+                </li>
+                   <li>
+                    <div style="height: 20px; margin-top: 5px;">
+                        <div style="float: left;">
+                            <img width="24" height="24" src="/images/sql_runner.png" />
+                        </div>
+                       <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
+                           Roules
+                        </div>
+                    </div>        
+                </li>
+            </ul>
+            <div style="overflow: hidden;">
+              <div id="jqxgrid" ></div>
+                <div id='Menu'>
+                <ul>
+                   <li>install</li>
+                   <li>start</li>
+                   <li>stop</li>
+                   <li>sync</li>
+                   <li>move</li>
+                   <li>duplicate</li>
+                   <li>uninstall</li>
+                   <li>switch</li>
+                   <li>terminate</li>
+                   
+               </ul>
+              </div>
+             </div>
+               
+            <div style="overflow: hidden;">
+                <div id="jqxgridinstances" ></div>
+            </div>
+            <div style="overflow: hidden;">
+                <div id="jqxgridgraph" ></div>
+            </div>
+             <div style="overflow: hidden;">
+                <div id="jqxgridsql" ></div>
+            </div>
+           </div>
+        </div>
+    </div>
+    
+
+    </div>
+
+

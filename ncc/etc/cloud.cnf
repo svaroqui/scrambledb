@@ -1,9 +1,9 @@
 <scramble>
-	log_level_node			0
-	log_level_transport		0	
-	log_level_cluster		0 
-	log_level_write_config		0
-	log_level_cluster_doctor	0
+	log_level_node          	2
+	log_level_transport		2	
+	log_level_cluster		2 
+	log_level_write_config		2
+	log_level_cluster_doctor	2
 	log_level_cloud_doctor		2
         log_level_heartbeat             2
 	log_level_cloud_api		0
@@ -24,9 +24,9 @@
 </cloud>
 
 <cloud cloud2>
-	status				master
+	status				slave
 	user				AKIAJR7YEOZPXASJCYDQ
-	password			xxxx
+	password			xxx
 	host				na
 	version				1.5
 	driver				EC2
@@ -45,7 +45,7 @@
 </cloud>
 
 <cloud cloud3>
-	status				slave
+	status			 	master	
 	user				xxxx
 	password			xxxx
 	host				na

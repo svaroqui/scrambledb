@@ -48,7 +48,7 @@ our $createtable           = "";
 our $like                  = "none";
 our $database              = "";
 our $hashcolumn;
-
+our $hearbeat_counter      =0;
 my $sshkey;
 
 
@@ -128,8 +128,19 @@ sub cluster_cmd {
     my $query    = $json_text->{command}->{query};
     my $database = $json_text->{command}->{database};
     my $level    = $json_text->{level};
+    if ( $level eq "config"  ){
+        if ($action eq "display" ) {
+        
+          return  $json_config;
+        }
+        if ($action eq "rules" ) {
+          my $json_rules_c       = new JSON ;
+          my $json_rules = $json_rules_c->allow_blessed->convert_blessed->encode($config->get_ruleset());
+          return  $json_rules;
+        }
+    }
     if ( $level eq "instances"  ){
-      my $json_cmd       = new JSON ;
+       my $json_cmd       = new JSON ;
        my $json_cmd_str = $json_cmd->allow_nonref->utf8->encode($json_text->{command});
        my $mem_info= Scramble::ClusterUtils::get_active_memcache($config);
        my $memd = new Cache::Memcached {
@@ -755,6 +766,8 @@ sub mysql_do_command($$) {
           . $host_info->{mysql_port}
           . ";mysql_connect_timeout="
           . $mysql_connect_timeout;
+    use Error qw(:try);
+    try {
 
         my $dbh = DBI->connect(
             $dsn,
@@ -762,16 +775,15 @@ sub mysql_do_command($$) {
             $host_info->{mysql_password},
             {RaiseError=>1, mysql_no_autocommit_cmd => 1}
         );
-        use Error qw(:try);
-        try { 
             $log->log_debug("[mysql_do_command] Info: $dsn $sql ",1,"cluster"); 
-            my $sth = $dbh->do($sql);           
+            my $sth = $dbh->do($sql);  
+            if ($dbh)  { $dbh->disconnect};
+        
         }
         catch Error with {
             $log->log_debug("[mysql_do_command] Error: $dsn $sql ",1,"cluster"); 
             return 0;
         };
-        if ($dbh)  { $dbh->disconnect};
         return 1;  
 }
 
@@ -1860,6 +1872,7 @@ sub instance_heartbeat_collector($$) {
     my $json_status = shift ;
     my $json    = new JSON;
     my $err = "000000";
+    $hearbeat_counter =$hearbeat_counter +1;
     my $host_info;
     my $host_vip =  Scramble::ClusterUtils::get_active_db($config);
     $log->log_debug("[Instance_hearbeat_collector] Heartbeat fetch active database: ". $host_vip,2,"cluster");
@@ -1928,8 +1941,10 @@ sub instance_heartbeat_collector($$) {
         
         # Check memcache_udf
         service_status_memcache_fromdb($host_info);
-        service_install_mycheckpoint( $host_vip , "mon_" . $host);
-        service_status_mycheckpoint($host_vip,$host_info,$host);
+        if ($hearbeat_counter % $config->{"scramble"}->{"cluster_monitor_interval"} ==0) {
+           service_install_mycheckpoint( $host_vip , "mon_" . $host);
+           service_status_mycheckpoint($host_vip,$host_info,$host);
+        }
        } 
     }
     gttid_reinit();

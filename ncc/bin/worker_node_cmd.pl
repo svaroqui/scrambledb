@@ -27,6 +27,8 @@ use Scramble::ClusterLog;
 use Scramble::ClusterConfig;
 our $config               = new Scramble::ClusterConfig;
 our $log                  = new Scramble::ClusterLog;
+our $SKYBASEDIR            = $ENV{SKYBASEDIR};
+$config->read($SKYBASEDIR."/ncc/etc/cloud.cnf");
 $log->set_logs($config);
 my %opts;
 if (!getopts('h:p', \%opts)) {
@@ -56,11 +58,11 @@ while (1) {
     if ($ret != GEARMAN_SUCCESS) {
     	$log->log_debug("[gearman_worker] Error: ".$worker->error(),1,"node"); 
     }
-	else 
-	{
-          $log->log_debug("[gearman_worker] GEARMAN WORKER SUCCESS!","node"); 
-	
-	}
+    else 
+    {
+      $log->log_debug("[gearman_worker] GEARMAN WORKER SUCCESS!",1,"node"); 
+
+    }
 }
 
 sub usage {
@@ -78,9 +80,9 @@ sub node_cmd {
 
 #open(my $res,"$command") || die "Failed: $!\n";
 my  $res =  `$command`; 
- $res =~ s/\n//g; 
+
   my $json = new JSON;   
- print STDERR $res; 
+
  if (  $? == -1 )
  {      
        my $result  = 
@@ -94,7 +96,8 @@ my  $res =  `$command`;
        return $json_result;
  }   
     else {
-       
+       $res =~ s/\n//g; 
+
        my $result  = 
        {
         command    => $command,

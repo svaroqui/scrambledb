@@ -84,6 +84,40 @@ print ">>>>>>>>>>>>>>>\n";
 print  STDERR Dumper($command_text);
 print "<<<<<<<<<<<<<<<\n";
 
+sub format_grid_from_result($) {
+  my $status =shift;  
+  my @statusgrid=[];   
+  my $host_info;
+
+   
+    foreach my $service (  @{ $status->{"services"}} )  {
+     
+    
+       foreach my $host (keys $service) {
+       print STDERR  $host;
+    
+       my $host_info = $service->{$host};
+        print STDERR  $host_info->{"mode"};
+       my $action_add  = 
+       {
+        name       => $host,
+        mode       => $host_info->{"mode"},
+        ip         => $host_info->{"ip"}, 
+        status    => $host_info->{"status"},
+        state     => $host_info->{"state"},
+        time  => $host_info->{"time"}
+       
+       };
+    push(@statusgrid , $action_add);   
+
+    }
+  }
+    
+  return @statusgrid;
+    
+    
+}
+
 sub gearman_client() {
   my $client = Gearman::XS::Client->new();
   $client->add_servers("localhost");
@@ -93,7 +127,10 @@ sub gearman_client() {
     my $json      = new JSON;
     my @json_text =
           $json->utf8->relaxed->allow_singlequote->allow_barekey->decode($result);
-    
+ my $test =
+          $json->utf8->relaxed->allow_singlequote->allow_barekey->decode($result);
+      
+ format_grid_from_result($test);
      print  STDERR Dumper(@json_text);
     
     

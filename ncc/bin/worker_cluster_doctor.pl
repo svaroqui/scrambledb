@@ -125,7 +125,6 @@ sub consult_cmd() {
                   $memd->set( "actions", '{"return":{"code":"000000","version":"1.0"},"actions":[]}' );
                   sleep 1;
             }   
-
         }
        }
 }

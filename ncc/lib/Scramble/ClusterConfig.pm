@@ -40,6 +40,7 @@ our $RULESET = {
                 'log_level_heartbeat'           => { 'default' => 0 ,'values' => [0,1,2]},
                 'log_level_cloud_api'           => { 'default' => 0 ,'values' => [0,1]},
                 'cluster_heartbeat_time'        => { 'default' => 10 },
+                'cluster_monitoring_interval'   => { 'default' => 30 },
                 'cloud_heartbeat_time'          => { 'default' => 20 }
              }   
         },
@@ -373,14 +374,19 @@ sub _get_filename($$) {
 	return $fullname;
 }
 
-#-------------------------------------------------------------------------------
+
+sub get_ruleset($){
+	my $self = shift;
+        return $RULESET;
+}
+
+
 sub check($$) {
 	my $self = shift;
 	my $program = shift;
 	$self->_check_ruleset('', $program, $RULESET, $self);
 }
 
-#-------------------------------------------------------------------------------
 sub _check_ruleset(\%$$\%\%) {
 	my $self	= shift;
 	my $posstr	= shift;

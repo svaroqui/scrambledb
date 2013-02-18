@@ -440,7 +440,7 @@ function found_replicate(tokens )
                    if is_debug then
                      print ("   Fail back to master : No memcache entry in master")
                    end
-                 
+                   masterGTID=-1
                    isgood= 0
                 end 
                 if is_debug then 
@@ -451,7 +451,7 @@ function found_replicate(tokens )
                    if is_debug then
                     print ("   Fail back to master : No memcache entry in slave")
                    end
-                 
+                   slaveGTID=-2
                    isgood= 0
                    
                 end  
