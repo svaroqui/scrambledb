@@ -227,3 +227,22 @@ make && make install
 cd $DEPOTDIR
 rm -f sphinx-2.0.4-release.tar.gz
 
+
+cd tarantool-1.4.8-45-gf3e2db3-src
+CC=gcc-mp-4.6 CXX=g++-mp-4.6 cmake . -DCMAKE_BUILD_TYPE=RelWithDebugInfo -DENABLE_CLIENT=true -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/tarantool  
+CC=gcc-mp-4.6 make
+cd $DEPOTDIR
+
+
+wget http://dev.mysql.com/get/Downloads/MySQL-Cluster-7.2/mysql-cluster-gpl-7.2.10-linux2.6-x86_64.tar.gz/from/http://cdn.mysql.com/
+cd $SKYDESTDIR 
+tar xzf $SKYDESTDIR/mysql-cluster-gpl-7.2.10-linux2.6-x86_64.tar.gz 
+mv mysql-cluster-gpl-7.2.10-linux2.6-x86_64/ cluster
+cd $DEPOTDIR
+
+wget wget https://downloads.mariadb.org/f/mariadb-galera-5.5.28a/kvm-bintar-hardy-amd64/mariadb-galera-5.5.28a-linux-x86_64.tar.gz/from/http:/ftp.igh.cnrs.fr/pub/mariadb
+cd $SKYDESTDIR 
+tar xzf $SKYDESTDIR/mariadb-galera-5.5.28a-linux-x86_64.tar.gz
+mv mariadb-galera-5.5.28a-linux-x86_64/ galera
+cd $DEPOTDIR
+

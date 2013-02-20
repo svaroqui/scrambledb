@@ -16,12 +16,12 @@ export SKYBASEDIR=$SKYBASEDIR
 export SKYDATADIR=$SKYDATADIR
 export SKYUSER=skysql
 export SKYGROUP=skysql
-export PATH=$PATH:$SKYBASEDIR/sandbox/bin/:$SKYBASEDIR/gearmand/bin/:$SKYBASEDIR/gearmand/sbin/:$SKYBASEDIR/mariadb-client/bin/
+export PATH=$PATH:$SKYBASEDIR/sandbox/bin/:$SKYBASEDIR/gearmand/bin/:$SKYBASEDIR/gearmand/sbin/:$SKYBASEDIR/mariadb-client/bin/:/usr/local/skysql/java/Contents/Home/bin
 export PERL5LIB=$SKYBASEDIR/sandbox/lib/site_perl/5.16.0:$SKYBASEDIR/perl/lib/site_perl/5.16.0/darwin-2level:$SKYBASEDIR/ncc/lib
 export SANDBOX_AS_ROOT=1
 export PYTHONUSERBASE=$SKYBASEDIR/MySQL-python
 export PYTHONPATH=$SKYBASEDIR/MySQL-python/lib64/python2.6
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$SKYBASEDIR/mysql-client/lib/:$SKYBASEDIR/boost/lib/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$SKYBASEDIR/mysql-client/lib/:$SKYBASEDIR/boost/lib/:/usr/local/skysql/java/Contents/Home/lib
 
 cd $SKYBASEDIR/ncc
 
@@ -83,6 +83,9 @@ WORKERCONFIG=$SKYBASEDIR/ncc/bin/worker_write_config.pl
 WORKERHEARBEAT=$SKYBASEDIR/ncc/bin/worker_heartbeat.pl
 WORKERDOCTOR=$SKYBASEDIR/ncc/bin/worker_cluster_doctor.pl
 WORKERCLOUDDOCTOR=$SKYBASEDIR/ncc/bin/worker_cloud_doctor.pl
+WEB=$SKYBASEDIR/ncc/web/bin/app.pl 
+
+
 
 WORKERCLOUD=$SKYBASEDIR/ncc/bin/worker_cloud_cmd.py
 
@@ -108,6 +111,9 @@ start()
   nohup $SKYBASEDIR/perl/bin/perl $WORKERHEARBEAT < /dev/null > $LOG/worker_hearbeat.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid  
+  nohup $SKYBASEDIR/perl/bin/perl $WEB < /dev/null > $LOG/webgui.log 2>&1 & 
+  procid=$!
+  echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid    
   nohup $SKYBASEDIR/perl/bin/perl $WORKERDOCTOR < /dev/null > $LOG/worker_doctor.log 2>&1 & 
   procid=$!
   echo $procid >> $SKYDATADIR/tmp/wrk$procid.pid 

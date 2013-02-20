@@ -1,0 +1,42 @@
+global_defs {
+  notification_email {
+    stephane@skysql.com
+  }
+  notification_email_from keepalived@lb-3d9d6604
+  smtp_server localhost
+  smtp_connect_timeout 30
+  # This should be unique.
+  router_id 55
+}
+
+vrrp_instance mysql_pool {
+  # The interface we listen on.
+  interface eth2
+  vrrp_unicast_bind 127.0.0.1
+  vrrp_unicast_peer 127.0.0.1
+  # The default state, one should be master, the others should be set to SLAVE.
+  state SLAVE
+
+ # This should be the same on all participating load balancers.
+  virtual_router_id 1
+
+  priority 102
+
+  notify_master "/usr/local/skysql/ncc/bin/clmgr services switch_vip"
+  # Set the interface whose status to track to trigger a failover.  
+  track_interface {
+    eth2
+  }
+
+  # Password for the loadbalancers to share.
+  authentication {
+    auth_type PASS
+    auth_pass 1111
+  }
+
+  # This is the IP address that floats between the loadbalancers.
+  virtual_ipaddress {
+    127.0.0.1/24
+  }
+}
+

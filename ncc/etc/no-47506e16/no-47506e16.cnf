@@ -1,0 +1,7 @@
+-m 16
+# default port
+-p 11211
+# user to run daemon nobody/apache/www-data
+-u skysql
+-l 0.0.0.0
+-P /var/lib/skysql/tmp/memcached.no-47506e16.pid

@@ -271,3 +271,24 @@ cd md5-1.1.2
 make 
 make install 
 cd $DEPOTDIR
+
+
+wget http://dev.mysql.com/get/Downloads/MySQL-Cluster-7.2/mysql-cluster-gpl-7.2.10-osx10.6-x86_64.tar.gz/from/http://cdn.mysql.com/
+cd $SKYDESTDIR 
+tar xzf $SKYDESTDIR/mysql-cluster-gpl-7.2.10-linux2.6-x86_64.tar.gz 
+mv mysql-cluster-gpl-7.2.10-linux2.6-x86_64/ cluster
+cd $DEPOTDIR
+
+wget wget https://downloads.mariadb.org/f/mariadb-galera-5.5.28a/kvm-bintar-hardy-amd64/mariadb-galera-5.5.28a-linux-x86_64.tar.gz/from/http:/ftp.igh.cnrs.fr/pub/mariadb
+cd $SKYDESTDIR 
+tar xzf $SKYDESTDIR/mariadb-galera-5.5.28a-linux-x86_64.tar.gz
+mv mariadb-galera-5.5.28a-linux-x86_64/ galera
+cd $DEPOTDIR
+
+
+wget wget http://apache.mirrors.tds.net/cassandra/1.2.1/apache-cassandra-1.2.1-bin.tar.gz
+cd $SKYDESTDIR 
+tar xzf $SKYDESTDIR/apache-cassandra-1.2.1-bin.tar.gz 
+mv apache-cassandra-1.2.1/ cassandra 
+cd $DEPOTDIR
+

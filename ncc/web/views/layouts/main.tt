@@ -20,6 +20,8 @@
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxgrid.edit.js"></script>  
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxgrid.pager.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxgrid.selection.js"></script> 
+    <script type="text/javascript" src="/javascripts/jqwidgets/jqxgrid.sort.js"></script> 
+    <script type="text/javascript" src="/javascripts/jqwidgets/jqxgrid.filter.js"></script> 
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxdropdownlist.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxcheckbox.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxtabs.js"></script>

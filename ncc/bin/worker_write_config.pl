@@ -97,21 +97,21 @@ sub write_cmd {
   
     $log->log_debug("[worker_config] Receive command ".$command,1,"write_config");
   
-    write_mysql_proxy_config($SKYBASEDIR."/ncc/etc/mysql-proxy");
+    write_mysql_proxy_config();
     $log->log_debug("[worker_config] Info: mysql-proxy ",1,"write_config");
     write_mha_config($SKYBASEDIR. "/ncc/etc/mha.cnf");
     $log->log_debug("[worker_config] Info: mha ",1,"write_config");
-    write_keepalived_config($SKYBASEDIR. "/ncc/etc/keepalived");
+    write_keepalived_config();
     $log->log_debug("[worker_config] Info: keepalived ",1,"write_config");
-    write_haproxy_config($SKYBASEDIR."/ncc/etc/haproxy");
+    write_haproxy_config();
     $log->log_debug("[worker_config] Info: haproxy ",1,"write_config");
-    write_memcached_config($SKYBASEDIR."/ncc/etc/memcached");
+    write_memcached_config();
     $log->log_debug("[worker_config] Info: memcached ",1,"write_config");
     write_lua_script();
     $log->log_debug("[worker_config] Info: lua scripts ",1,"write_config");
     write_write_alias($SKYBASEDIR."/ncc/bin/alias.sh");
     $log->log_debug("[worker_config] Info: alias ",1,"write_config");
-    write_tarantool_config($SKYBASEDIR."/ncc/etc/tarantool");
+    write_tarantool_config();
     $log->log_debug("[worker_config] Info: tarantool ",1,"write_config");
     write_mysql_config(); 
     $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
@@ -142,17 +142,20 @@ sub replace_patern_infile($$$){
 
 
 
-sub write_keepalived_config($){
- my $file= shift;
+sub write_keepalived_config(){
  my $i=100;
  my $lb_info;
- my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);   
- foreach my $lb (keys(%{$config->{lb}})) {
+ my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);  
+    
 
+ 
+ foreach my $lb (keys(%{$config->{lb}})) {
+    my $dir=$SKYBASEDIR. "/ncc/etc/".$lb; 
+    mkdir($dir) unless(-d $dir) ;
     $lb_info = $config->{lb}->{default};
     $lb_info = $config->{lb}->{$lb};
     if  ( $lb_info->{mode} eq "keepalived"){
-    open my $out, '>', "$file.$lb.cnf" or die "Can't write new file: $!";
+    open my $out, '>', "$dir/$lb.cnf" or die "Can't write new file: $!";
 
     print $out "global_defs {\n";
     print $out "  notification_email {\n";
@@ -356,15 +359,18 @@ return 0 ;
 }
 
 
-sub write_tarantool_config($) {
-my $file= shift;
+sub write_tarantool_config() {
+
  my $i=100;
  my $host_nosql;
  foreach my $nosql (keys(%{$config->{nosql}})) {
+   my $dir=$SKYBASEDIR. "/ncc/etc/".$nosql; 
+    mkdir($dir) unless(-d $dir) ; 
+    
    $host_nosql = $config->{nosql}->{default};
    $host_nosql = $config->{nosql}->{$nosql}; 
    if  ($host_nosql->{mode} eq "tarantool") {
-    open my $out, '>', "$file.$nosql.cnf" or die "Can't write new file: $!";
+    open my $out, '>', "$dir/$nosql.cnf" or die "Can't write new file: $!";
     print $out "# Limit of memory used to store tuples to 100MB\n";
     print $out "# (0.1 GB)\n";
     print $out "# This effectively limits the memory, used by\n";
@@ -421,17 +427,18 @@ my $file= shift;
 }
 
 
-sub write_haproxy_config($){
- my $file= shift;
+sub write_haproxy_config(){
+ 
  my $i=100;
  my $lb_info;
  my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);   
  foreach my $lb (keys(%{$config->{lb}})) {
-
+    my $dir=$SKYBASEDIR. "/ncc/etc/".$lb; 
+    mkdir($dir) unless(-d $dir) ;
     $lb_info = $config->{lb}->{default};
     $lb_info = $config->{lb}->{$lb};
     if  ( $lb_info->{mode} eq "haproxy" ){
-    open my $out, '>', "$file.$lb.cnf" or die "Can't write new file: $!";
+    open my $out, '>', "$dir/$lb.cnf" or die "Can't write new file: $!";
     print $out "global\n";
     print $out "   log         127.0.0.1 local2\n";
     #print $out "   chroot      ".."/haproxy\n";
@@ -488,23 +495,25 @@ sub write_haproxy_config($){
       }
      }
       close $out;
-      system("chmod 660 $file.$lb.cnf " );
+      system("chmod 660 $dir.$lb.cnf " );
      $i++;
 
   }
  }
 }
 
-sub write_memcached_config($){
-    my $file = shift;
+sub write_memcached_config(){
+   
     my $lb= Scramble::ClusterUtils::get_active_lb($config);
     my $i=100;
     my $nosql;
     foreach my $host (keys(%{$config->{nosql}})) {
+        my $dir=$SKYBASEDIR. "/ncc/etc/".$host; 
+        mkdir($dir) unless(-d $dir) ;
         $nosql = $config->{nosql}->{default};
         $nosql = $config->{nosql}->{$host};
         if  ( $nosql->{mode} eq "memcache"){
-        open my $out, '>', "$file.$host.cnf" or die "Can't write new file: $!";
+        open my $out, '>', "$dir/$host.cnf" or die "Can't write new file: $!";
         print $out "-m ".$nosql->{mem}."\n";
         print $out "# default port\n";
         print $out "-p ".$nosql->{port}."\n";
@@ -516,7 +525,7 @@ sub write_memcached_config($){
 
         close $out;
        $i++;
-       system("chmod 660 $file.$host.cnf" );
+       system("chmod 660 $dir.$host.cnf" );
     }
   }
 
@@ -576,8 +585,8 @@ sub write_mysql_config(){
     return 0 ;
 }
 
-sub write_mysql_proxy_config($){
-my $file = shift;
+sub write_mysql_proxy_config(){
+
 my $masters = Scramble::ClusterUtils::get_all_masters($config);
 my $slaves =  Scramble::ClusterUtils::get_all_slaves($config) ;
 
@@ -586,7 +595,9 @@ my $host_info;
 foreach my $host (keys(%{$config->{proxy}})) {
     $host_info = $config->{proxy}->{default};
     $host_info = $config->{proxy}->{$host};
-    open my $out, '>', "$file.$host.cnf" or die "Can't write new file: $!";
+     my $dir=$SKYBASEDIR. "/ncc/etc/".$host; 
+     mkdir($dir) unless(-d $dir) ;
+    open my $out, '>', "$dir/$host.cnf" or die "Can't write new file: $!";
 
     print $out "[mysql-proxy]\n";
     print $out "pid-file = $SKYDATADIR/tmp/mysql-proxy.$host.pid\n";
@@ -607,7 +618,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
     print $out "lua-cpath=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.so\n";
      close $out;
  $i++;
-system("chmod 660 $file.$host.cnf" );
+system("chmod 660 $dir.$host.cnf" );
 }
 
 
@@ -628,7 +639,22 @@ sub write_mha_config($){
   foreach my $host (keys(%{$config->{db}}) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ($host_info->{status} eq "master" || $host_info->{status} eq "slave" && $host_info->{cloud} eq $cloud_name) {
+        if (
+                (  $host_info->{status} eq "master" 
+                || $host_info->{status} eq "slave")
+               &&  $host_info->{cloud} eq $cloud_name
+               && ( $host_info->{mode} ne "spider" 
+                 || $host_info->{mode} ne "ndbd"
+                 || $host_info->{mode} ne "galera"
+                 || $host_info->{mode} ne "leveldb"
+                 || $host_info->{mode} ne "cassandra"
+                 || $host_info->{mode} ne "hbase"
+
+               )&&
+               ( $host_info->{status} ne "standalone" 
+                 || $host_info->{status} ne "discard"
+               )
+         ) {
             print $out "[server$i]\n";
             print $out "hostname=$host_info->{ip}\n";
             print $out "ip=$host_info->{ip}\n";
@@ -638,7 +664,7 @@ sub write_mha_config($){
             print $out "user=$host_info->{mysql_user}\n";
             print $out "password=$host_info->{mysql_password}\n";
             print $out "remote_workdir=$host_info->{datadir}/mha\n";
-            print $out "master_binlog_dir=$host_info->{datadir}/sandboxes/$host/data\n";
+            print $out "master_binlog_dir=$host_info->{datadir}/$host/data\n";
             print $out "ssh_options=\"-i $SKYDATADIR/.ssh/". $cloud->{public_key} . "\"\n";
             print $out "basedir=$SKYBASEDIR\n";
             print $out "\n";

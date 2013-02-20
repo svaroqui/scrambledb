@@ -53,7 +53,9 @@ our %ERRORMESSAGE = (
     "ER0019" => "starting",
     "ER0020" => "stopping",
     "ER0021" => "installing",
-    "ER0022" => "removing"
+    "ER0022" => "removing",
+    "ER0023" => "stopped",
+    "ER0024" => "uninstalled"
 
 
 );

@@ -1,0 +1,16 @@
+[MYSQLD]
+ndb-cluster-connection-pool=1 
+ndbcluster
+ndb-connectstring=localhost:1186
+ndb-force-send=1
+ndb-use-exact-count=0
+ndb-extra-logging=6
+ndb-autoincrement-prefetch-sz=256
+engine-condition-pushdown=1
+
+port=3306
+socket=/tmp/mysql.sock.3306
+
+server-id=3306
+
+log-error=error.log

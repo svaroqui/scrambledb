@@ -50,6 +50,24 @@ sub get_grid_config_clouds($) {
   return \@statusgrid;
 }
 
+sub get_grid_config_service($$) {
+  my $status =shift;  
+  my $node =shift;  
+
+  my @statusgrid;   
+  foreach my $type  (keys( %{ $status} ) ) {
+    foreach my $key  (keys( %{ $status->{$type}->{$node}} ) ) {
+      my $action_add  = 
+       {
+        name       => $key,
+        value       => $status->{$type}->{$node}->{$key}
+         };
+     push(@statusgrid , $action_add);   
+     }
+  }  
+  return \@statusgrid;
+}
+
 
 sub get_grid_status_instances($) {
   my $status =shift;  
@@ -107,7 +125,7 @@ sub gearman_client($) {
  
   (my $ret, my $result) = $client->do('cluster_cmd', $command);
     $result =~ s/\n//g; 
-    use JSON;
+  
     my $json      = new JSON;
     my $json_text =
     $json->allow_nonref->utf8->relaxed->escape_slash->loose->allow_singlequote->allow_barekey->decode($result);
@@ -117,38 +135,33 @@ sub gearman_client($) {
 }
 
 
-
 our $VERSION = '0.1';
 set serializer => 'JSON';
 
 get '/' => sub {
     template 'index';
 };
+
 get '/status' => sub {
     template 'status';    
 };
 
 get '/services/status' => sub {
-   
         my $command='{"level":"services","command":{"action":"status","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $res=gearman_client($command);
         my $resgrid=get_grid_status_services($res);
-        return $resgrid ;
-       
+        return $resgrid ;       
 };
+
 get '/instances/status' => sub {
-   
         my $command='{"level":"instances","command":{"action":"status","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $res=gearman_client($command);
         my $resgrid=get_grid_status_instances($res);
         return $resgrid ;
-       
 };
 
 get '/services/:action/:group/:type' => sub {
-       
         my $level ="services";
-
         my $action =params->{action};
         my $group=params->{group}; 
         my $type=params->{type};
@@ -157,30 +170,37 @@ get '/services/:action/:group/:type' => sub {
         if ( ! defined $level ) {$level='service';}
         my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $resjson=gearman_client($command);
-        
         return $resjson ;
 };
 
 
-get '/config/:action/:group/:type' => sub {
- my $level ="config";
-
+get '/config/:action' => sub {
         my $action =params->{action};
-        my $group=params->{group}; 
-        my $type=params->{type};
-        my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
+        my $command='{"level":"config","command":{"action":"'.$action.'","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $resjson=gearman_client($command);
-        
         return $resjson ;
 };
 
 get '/config/getclouds' => sub {
- my $level ="config";
-
         my $command='{"level":"config","command":{"action":"display","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $res=gearman_client($command);
         my $resgrid=get_grid_config_clouds($res);
         return $resgrid ;
+};
+
+get '/config/infos/:service' => sub {
+        my $command='{"level":"config","command":{"action":"display","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
+        my $resjson=gearman_client($command);
+        my $resgrid=get_grid_config_service($resjson,params->{service});
+        return $resgrid ;
+};
+
+
+get '/mon' => sub {
+ 
+  my $content = get 'http:/127.0.0.1/';
+      
+  return $content;
         
 };
 

@@ -176,24 +176,26 @@ sub cluster_cmd {
            return   $json_status ;
        }
        elsif ( $action eq "status") {
-        $ret= get_local_instances_status($config);
-        return  '{"return":{"code":"000000"},"instances":'. $ret .'}' ;
+         $ret= get_local_instances_status($config);
+         return  '{"return":{"code":"000000"},"instances":'. $ret .'}' ;
        } 
        elsif ( $action eq "actions_init") {
           $log->log_debug("[cluster_cmd] Info: Set empty actions",1,"cluster");
           $memd->set( "actions", '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":[]}' );
        } 
-       elsif ( $action eq "start" || $action eq "launch" || $action eq "stop" || $action eq "terminate" || $action eq "world") {
+       elsif (  $action eq "start" 
+            || $action eq "launch" 
+            || $action eq "stop" 
+            || $action eq "terminate" 
+            || $action eq "world") 
+       {
         my $json_todo = $memd->get("actions");
-        if (!$json_todo )
-        {
+        if (!$json_todo ) {
                $log->log_debug("[cluster_cmd] Info: No actions in memcache",1,"cluster"); 
-   
                $log->report_action( "localhost", "fetch_event",  "ER0015","memd->get('actions')");
                my $json_action      = new JSON;
                my @console =$log->get_actions();
-               return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}';
-               
+               return  '{"return":{"code":"ER0015"},"console":'. $json_action->allow_nonref->utf8->encode(@console) .' , "version":"1.0","question":'.$json_cmd_str.',"actions":[]}'; 
         }
         my $json      = new JSON ;
         my $todo =  $json->allow_nonref->utf8->relaxed->escape_slash->loose
@@ -209,25 +211,19 @@ sub cluster_cmd {
                  do_group       =>  $group,
                  do_action      =>  $action 
         };  
-        
-        
         $json_todo =  $json->allow_blessed->convert_blessed->encode($todo);
         $log->log_debug("[cluster_cmd] Info: Delayed actions",1,"cluster");
         $log->log_json($json_todo,1,"cluster");
-       
-         
         $memd->set( "actions",  $json_todo);
         $log->report_action( "localhost", "delayed_action",  "ER0017","memd->set('actions',?)");
         return  '{"return":{"code":"000000"},"version":"1.0","question":'.$json_cmd_str.',"actions":'. $json->allow_nonref->utf8->encode($log->get_actions())."}";
       }
-      
-       
     }  
     if ( $level eq "services" ){
         if ( $action eq "sql" ) {
-               $like       = "";
-               $ddlallnode = spider_is_ddl_all_node($query);
-               if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
+            $like       = "";
+            $ddlallnode = spider_is_ddl_all_node($query);
+            if ( $like ne "" ) { $query = spider_rewrite_query_like(); }
         }
         elsif ( $action eq "start" ) {
             $ret = bootstrap_config();
@@ -259,29 +255,21 @@ sub cluster_cmd {
            if ( $host_info->{mode} ne "spider" ) {
                $peer_host_info = $config->{db}->{ $host_info->{peer}[0] };
            }
-          
            if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
                $log->log_debug("[cluster_cmd] Info: Processing $host on $myhost",1,"cluster");  
-               if ( $action eq "install" ) {
-                   $ret = service_do_command( $host_info, $host, $action );
-               }
-               if ( $action eq "stop" ) {
-                   $ret = service_do_command( $host_info, $host, $action );
+               if (     $action eq "install" 
+                    ||  $action eq "stop" 
+                    ||  $action eq "remove" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "status" )
+               {
+                    $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "sync" ) {
                    $ret = service_sync_database( $host_info, $host, $peer_host_info );
                }
                if ( $action eq "start" ) {
                    $ret = service_do_command( $host_info, $host, $action, $query );
-               }
-               if ( $action eq "remove" ) {
-                   $ret = service_do_command( $host_info, $host, $action, $query );
-               }
-               if ( $action eq "restart" ) {
-                   $ret = service_do_command( $host_info, $host, $action );
-               }
-               if ( $action eq "status" ) {
-                   $ret = service_do_command( $host_info, $host, $action );
                }
                if ( $action eq "join" ) {
                    $ret = spider_node_join( $host_info, $host ); 
@@ -302,107 +290,75 @@ sub cluster_cmd {
             my $host_info = $config->{nosql}->{default};
             $host_info = $config->{nosql}->{$nosql};
             if (is_filter_service($group,$type, $host_info, $nosql, $cloud_name) == 1   ) {
-                my $le_localtime = localtime;
-                if ( $action eq "stop" ) {
-                    $ret = service_do_command( $host_info, $nosql, $action );
-                }
-                if ( $action eq "start" ) {
-                    $ret = service_do_command( $host_info, $nosql, $action, $query );
-                }
-                if ( $action eq "restart" ) {
-                    $ret = service_do_command( $host_info, $nosql, $action );
-                }
-                if ( $action eq "status" ) {
+               if (     $action eq "stop" 
+                    ||  $action eq "start" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "status" )
+                {
                     $ret = service_do_command( $host_info, $nosql, $action );
                 }
             }
         }
-
         foreach my $host ( sort( keys( %{ $config->{proxy} } ) ) ) {
             my $host_info = $config->{proxy}->{default};
             $host_info = $config->{proxy}->{$host};
             if ( is_filter_service($group,$type, $host_info, $host, $cloud_name)  == 1 ) {
-                my $le_localtime = localtime;
-                if ( $action eq "stop" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
-                }
-                if ( $action eq "start" ) {
-                    $ret = service_do_command( $host_info, $host, $action, $query );
-                }
-                if ( $action eq "restart" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
-                }
-                if ( $action eq "status" ) {
+                if (    $action eq "stop" 
+                    ||  $action eq "start" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "status" )
+                {
                     $ret = service_do_command( $host_info, $host, $action );
                 }
             }
-
         }
         foreach my $host ( sort( keys( %{ $config->{lb} } ) ) ) {
             my $host_info = $config->{lb}->{default};
             $host_info = $config->{lb}->{$host};
-           
             if (is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
-                my $le_localtime = localtime;
-                if ( $action eq "stop" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
-                }
-                if ( $action eq "start" ) {
-                    $ret = service_do_command( $host_info, $host, $action, $query );
-                }
-                if ( $action eq "restart" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
-                }
-                if ( $action eq "status" ) {
-                    $ret = service_do_command( $host_info, $host, $action );
+                if (    $action eq "stop" 
+                    ||  $action eq "start" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "status" )
+                {
+                   $ret = service_do_command( $host_info, $host, $action );
                 }
             }
-
         }
-        
         foreach my $host ( sort( keys( %{ $config->{bench} } ) ) ) {
             my $host_info = $config->{bench}->{default};
             $host_info = $config->{bench}->{$host};
-          
             if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
-                my $le_localtime = localtime;
-                if ( $action eq "install" ) {
-                    $ret = service_install_bench( $host_info, $host, $action );
-                }
-                if ( $action eq "stop" ) {
-                    $ret = service_stop_bench( $host_info, $host, $action );
-                }
+              if (  $action eq "stop" 
+                ||  $action eq "start" 
+                ||  $action eq "status" )
+                {
+                   $ret = service_do_command( $host_info, $host, $action );
+                }     
                 if ( $action eq "start" ) {
-                    $retjson = service_start_bench( $host_info, $host, $action, $query );
+                    $retjson = service_start_dbt2( $host_info, $host, $action);
                 }
-                
-
+               
             }
         }
         foreach my $host ( sort( keys( %{ $config->{monitor} } ) ) ) {
           my $host_info = $config->{monitor}->{default};
           $host_info = $config->{monitor}->{$host};
-         
+          $log->log_debug("[cluster_cmd]: for all monitor try to filter  Monitor",2,"cluster"); 
           if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
-              my $le_localtime = localtime;
-
-              if ( $action eq "stop" ) {
+              if (    $action eq "stop" 
+                    ||  $action eq "start" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "status" )
+              {
+                  $log->log_debug("[cluster_cmd]: $action Monitor",2,"cluster"); 
                   $ret = service_do_command( $host_info, $host, $action );
               }
-              if ( $action eq "start" ) {
-                  $ret = service_do_command( $host_info, $host, $action, $query );
-              }
-              if ( $action eq "restart" ) {
-                  $ret = service_do_command( $host_info, $host, $action );
-              }
-
           }
-
         }
    }
    my $json_action      = new JSON; 
    my @actions = $log->get_actions();
-  
    my @console = $log->get_console() ;
    return '{"'.$level.'":[' . join(',' , @console) .']'. $retjson .',"console":'. $json_action->allow_nonref->utf8->encode(\@actions).' }';
 
@@ -450,7 +406,7 @@ sub get_local_instances_status($) {
     $log->log_debug("[get_local_instances_status] Info: Start",2,"cluster"); 
     foreach my $ip ( @ips)  {
         if (instance_check_ssh($ip) ==0 )  {
-           $state ="stopped";
+            $state ="stopped";
         }   else {  
             $state ="running"; 
         }     
@@ -1167,7 +1123,7 @@ sub service_remove_database($$) {
   return $err;
 }
 
-sub service_status_mycheckpoint($$$) {
+sub service_heartbeat_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
   my $host=shift;  
@@ -1196,7 +1152,7 @@ sub service_status_mycheckpoint($$$) {
           . " --disable-bin-log"
           . " --purge-days=" 
           . $mon->{purge_days};
-        $log->log_debug("[service_status_mycheckpoint] $host_info->{ip}: $cmd ",2,"cluster");    
+        $log->log_debug("[service_heartbeat_mycheckpoint] $host_info->{ip}: $cmd ",2,"cluster");    
         $err = Scramble::ClusterTransport::worker_node_command( $cmd, $host_info->{ip} ,$log);
         if(  $err eq "00000" ){
             return 1;
@@ -1280,10 +1236,57 @@ sub service_status_memcache_fromdb($) {
         return 1;
 }
 
+sub service_status_hbase($$){
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+
+  my $param="ls -l $SKYDATADIR/$node| wc -l";
+          
+            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+            $res =~ s/^\s+//;
+            $res =~ s/\s+$//;
+            if ($res eq "0")  { return  "ER0024";}
+  return $err;
+}
+
+sub service_status_cassandra($$){
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+
+  my $param="ls -l $SKYDATADIR/$node| wc -l";
+          
+            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+            $res =~ s/^\s+//;
+            $res =~ s/\s+$//;
+            if ($res eq "0")  { return  "ER0024";}
+  return $err;
+}
+
+sub service_status_leveldb($$){
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+
+  my $param="ls -l $SKYDATADIR/$node| wc -l";
+          
+            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+            $res =~ s/^\s+//;
+            $res =~ s/\s+$//;
+            if ($res eq "0")  { return  "ER0024";}
+  return $err;
+}
+
+
 sub service_status_database($$) {
   my $self = shift;
   my $node = shift;
   my $err = "000000";
+
+    
+ 
+    
   my $port = "3306";
     if (   $self->{mode} eq "mysql-proxy"
         || $self->{mode} eq "keepalived"
@@ -1292,6 +1295,12 @@ sub service_status_database($$) {
         $port = $self->{port};
     }
     else {
+            my $param="ls -l $SKYDATADIR/$node| wc -l";
+          
+            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+            $res =~ s/^\s+//;
+            $res =~ s/\s+$//;
+            if ($res eq "0")  { return  "ER0024";}
         $port = $self->{mysql_port};
     }
     my $theip = $self->{ip};
@@ -1321,6 +1330,103 @@ sub service_status_database($$) {
     
     };
  return $err;
+}
+
+sub service_status_mycheckpoint($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/mycheckpoint."
+          . $name . ".pid` | grep mycheckpoint | grep -vc mycheckpoint   ";
+  $log->log_debug("[service_status_mycheckpoint] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
+}
+
+sub service_status_dbt2($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/client."
+          . $name . ".pid` | grep client | grep -vc client   ";
+  $log->log_debug("[service_status_dbt2] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
+}
+
+sub service_status_dbt3($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/client."
+          . $name . ".pid` | grep client | grep -vc client   ";
+  $log->log_debug("[service_status_dbt3] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
+}
+
+
+sub service_status_http($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/httpd."
+          . $name . ".pid` | grep httpd | grep -vc httpd   ";
+  $log->log_debug("[service_status_dbt3] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
+}
+
+sub service_status_sysbench($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/client."
+          . $name . ".pid` | grep client | grep -vc client   ";
+  $log->log_debug("[service_status_sysbench] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
+}
+
+sub service_status_mysqlslap($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "000000";
+  my $param =
+            "ps -ef `cat "
+          . $SKYDATADIR
+          . "/tmp/client."
+          . $name . ".pid` | grep mysqlslap | grep -vc mysqlslap   ";
+  $log->log_debug("[service_status_mysqlslap] on $self->{ip}: ". $param  ,1,"cluster");    
+    
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if ($res ne "1" ){ $err="ER0023";}
+  return $err;
 }
 
 sub service_status_memcache($$) {
@@ -1362,7 +1468,7 @@ sub service_start_memcache($$) {
         $SKYBASEDIR
       . "/ncc/init.d/start-memcached "
       . $SKYBASEDIR
-      . "/ncc/etc/memcached."
+      . "/ncc/etc/$node/"
       . $node . ".cnf";
   $log->log_debug("[service_start_memcache] on $self->{ip}: ". $param  ,1,"cluster");     
   my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
@@ -1381,7 +1487,7 @@ sub service_start_tarantool($$) {
         $SKYBASEDIR
       . "/tarantool/bin/tarantool_box -B -c "
       . $SKYBASEDIR
-      . "/ncc/etc/tarantool."
+      . "/ncc/etc/$node/"
       . $node . ".cnf";
   $log->log_debug("[service_start_tarantool] on $self->{ip}: ". $param  ,1,"cluster");  
   my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
@@ -1421,7 +1527,7 @@ sub service_start_database($$) {
 sub service_start_mycheckpoint($$) {
   my $self = shift;
   my $node = shift;
-  my $host=get_active_master_db_name($config);
+  my $host=Scramble::ClusterUtils::get_active_master_db_name($config);
   my $host_info = $config->{db}->{$host};  
   my $err = "000000";
   
@@ -1451,7 +1557,7 @@ sub service_start_mysqlproxy($$) {
   my $err = "000000";  
   my $param =
             $SKYBASEDIR
-          . "/mysql-proxy/bin/mysql-proxy --daemon --defaults-file=$SKYBASEDIR/ncc/etc/mysql-proxy."
+          . "/mysql-proxy/bin/mysql-proxy --daemon --defaults-file=$SKYBASEDIR/ncc/etc/$node/"
           . $node
           . ".cnf --pid-file="
           . $SKYDATADIR
@@ -1491,7 +1597,7 @@ sub service_start_haproxy($$) {
             $SKYBASEDIR
           . "/haproxy/sbin/haproxy -f "
           . $SKYBASEDIR
-          . "/ncc/etc/haproxy."
+          . "/ncc/etc/$node/"
           . $node
           . ".cnf -p "
           . $SKYDATADIR
@@ -1503,7 +1609,8 @@ sub service_start_haproxy($$) {
   return $err;
 }
 
-sub service_start_bench($$$$) {
+
+sub service_start_dbt2($$$$) {
     my $self = shift;
     my $node = shift;
     my $type = shift;
@@ -1615,6 +1722,17 @@ sub service_stop_haproxy($$) {
   return $err;
 }
 
+sub service_stop_dbt2($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "ER0020";
+  my $param =
+          "kill -9 `cat " . $SKYDATADIR . "/tmp/dbt2." . $name . ".pid`";
+  $log->log_debug("[service_stop_dbt2] on $self->{ip}: ". $param  ,1,"cluster");           
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  return $err;
+}
+
 sub service_stop_mycheckpoint($$) {
   my $self = shift;
   my $name = shift;
@@ -1630,56 +1748,56 @@ sub service_stop_mycheckpoint($$) {
   return $err;
 }
 
-sub service_install_bench($$) {
- my $self=shift;
- my $name = shift;
- my $cmd="mkdir ". $SKYDATADIR ."/".$name;
- $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
- 
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
- $cmd="mkdir ". $SKYDATADIR ."/".$name."/client";
- $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
- $cmd="mkdir ". $SKYDATADIR ."/".$name."/driver";
- $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
- 
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
- 
- 
- $cmd=$SKYBASEDIR
-      . "/dbt2/bin/datagen  -w "
-      .  $self->{warehouse}
-      . " -d "
-      . $SKYDATADIR 
-      ."/".$name
-      ." --mysql";
- $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
- 
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
- my $master=  Scramble::ClusterUtils::get_active_db($config);
- mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
- $log->log_debug("[service_install_bench] DROP DATABASE IF EXISTS dbt2 on master "  ,1,"cluster");      
- 
+sub service_install_dbt2($$) {
+    my $self=shift;
+    my $name = shift;
+    my $cmd="mkdir ". $SKYDATADIR ."/".$name;
+    $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
 
- $cmd=$SKYBASEDIR
-      . "/dbt2/scripts/mysql/build_db.sh -w "
-      .  $self->{warehouse}
-      . " -d dbt2 -f"
-      . $SKYDATADIR 
-      ."/".$name
-      ." -s /tmp/mysql_sandbox" 
-      .$master->{mysql_port}
-      .".sock -u " 
-      .$master->{mysql_user}
-      ." -h ".$master->{ip}
-      ." -P ".$master->{mysql_port}
-      ." -p".$master->{mysql_password}
-      ." -l -e INNODB"; 
- $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
- Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
- 
-# "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
-# /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/ -s /tmp/mysql_sandbox5010.sock -u skysql  -pskyvodka -e INNODB
+    Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
+    $cmd="mkdir ". $SKYDATADIR ."/".$name."/client";
+    $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
+    Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
+    $cmd="mkdir ". $SKYDATADIR ."/".$name."/driver";
+    $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
+
+    Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
+
+
+    $cmd=$SKYBASEDIR
+         . "/dbt2/bin/datagen  -w "
+         .  $self->{warehouse}
+         . " -d "
+         . $SKYDATADIR 
+         ."/".$name
+         ." --mysql";
+    $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
+
+    Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip} ,$log);
+    my $master=  Scramble::ClusterUtils::get_active_db($config);
+    mysql_do_command($master,"DROP DATABASE IF EXISTS dbt2");
+    $log->log_debug("[service_install_bench] DROP DATABASE IF EXISTS dbt2 on master "  ,1,"cluster");      
+
+
+    $cmd=$SKYBASEDIR
+         . "/dbt2/scripts/mysql/build_db.sh -w "
+         .  $self->{warehouse}
+         . " -d dbt2 -f"
+         . $SKYDATADIR 
+         ."/".$name
+         ." -s /tmp/mysql_sandbox" 
+         .$master->{mysql_port}
+         .".sock -u " 
+         .$master->{mysql_user}
+         ." -h ".$master->{ip}
+         ." -P ".$master->{mysql_port}
+         ." -p".$master->{mysql_password}
+         ." -l -e INNODB"; 
+    $log->log_debug("[service_install_bench]  ". $cmd  ,1,"cluster");      
+    Scramble::ClusterTransport::worker_node_command( $cmd, $self->{ip},$log );
+
+   # "/usr/local/skysql/dbt2/bin/datagen -w 3 -d /var/lib/skysql/dbt2 --mysql"
+   # /usr/local/skysql/dbt2/scripts/mysql/build_db.sh -w 3 -d dbt2 -f /var/lib/skysql/dbt2/ -s /tmp/mysql_sandbox5010.sock -u skysql  -pskyvodka -e INNODB
 }
 
 sub service_install_tarantool($$) {
@@ -1701,6 +1819,27 @@ sub service_install_tarantool($$) {
   $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log);
   return $err;
 }
+
+sub service_install_cassandra($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  my $param =
+        "mkdir "
+      .  $SKYDATADIR 
+      . "/"
+      . $node ;
+  $log->log_debug("[service_install_cassandra]  ". $param  ." on: ". $self->{ip},1,"cluster");      
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $param =
+        "chown skysql:skysql "
+      . $SKYDATADIR 
+      . "/"
+      . $node;
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log);
+  return $err;
+}
+
 
 sub service_install_mycheckpoint($$) {
   my $host_info=shift;
@@ -1943,7 +2082,7 @@ sub instance_heartbeat_collector($$) {
         service_status_memcache_fromdb($host_info);
         if ($hearbeat_counter % $config->{"scramble"}->{"cluster_monitor_interval"} ==0) {
            service_install_mycheckpoint( $host_vip , "mon_" . $host);
-           service_status_mycheckpoint($host_vip,$host_info,$host);
+           service_heartbeat_mycheckpoint($host_vip,$host_info,$host);
         }
        } 
     }
@@ -2225,9 +2364,11 @@ sub service_do_command($$$) {
       }
     } 
     if ( $cmd eq "install" ) {
-         if (   $self->{mode} eq "mariadb"
+         if (  $self->{mode} eq "mariadb"
             || $self->{mode} eq "mysql"
-            || $self->{mode} eq "spider")
+            || $self->{mode} eq "spider"
+            || $self->{mode} eq "ndbd"
+            || $self->{mode} eq "galera")
             {
                 $ret = service_install_database( $self, $node, $self->{mode} );
             } elsif ( $self->{mode} eq "dbt2" ) {
@@ -2235,11 +2376,18 @@ sub service_do_command($$$) {
             
             } elsif ( $self->{mode} eq "tarantool" ) {
                 $ret = service_install_tarantool( $self, $node)
-            }
+            } elsif ( $self->{mode} eq "dbt2" ) {
+                $ret = service_install_dbt2( $self, $node );
+               
+            }   
     }
     elsif ( $cmd eq "remove" ) {
-         if (   $self->{mode} eq "mariadb"
+         if (  $self->{mode} eq "mariadb"
             || $self->{mode} eq "mysql"
+            || $self->{mode} eq "galera"
+            || $self->{mode} eq "ndbd"
+            || $self->{mode} eq "tokudb"
+            || $self->{mode} eq "infinidb"
             || $self->{mode} eq "spider")
         {
             $err=service_remove_database($self,$node);
@@ -2250,6 +2398,10 @@ sub service_do_command($$$) {
         if (   $self->{mode} eq "mariadb"
             || $self->{mode} eq "mysql"
             || $self->{mode} eq "spider"
+            || $self->{mode} eq "galera"
+            || $self->{mode} eq "ndbd"
+            || $self->{mode} eq "tokudb"
+            || $self->{mode} eq "infinidb"
             || $self->{mode} eq "mysql-proxy"
             || $self->{mode} eq "keepalived"
             || $self->{mode} eq "haproxy" )
@@ -2257,8 +2409,36 @@ sub service_do_command($$$) {
            $err=service_status_database($self,$node);
           
         }
-        elsif ( $self->{mode} eq "memcache" ) {
+        elsif ( $self->{mode} eq "memcache" 
+             || $self->{mode} eq  "tarantool"  ) {
            $err= service_status_memcache($self,$node);
+        }
+        elsif ( $self->{mode} eq "mycheckpoint" ) {
+           $err= service_status_mycheckpoint($self,$node);
+        }
+        elsif ( $self->{mode} eq "dbt2" ) {
+           $err= service_status_dbt2($self,$node);
+        }
+        elsif ( $self->{mode} eq "dbt3" ) {
+           $err= service_status_dbt2($self,$node);
+        }
+        elsif ( $self->{mode} eq "sysbench" ) {
+           $err= service_status_dbt2($self,$node);
+        }
+        elsif ( $self->{mode} eq "mysqlslap" ) {
+           $err= service_status_dbt2($self,$node);
+        }
+        elsif ( $self->{mode} eq "apache" ) {
+           $err= service_status_http($self,$node);
+        }
+         elsif ( $self->{mode} eq "cassandra" ) {
+           $err= service_status_http($self,$node);
+        }
+         elsif ( $self->{mode} eq "leveldb" ) {
+           $err= service_status_cassandra($self,$node);
+        }
+         elsif ( $self->{mode} eq "hbase" ) {
+           $err= service_status_hbase($self,$node);
         }
     }
     elsif (
@@ -2321,7 +2501,9 @@ sub service_do_command($$$) {
     elsif ( $cmd eq "stop" && $self->{mode} eq "sphinx" ) {
         $err = service_stop_sphinx($self,$node); 
     }
-    
+    elsif ( $cmd eq "stop" && $self->{mode} eq "dbt2" ) {
+        $ret = service_stop_dbt2($self,$node); 
+    }
     $log->report_status( $self, $param, $err, $node );
     return $err;
 }

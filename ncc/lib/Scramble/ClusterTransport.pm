@@ -62,8 +62,8 @@ sub worker_node_command($$$) {
        $result= $json->allow_blessed->convert_blessed->encode($result_error);
     }
     
-    $log->report_action($ip,$cmd,$res,get_result_from_node_cmd($result));
-    return get_return_error_from_node_cmd($result) ;
+    $log->report_action($ip,$cmd,get_return_error_from_node_cmd($result),get_result_from_node_cmd($result));
+    return get_result_from_node_cmd($result)  ;
 
 
 }

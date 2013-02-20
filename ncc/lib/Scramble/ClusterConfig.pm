@@ -40,7 +40,7 @@ our $RULESET = {
                 'log_level_heartbeat'           => { 'default' => 0 ,'values' => [0,1,2]},
                 'log_level_cloud_api'           => { 'default' => 0 ,'values' => [0,1]},
                 'cluster_heartbeat_time'        => { 'default' => 10 },
-                'cluster_monitoring_interval'   => { 'default' => 30 },
+                'cluster_monitor_interval'   => { 'default' => 30 },
                 'cloud_heartbeat_time'          => { 'default' => 20 }
              }   
         },
@@ -58,8 +58,8 @@ our $RULESET = {
 	'db' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
 		'ip'				=> { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
 		'cloud'                         => { 'refvalues' => 'cloud'  },
-                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','monitor'] },
-                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone'] },
+                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','monitor','ndbd','galera','tokudb', 'infinidb' , 'cassandra', 'hbase','leveldb','percona'] },
+                'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone', 'discard'] },
                 'peer'				=> { 'deprequired' => { 'state' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
 		'agent_port'			=> { 'default' => 9989 },                
 		'cluster_interface'		=> { 'required' => ['AGENT'] },
@@ -183,7 +183,7 @@ our $RULESET = {
         ,
          'bench'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
                 'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
-                'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench'] },
+                'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench','mysqlslap'] },
         	'cloud'                        => { 'refvalues' => 'cloud'  },
                 'warehouse'			=> { 'default' => '10' },
                 'duration'			=> { 'default' => '100' },
@@ -207,7 +207,7 @@ our $RULESET = {
                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                        => { 'default' => 80  },
         	'cloud'                       => { 'refvalues' => 'cloud'  },
-    		'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] }
+    		'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['standalone'] }
                
 	}}
         

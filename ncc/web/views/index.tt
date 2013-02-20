@@ -54,13 +54,13 @@
       <div id="content">
         <div id="header">
           <h1>ScrambleDB is dancing</h1>
-          <h2>You&rsquo;ve joined the dance floor!</h2>
+          <h2>One ring to rule them all!</h2>
         </div>
 
         <div id="getting-started">
           <h1>Getting started</h1>
           <h2>Here&rsquo;s how to make a good scramble:</h2>
-                    
+          <h3><a href="/status" id="status">Let's dance</a></h3>          
           <h3><a href="#" id="about_env_link">About your application's environment</a></h3>
 
           <div id="about-content" style="display: none;">

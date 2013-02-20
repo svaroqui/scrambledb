@@ -1,7 +1,0 @@
--m 16
-# default port
--p 11211
-# user to run daemon nobody/apache/www-data
--u skysql
--l 192.168.0.100
--P /usr/local/skysql/ncc/tmp/memcached.node80.pid
