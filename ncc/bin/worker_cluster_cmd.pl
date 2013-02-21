@@ -292,6 +292,8 @@ sub cluster_cmd {
             if (is_filter_service($group,$type, $host_info, $nosql, $cloud_name) == 1   ) {
                if (     $action eq "stop" 
                     ||  $action eq "start" 
+                    ||  $action eq "install" 
+                    ||  $action eq "remove" 
                     ||  $action eq "restart" 
                     ||  $action eq "status" )
                 {
@@ -1123,6 +1125,55 @@ sub service_remove_database($$) {
   return $err;
 }
 
+sub service_remove_tarantool($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  
+  service_stop_tarantool($self,$node); 
+  my $param = "rm -rf $SKYDATADIR/$node";
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $log->log_debug("[service_remove_database] $self->{ip}: $param ",2,"cluster"); 
+  return $err;
+}
+
+sub service_remove_cassandra($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  
+  service_stop_cassandra($self,$node); 
+  my $param = "rm -rf $SKYDATADIR/$node";
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $log->log_debug("[service_remove_cassandra] $self->{ip}: $param ",2,"cluster"); 
+  return $err;
+}
+
+sub service_remove_leveldb($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  
+  service_stop_leveldb($self,$node); 
+  my $param = "rm -rf $SKYDATADIR/$node";
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $log->log_debug("[service_remove_leveldb] $self->{ip}: $param ",2,"cluster"); 
+  return $err;
+}
+
+sub service_remove_hbase($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  
+  service_stop_hbase($self,$node); 
+  my $param = "rm -rf $SKYDATADIR/$node";
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $log->log_debug("[service_remove_hbase] $self->{ip}: $param ",2,"cluster"); 
+  return $err;
+}
+
+
 sub service_heartbeat_mycheckpoint($$$) {
   my $host_vip=shift;
   my $host_info=shift;
@@ -1241,7 +1292,7 @@ sub service_status_hbase($$){
   my $node = shift;
   my $err = "000000";
 
-  my $param="ls -l $SKYDATADIR/$node| wc -l";
+  my $param="ls -l $SKYDATADIR/$node| grep -v 'No such'  | wc -l";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1255,7 +1306,7 @@ sub service_status_cassandra($$){
   my $node = shift;
   my $err = "000000";
 
-  my $param="ls -l $SKYDATADIR/$node| wc -l";
+  my $param="ls -l $SKYDATADIR/$node | grep -v 'No such' | wc -l";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1269,7 +1320,7 @@ sub service_status_leveldb($$){
   my $node = shift;
   my $err = "000000";
 
-  my $param="ls -l $SKYDATADIR/$node| wc -l";
+  my $param="ls -l $SKYDATADIR/$node | grep -v 'No such'  | wc -l";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1295,7 +1346,7 @@ sub service_status_database($$) {
         $port = $self->{port};
     }
     else {
-            my $param="ls -l $SKYDATADIR/$node| wc -l";
+            my $param="ls -l $SKYDATADIR/$node | grep -v 'No such' | wc -l";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1435,6 +1486,15 @@ sub service_status_memcache($$) {
   my $err = "000000";
   use Error qw(:try);
   $log->log_debug("[service_status_memcache] $self->{ip}: Connecting to memcache "  ,2,"cluster");  
+        
+  if ($self->{mode} eq "tarantool"){
+        my $param="ls -l $SKYDATADIR/$node | grep -v 'No such'  | wc -l";
+          
+            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+            $res =~ s/^\s+//;
+            $res =~ s/\s+$//;
+            if ($res eq "0")  { return  "ER0024";}  
+   }         
 
   try {
 
@@ -1482,7 +1542,6 @@ sub service_start_tarantool($$) {
   my $node = shift;
   my $err = "ER0019";
 
-   
   my $param =
         $SKYBASEDIR
       . "/tarantool/bin/tarantool_box -B -c "
@@ -1687,6 +1746,22 @@ sub service_stop_mysqlproxy($$) {
   return $err;
 }
 
+sub service_stop_tarantool($$) {
+  my $self = shift;
+  my $name = shift;
+  my $err = "ER0020";
+    
+  my $param =
+            "kill -9 `cat "
+          . $SKYDATADIR
+          . "/tmp/tarantool."
+          . $name . ".pid`";
+  $log->log_debug("[service_stop_tarantool] on $self->{ip}: ". $param  ,1,"cluster");   
+  $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  return $err;
+}
+
+
 sub service_stop_memcache($$) {
   my $self = shift;
   my $name = shift;
@@ -1816,6 +1891,16 @@ sub service_install_tarantool($$) {
       . $SKYDATADIR 
       . "/"
       . $node;
+   
+   $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log);
+     $param =
+        $SKYBASEDIR
+      . "/tarantool/bin/tarantool_box --init-storage -c "
+      . $SKYBASEDIR
+      . "/ncc/etc/$node/"
+      . $node . ".cnf";  
+       
+
   $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log);
   return $err;
 }
@@ -2372,14 +2457,18 @@ sub service_do_command($$$) {
             {
                 $ret = service_install_database( $self, $node, $self->{mode} );
             } elsif ( $self->{mode} eq "dbt2" ) {
-                $ret = service_install_bench( $self, $node)
-            
+                $ret = service_install_bench( $self, $node);     
             } elsif ( $self->{mode} eq "tarantool" ) {
-                $ret = service_install_tarantool( $self, $node)
+                $ret = service_install_tarantool( $self, $node);
             } elsif ( $self->{mode} eq "dbt2" ) {
                 $ret = service_install_dbt2( $self, $node );
-               
-            }   
+            } elsif ( $self->{mode} eq "leveldb" ) {
+                $ret = service_install_leveldb( $self, $node ); 
+            } elsif ( $self->{mode} eq "hbase" ) {
+                $ret = service_install_hbase( $self, $node );     
+            } elsif ( $self->{mode} eq "cassandra" ) {
+                $ret = service_install_cassandra( $self, $node );
+            }
     }
     elsif ( $cmd eq "remove" ) {
          if (  $self->{mode} eq "mariadb"
@@ -2391,7 +2480,15 @@ sub service_do_command($$$) {
             || $self->{mode} eq "spider")
         {
             $err=service_remove_database($self,$node);
-        }
+        } elsif ( $self->{mode} eq "tarantool" ) {
+                $ret = service_remove_tarantool( $self, $node);
+        }  elsif ( $self->{mode} eq "leveldb" ) {
+                $ret = service_remove_leveldb( $self, $node ); 
+        } elsif ( $self->{mode} eq "hbase" ) {
+                $ret = service_remove_hbase( $self, $node );     
+        } elsif ( $self->{mode} eq "cassandra" ) {
+                $ret = service_remove_cassandra( $self, $node );
+        }       
     }
     elsif ( $cmd eq "status" ) {
 

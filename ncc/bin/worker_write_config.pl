@@ -115,7 +115,8 @@ sub write_cmd {
     $log->log_debug("[worker_config] Info: tarantool ",1,"write_config");
     write_mysql_config(); 
     $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
-    
+    write_cassandra_config();
+      $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
     return  $console ;
 
 }
@@ -140,6 +141,27 @@ sub replace_patern_infile($$$){
     system("chmod 660 $file" );
 }
 
+sub write_cassandra_config(){
+
+my $host_nosql;
+ foreach my $nosql (keys(%{$config->{nosql}})) {
+   my $dir=$SKYBASEDIR. "/ncc/etc/".$nosql; 
+   $host_nosql = $config->{nosql}->{default};
+   $host_nosql = $config->{nosql}->{$nosql}; 
+   if  ($host_nosql->{mode} eq "cassandra") {     
+       system("cp -r $SKYBASEDIR/ncc/etc/cassandra.template $nosql");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "saved_caches_directory: $SKYDATADIR/$nosql/saved_caches");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "data_file_directories: $SKYDATADIR/$nosql/data");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "commitlog_directory: $SKYDATADIR/$nosql/commitlog");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","listen_address" , "listen_address: $host_nosql->{ip}");
+     
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/log4j-server.properties","log4j.appender.R.File" , "log4j.appender.R.File=$SKYDATADIR/$nosql/log/system.log");
+     
+           
+
+   }        
+  }     
+}
 
 
 sub write_keepalived_config(){
@@ -378,7 +400,7 @@ sub write_tarantool_config() {
     print $out "# is stored outside the slab allocator, hence\n";
     print $out "# the effective memory usage can be higher (sometimes\n";
     print $out "# twice as high).\n";
-    print $out "slab_alloc_arena = 0.1\n";
+    print $out "slab_alloc_arena = 0.05\n";
 
     print $out "#\n";
     print $out "# Store the pid in this file. Relative to\n";
@@ -420,8 +442,7 @@ sub write_tarantool_config() {
     print $out "work_dir = \"". $SKYDATADIR . "/". $nosql  ."\"\n";
 
 
-    print $out "  return 0; \n";
-    print $out "}\n";
+    
    } 
  }
 }
@@ -495,7 +516,7 @@ sub write_haproxy_config(){
       }
      }
       close $out;
-      system("chmod 660 $dir.$lb.cnf " );
+      system("chmod 660 $dir/$lb.cnf " );
      $i++;
 
   }
@@ -525,7 +546,7 @@ sub write_memcached_config(){
 
         close $out;
        $i++;
-       system("chmod 660 $dir.$host.cnf" );
+       system("chmod 660 $dir/$host.cnf" );
     }
   }
 
@@ -618,7 +639,7 @@ foreach my $host (keys(%{$config->{proxy}})) {
     print $out "lua-cpath=$SKYBASEDIR/mysql-proxy/lib/mysql-proxy/lua/?.so\n";
      close $out;
  $i++;
-system("chmod 660 $dir.$host.cnf" );
+system("chmod 660 $dir/$host.cnf" );
 }
 
 

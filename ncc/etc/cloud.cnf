@@ -27,7 +27,7 @@
 <cloud cl-43e515b6>
 	status				slave
 	user				AKIAJR7YEOZPXASJCYDQ
-	password			xxx
+	password			xxxx
 	host				na
 	version				1.5
 	driver				EC2
@@ -111,8 +111,8 @@
 
 <db db-c3a497ee>
 	ip				10.0.0.102
-	mode				monitor
-	status				slave 
+	mode				spider
+	status				standalone 
 	peer				db-a347b414,db-d41d8cd9
 	mysql_version			spider 
 	mysql_port			5004
