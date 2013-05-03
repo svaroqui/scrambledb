@@ -48,16 +48,16 @@ width: 140px;
 }
 
 #header, #about, #getting-started {
-padding-left: 75px;
+padding-left: 120px;
 padding-right: 30px;
 }
 
 
 #header {
-background-image: url("/images/perldancer.jpg");
+background-image: url("/images/skysql.png");
 background-repeat: no-repeat;
 background-position: top left;
-height: 64px;
+height: 80px;
 }
 #header h1, #header h2 {margin: 0}
 #header h2 {

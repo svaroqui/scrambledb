@@ -56,7 +56,18 @@ sub gearman_client() {
       $log->log_debug("[gearman_client] Error: ".$client->error(),1,"heartbeat");      
       return 0;
   }
-  $command="cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'";
+  
+  $command="uname";
+  my  $sys = `$command`;  
+  if ($sys eq 'Darwin') {
+   $command="sysctl hw.memsize | awk '{print $2}";
+  }
+  elsif ($sys eq 'Linux') {
+    $command="cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'";
+  }
+  elsif ($sys eq 'FreeBSD') {
+    $command="sysctl hw.physmem | awk '{print $2}'";
+  }  
   my  $ram = `$command`;  
     
   $ram =~ s/\n//g; 

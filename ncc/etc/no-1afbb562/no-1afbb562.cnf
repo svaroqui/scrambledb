@@ -5,7 +5,7 @@
 # is stored outside the slab allocator, hence
 # the effective memory usage can be higher (sometimes
 # twice as high).
-slab_alloc_arena = 0.1
+slab_alloc_arena = 0.05
 #
 # Store the pid in this file. Relative to
 # startup dir.
@@ -36,5 +36,3 @@ space[0].index[0].key_field[0].fieldno = 0
 space[0].index[0].key_field[0].type = "NUM"
 # working directory (daemon will chdir(2) to it)
 work_dir = "/var/lib/skysql/no-1afbb562"
-  return 0; 
-}

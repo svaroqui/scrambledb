@@ -58,45 +58,28 @@ our $RULESET = {
 	'db' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
 		'ip'				=> { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
 		'cloud'                         => { 'refvalues' => 'cloud'  },
-                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','monitor','ndbd','galera','tokudb', 'infinidb' , 'cassandra', 'hbase','leveldb','percona'] },
+                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql', 'mariadb','proxy','spider','spidermonitor','ndbd','galera','tokudb', 'infinidb' ,'percona','ndbd-manager'] },
                 'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone', 'discard'] },
                 'peer'				=> { 'deprequired' => { 'state' => 'master' }, 'refvalues' => 'db' , 'multiple' => 1 },
-		'agent_port'			=> { 'default' => 9989 },                
 		'cluster_interface'		=> { 'required' => ['AGENT'] },
-		'datadir'                       => { 'default' => '/usr/lib/skysql' },
 		'mysql_cnf'			=> { 'default' => 'etc/my.cnf' },
 		'mysql_port'			=> { 'default' => 3306 },
 		'mysql_server_id'		=> { 'default' => 1 },
                 'mem_pct'                       => { 'default' => 25 },
                 'io_pct'                        => { 'default' => 25 },
-                'mysql_pidfile'			=> { 'default' => '/var/run/mysqld/mysqld.pid' },
-		'mysql_rcscript'		=> { 'default' => '/etc/init.d/mysql' },
-		'mysql_cnf'			=> { 'default' => '/etc/my.cnf' },
+                'mysql_cnf'			=> { 'default' => '/etc/my.cnf' },
 		'mysql_version'			=> { 'default' => 'mariadb-5.2.4' },
 		'mysql_user'			=> { 'default' => 'skysql' },
 		'mysql_password'		=> { 'default' => 'skyvodka' },
-		'agent_user'			=> { 'required' => ['AGENT'] },
-		'agent_password'		=> { 'required' => ['AGENT'] },
-		'monitor_user'			=> { 'required' => ['MONITOR'] },
-		'monitor_password'		=> { 'required' => ['MONITOR'] },
 		'replication_user'		=> { 'required' => ['AGENT', 'TOOLS'] },
 		'replication_password'          => { 'required' => ['AGENT', 'TOOLS'] },
-		'ssh_user'			=> { 'required' => ['TOOLS'] },
-		'ssh_port'			=> { 'default' => 22 },
-		'ssh_parameters'		=> { 'default' => '' },
-		'tools_user'			=> { 'required' => ['TOOLS'] },
-		'tools_password'		=> { 'required' => ['TOOLS'] },
-		'backup_dir'			=> { 'required' => ['TOOLS'] },
-		'restore_dir'			=> { 'required' => ['TOOLS'] },
-		'lvm_bin_lvcreate'		=> { 'default' => 'lvcreate' },
-		'lvm_bin_lvremove'		=> { 'default' => 'lvremove' },
-		'lvm_snapshot_size'		=> { 'required' => ['TOOLS'] },
-		'lvm_logical_volume'            => { 'required' => ['TOOLS'] },
-		'lvm_volume_group'		=> { 'required' => ['TOOLS'] },
-		'lvm_mount_dir'			=> { 'required' => ['TOOLS'] },
-		'lvm_mount_opts'		=> { 'required' => ['TOOLS'] },
+                'cluster'                       => { 'refvalues' => 'cluster'  },
+                'handlersocket_port'            => { 'default' => 2000 },
+                'handlersocket_port_wr'         => { 'default' => 2001 },
+                'handlersocket_address'         => { 'default' => '127.0.0.1' }
 		}
 	},
+        
 	'check'	=> { 'create_if_empty' => ['MONITOR'], 'multiple' => 1, 'template' => 'default', 'values' => ['ping', 'mysql', 'rep_backlog', 'rep_threads'], 'section' => {
 		'check_period'			=> { 'default' => 5 },
 		'trap_period'			=> { 'default' => 10 },
@@ -105,17 +88,27 @@ our $RULESET = {
 		'max_backlog'			=> { 'default' => 60 }		
 		}
 	},
-        
+        'agent' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+		'ip'				=> { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
+		'cloud'                         => { 'refvalues' => 'cloud'  },
+                'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['ndbd-manager'] },
+                'peer'				=> { 'deprequired' => { 'mode' => 'ndbd' }, 'refvalues' => 'db' , 'multiple' => 1 },
+                'cluster'                      => { 'refvalues' => 'cluster'  },
+            }
+	},	 
+
+
         'nosql' => { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
               	 'cloud'                        => { 'refvalues' => 'cloud'  },
                  'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
-		 'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['memcache', 'tarantool','mongodb','cassandra','hbase'] },
-                 'status'			=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave'] },
+		 'mode'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['memcache', 'tarantool','mongodb','cassandra','hbase',"leveldb"] },
+                 'status'                       => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['master', 'slave','standalone', 'discard'] },
                  'mem'				=> { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'default' => 16  },
                  'port'                         => { 'default' => 11211 },
                  'secondary_port'               => { 'default' => 33014 }, 
                  'admin_port'                   => { 'default' => 33015 }, 
-                 'rows_per_wal'                 => { 'default' => 50000 }
+                 'rows_per_wal'                 => { 'default' => 50000 },
+                 'cluster'                      => { 'refvalues' => 'cluster'  },
 	}}
         ,
         'cloud'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
@@ -139,11 +132,16 @@ our $RULESET = {
                 'public_key'                    => { 'default' => 'na'},
                 'elastic_ip'                    => { 'default' => 'na'},
                 'elastic_ip_id'                 => { 'default' => 'na'},
-                'interface_vip_id'               => { 'default' => 'na'}
+                'interface_vip_id'              => { 'default' => 'na'}
 		 
 	}},
-         'proxy'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+        'cluster'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
+                'label'        => { 'default' => ''},
+                'vip'          => { 'default' => ''}
+        }},
+        'proxy'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
          	 'cloud'                        => { 'refvalues' => 'cloud'  },
+                 'cluster'                      => { 'refvalues' => 'cluster'  },
                  'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
 		 'mode'                         => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['mysql-proxy', 'skygate'] },
                  'hosts'                        => { 'refvalues' => 'db', 'multiple' => 1 },       
@@ -162,16 +160,16 @@ our $RULESET = {
                  'proxy_pool_no_change_user'    => { 'default' => 1 },
                  'proxy_skip_profiling'         => { 'default' => 1 }, 
                  'lua_debug'			=> { 'default' => 1 , 'boolean' => 1 },
-                 'script'                       => {'default' => 'rw-splitting.lua' , 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['rw-splitting.template', 'scramble.template']   }
-                 
-		 
+                 'script'                       => {'default' => 'scramble.lua' , 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['spider.template', 'scramble.template']   }
+      
 	}},
          'lb'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
                  'cloud'                        => { 'refvalues' => 'cloud'  },
-                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
-                 'vip'                         => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
-		 'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['keepalived', 'peacemaker','haproxy'] },
-        	 'peer'                        => { 'deprequired' => { 'mode' => ['keepalived', 'peacemaker','haproxy']}, 'refvalues' => 'lb'  },
+                 'cluster'                      => { 'refvalues' => 'cluster'  },
+                 'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
+                 'vip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },		           
+		 'mode'                         => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['keepalived', 'peacemaker','haproxy'] },
+        	 'peer'                         => { 'deprequired' => { 'mode' => ['keepalived', 'peacemaker','haproxy']}, 'refvalues' => 'lb'  },
                  'mysql_user'			=> { 'default' => 'skysql' },
 		 'mysql_password'               => { 'default' => 'skyvodka' },
                  'port'                         => { 'default' => 3306 },
@@ -182,13 +180,14 @@ our $RULESET = {
 	}}
         ,
          'bench'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
-                'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
-                'mode'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench','mysqlslap'] },
-        	'cloud'                        => { 'refvalues' => 'cloud'  },
-                'warehouse'			=> { 'default' => '10' },
+                'ip'                            => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },
+                'mode'                          => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['dbt3', 'dbt2','sysbench','mysqlslap'] },
+        	'cloud'                         => { 'refvalues' => 'cloud'  },
+                'cluster'                       => { 'refvalues' => 'cluster'  },
+                'warehouse'                     => { 'default' => '10' },
                 'duration'			=> { 'default' => '100' },
-                'concurrency'			=> { 'default' => '10' },
-                'datadir'                       => { 'default' => '/var/lib/skysql/dbt2' }
+                'concurrency'			=> { 'default' => '10' }
+                
 		
 	}} ,
          'monitor'	=> { 'required' => 1, 'multiple' => 1, 'template' => 'default', 'section' => {
@@ -199,6 +198,7 @@ our $RULESET = {
                 'ip'                           => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                         => { 'default' => 8080  },
         	'cloud'                        => { 'refvalues' => 'cloud'  },
+                'cluster'                      => { 'refvalues' => 'cluster'  },
                 'purge_days'                         => { 'default' => 1 }
 		
 	}},
@@ -207,7 +207,8 @@ our $RULESET = {
                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                        => { 'default' => 80  },
         	'cloud'                       => { 'refvalues' => 'cloud'  },
-    		'status'                        => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['standalone'] }
+                'cluster'                     => { 'refvalues' => 'cluster'  },
+    		'status'                      => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['standalone'] }
                
 	}}
         

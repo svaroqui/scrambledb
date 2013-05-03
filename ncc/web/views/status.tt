@@ -25,11 +25,12 @@
              {
                 datatype: "json",
                 datafields: [
-                    { name: 'name', type: 'name' },
+                    { name: 'cluster', type: 'string' },
+                    { name: 'name', type: 'string' },
                     { name: 'mode', type: 'string' },
                     { name: 'ip', type: 'string' },
-                    { name: 'status', type: 'string' },
-                    { name: 'state', type: 'string' }
+                    { name: 'status', type: 'text'},
+                    { name: 'state', type: 'text' }
                 ],
                 url: "/services/status",
                 data: {
@@ -40,8 +41,25 @@
                 
              };
              
+             var sourceclusters =
+             {
+                datatype: "json",
+                datafields: [
+                    { name: 'name', type: 'string' },
+                    { name: 'label', type: 'string' }
+                ],
+                url: "/getclusters",
+                data: {
+                    featureClass: "P",
+                    style: "full",
+                    maxRows: 15
+                }
+                
+             };
+
              var dataAdapter = new $.jqx.dataAdapter(source);
              var columnCheckBox = null;
+             
              var updatingCheckState = false;
              
              var cellsrenderer = function (row, columnfield, value, defaulthtml, columnproperties) {
@@ -65,9 +83,9 @@
                 filterable: true,
                 selectionmode: 'none',
                 columns: [
-                    { text: '', datafield: 'available', columntype: 'checkbox', width: 40,
+                    { text: '', datafield: 'available', columntype: 'checkbox', width: 20,
                         renderer: function () {
-                            return '<div style="margin-left: 10px; margin-top: 5px;"></div>';
+                            return '<div style="margin-left: 2px; margin-top: 5px;"></div>';
                         },
                         rendered: function (element) {
                             $(element).jqxCheckBox({ theme: theme, width: 16, height: 16, animationShowDelay: 0, animationHideDelay: 0 });
@@ -90,6 +108,7 @@
                             });
                         }
                     },
+                    { text: 'Cluster', filtertype: 'list', filteritems: sourceclusters, datafield: 'cluster', width: 100 },
                     { text: 'Id', datafield: 'name', width: 100 },
                     { text: 'Service', datafield: 'mode' , width: 90},
                     { text: 'Ip', datafield: 'ip' ,width: 90},
@@ -172,7 +191,7 @@
               
             };
             
-            var initGridVariables = function () {
+            var initGridVariables = function (service) {
             var source =
             {
                 datatype: "json",
@@ -181,7 +200,7 @@
                     { name: 'value', type: 'string' }
                   
                 ],
-                url: "/config/infos/db10",
+                url: "/config/infos/" + service ,
                 data: {
                     featureClass: "P",
                     style: "full",
@@ -189,7 +208,7 @@
                 }
             };
             
-          //  var dataAdapterVariables = new $.jqx.dataAdapter(source);
+            var dataAdapterVariables = new $.jqx.dataAdapter(source);
             $("#jqxgridvariables").jqxGrid(
             {
                 source: dataAdapterVariables,
@@ -198,7 +217,7 @@
                 enablehover: false,
                 selectionmode: 'none',
                 columns: [
-                    { text: 'Parameter', datafield: 'name', width: 100 },
+                    { text: 'Parameter', datafield: 'name', width: 200 },
                     { text: 'Value', datafield: 'value' },
                   
                 ]
@@ -212,7 +231,9 @@
                      $("#jqxgrid").jqxGrid('selectrow', event.args.rowindex);
                         var dataRecord = $("#jqxgrid").jqxGrid('getrowdata', event.args.rowindex);
                         
-                     //  initGridVariables(dataRecord.name);
+                       initGridVariables(dataRecord.name);
+                       loadPageDetails("/config/file/"+dataRecord.name);
+                       loadConsole("/console/"+dataRecord.name);
 
                  }
                  else {
@@ -234,14 +255,48 @@
                      updatingCheckState = false;
                  }
             });
+             $("#jqxgridinstances").on('cellendedit', function (event) {
+                 if (event.args.value) {
+                     $("#jqxgridinstances").jqxGrid('selectrow', event.args.rowindex);
+                        var dataRecord = $("#jqxgridinstances").jqxGrid('getrowdata', event.args.rowindex);
+                        
+                    
+
+                 }
+                 else {
+                     $("#jqxgridinstances").jqxGrid('unselectrow', event.args.rowindex);
+                 }
+                 if (columnCheckBox) {
+                     var selectedRowsCount = $("#jqxgridinstances").jqxGrid('getselectedrowindexes').length;
+                     var rowscount = $("#jqxgridinstances").jqxGrid('getdatainformation').rowscount;
+                     updatingCheckState = true;
+                     if (selectedRowsCount == rowscount) {
+                         $(columnCheckBox).jqxCheckBox('check')
+                     }
+                     else if (selectedRowsCount > 0) {
+                         $(columnCheckBox).jqxCheckBox('indeterminate');
+                     }
+                     else {
+                         $(columnCheckBox).jqxCheckBox('uncheck');
+                     }
+                     updatingCheckState = false;
+                 }
+            });
+            
 
              // create context menu
-            var contextMenu = $("#Menu").jqxMenu({ width: 100, height: 250, autoOpenPopup: false, mode: 'popup', theme: theme });
+            var contextMenu = $("#MenuService").jqxMenu({ width: 100, height: 250, autoOpenPopup: false, mode: 'popup', theme: theme });
             $("#jqxgrid").on('contextmenu', function () {
                 return false;
             });
+
+             var contextMenuInstances = $("#MenuInstance").jqxMenu({ width: 100, height: 150, autoOpenPopup: false, mode: 'popup', theme: theme });
+            $("#jqxgridinstances").on('contextMenuInstances', function () {
+                return false;
+            });
+
             // handle context menu clicks.
-            $("#Menu").on('itemclick', function (event) {
+            $("#MenuService").on('itemclick', function (event) {
                  var args = event.args;
                  var rowscount = $("#jqxgrid").jqxGrid('getdatainformation').rowscount;
                    
@@ -252,9 +307,10 @@
                     
                         if  ($("#jqxgrid").jqxGrid('getcellvalue',i,'available') ){
                           var i = document.createElement("img");
+                          alert(i.src);
                           i.src = '/services/'+ $(event.args).text()+ '/'+ dataRecord.name+'/all';
-                      
-                          initGridServices();
+                      alert(i.src);
+                          refreshmypage();
 
 
                           }
@@ -262,6 +318,28 @@
                   
                 
             });
+             $("#MenuInstance").on('itemclick', function (event) {
+                 var args = event.args;
+                 var rowscount = $("#jqxgridinstances").jqxGrid('getdatainformation').rowscount;
+                   
+                 // get the clicked row's data and initialize the input fields.
+                    for (var i = 0; i < rowscount; i++) {
+                       
+                        var dataRecord = $("#jqxgridinstances").jqxGrid('getrowdata', i);
+                    
+                        if  ($("#jqxgridinstances").jqxGrid('getcellvalue',i,'available') ){
+                          var i = document.createElement("img");
+                          i.src = '/instances/'+ $(event.args).text()+ '/'+ dataRecord.ip+'/all';
+                      
+                          initGridInstances();
+
+
+                          }
+                   }
+                  
+                
+            });
+
             $("#jqxgrid").on('rowclick', function (event) {
                 if (event.args.rightclick) {
                     var scrollTop = $(window).scrollTop();
@@ -271,7 +349,15 @@
                 }
                
             });
-                
+              $("#jqxgridinstances").on('rowclick', function (event) {
+              if (event.args.rightclick) {
+                    var scrollTop = $(window).scrollTop();
+                    var scrollLeft = $(window).scrollLeft();
+                    contextMenuInstances.jqxMenu('open', parseInt(event.args.originalEvent.clientX) + 5 + scrollLeft, parseInt(event.args.originalEvent.clientY) + 5 + scrollTop);
+                    return false;
+              }
+               
+            });    
            
             var initWidgets = function (tab) {
                 switch (tab) {
@@ -304,6 +390,64 @@
                 }
             }
             $('#jqxTabsDetails').jqxTabs({ width: 600, height: 400, theme: theme, initTabContent: initWidgetsDetails });
+            var loadPageDetails = function (url) {
+                 $('#config').load(url);
+              //  $.get(url, function (data) {
+              //   $('#config').text(data);
+                
+              // });
+            }
+            var loadConsole = function (url) {
+                 $('#console').load(url);
+             
+            }
+
+
+            var url = "/getclusters";
+                // prepare the data
+                var source =
+                {
+                    datatype: "json",
+                    datafields: [
+                        { name: 'id' , type: 'string' },
+                        { name: 'label' , type: 'string'}
+                    ],
+                    data: {
+                        featureClass: "P",
+                        style: "full",
+                        maxRows: 15
+                    },
+                    url: url,
+                    async: false
+                };
+                var dataAdapterCloud = new $.jqx.dataAdapter(source);
+                // Create a jqxDropDownList
+                $("#jqxWidget").jqxDropDownList({ selectedIndex: 0, source: dataAdapterCloud, displayMember: "label", valueMember: "id", width: 300, height: 25, theme: theme });
+                // subscribe to the select event.
+                $("#jqxWidget").on('select', function (event) {
+                    if (event.args) {
+                        var item = event.args.item;
+                        if (item) {
+                            var datarecord = dataAdapterCloud.records[item.index];
+                            $("#jqxgrid").jqxGrid('clearfilters');
+                            var filtergroup = new $.jqx.filter();    
+                         
+                            var filter = filtergroup.createfilter('stringfilter', datarecord.id, 'starts_with');
+                            filtergroup.addfilter(0, filter);
+                           
+                            $("#jqxgrid").jqxGrid('addfilter', 'cluster',filtergroup );     
+                            $("#jqxgrid").jqxGrid('applyfilters');
+                            var valueelement = $("<div></div>");
+                            valueelement.text("Id: " +datarecord.id);
+                            var labelelement = $("<div></div>");
+                            labelelement.text("Label: " + item.label);
+                            $("#selectionlog").children().remove();
+                            $("#selectionlog").append(labelelement);
+                            $("#selectionlog").append(valueelement);
+                        }
+                    }
+                });
+ 
 
         });
         
@@ -396,50 +540,12 @@
           </div>
         </div>
 
- <div id='jqxWidget'>
-       
-        
-<div id='cloud'>
-        <script type="text/javascript">
-            $(document).ready(function () {
-                var theme = getDemoTheme();
-                var url = "/config/getclouds";
-                // prepare the data
-                var source =
-                {
-                    datatype: "json",
-                    datafields: [
-                        { name: 'id' },
-                        { name: 'driver' }
-                    ],
-                    id: 'id',
-                    url: url,
-                    async: false
-                };
-                var dataAdapterCloud = new $.jqx.dataAdapter(source);
-                // Create a jqxDropDownList
-                $("#jqxWidget").jqxDropDownList({ selectedIndex: 0, source: dataAdapterCloud, displayMember: "id", valueMember: "driver", width: 200, height: 25, theme: theme });
-                // subscribe to the select event.
-                $("#jqxWidget").on('select', function (event) {
-                    if (event.args) {
-                        var item = event.args.item;
-                        if (item) {
-                            var valueelement = $("<div></div>");
-                            valueelement.text("Value: " + item.value);
-                            var labelelement = $("<div></div>");
-                            labelelement.text("Label: " + item.label);
-                            $("#selectionlog").children().remove();
-                            $("#selectionlog").append(labelelement);
-                            $("#selectionlog").append(valueelement);
-                        }
-                    }
-                });
-            });
-        </script>
-       
-        <div style="font-size: 12px; font-family: Verdana;" id="selectionlog">
+        <div id='jqxWidget'>
+         <div style='float: left; ' id='jqxDropDownList'> </div>
         </div>
-    </div>
+        <div style="height: 40px; " id='cloud'>
+            <div style="font-size: 12px; font-family: Verdana;" id="selectionlog"></div>
+         </div>
 
 
 
@@ -489,25 +595,32 @@
                 </li>
             </ul>
             <div style="overflow: hidden;">
-              <div id="jqxgrid" ></div>
-                <div id='Menu'>
-                <ul>
-                   <li>install</li>
-                   <li>start</li>
-                   <li>stop</li>
-                   <li>sync</li>
-                   <li>move</li>
-                   <li>duplicate</li>
-                   <li>remove</li>
-                   <li>switch</li>
-                   <li>terminate</li>
-
-               </ul>
-              </div>
-             </div>
+                <div id="jqxgrid" ></div>
+                <div id='MenuService'>
+                    <ul>
+                       <li>install</li>
+                       <li>start</li>
+                       <li>stop</li>
+                       <li>sync</li>
+                       <li>move</li>
+                       <li>duplicate</li>
+                       <li>remove</li>
+                       <li>switch</li>
+                       <li>terminate</li>
+                       
+                   </ul>
+               </div>
+            </div>
                
             <div style="overflow: hidden;">
                 <div id="jqxgridinstances" ></div>
+                <div id='MenuInstance'>
+                    <ul>
+                       <li>start</li>
+                       <li>stop</li>
+                       <li>terminate</li>
+                   </ul>
+               </div>
             </div>
             <div  style="overflow: hidden;">
                 <div id="monitor" style="height: 100px; width: 400px; "></div>
@@ -523,7 +636,7 @@
                 <li style="margin-left: 30px;">
                     <div style="height: 20px; margin-top: 5px;">
                         <div style="float: left;">
-                            <img width="24" height="24" src="/images/database.png" />
+                            <img width="24" height="24" src="/images/properties.png" />
                         </div>
                         <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
                            Variables
@@ -533,10 +646,20 @@
                 <li>
                     <div style="height: 20px; margin-top: 5px;">
                         <div style="float: left;">
-                            <img width="24" height="24" src="/images/server.png" />
+                            <img width="24" height="24" src="/images/log.png" />
                         </div>
                        <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
                            Logs
+                        </div>
+                   </div>     
+                </li>
+                 <li>
+                    <div style="height: 20px; margin-top: 5px;">
+                        <div style="float: left;">
+                            <img width="24" height="24" src="/images/config.png" />
+                        </div>
+                       <div style="margin-left: 4px; vertical-align: middle; text-align: center; float: left;">
+                           Config
                         </div>
                    </div>     
                 </li>
@@ -544,16 +667,15 @@
               <div style="overflow: hidden;">
                 <div id="jqxgridvariables" ></div>
             </div>
-            <div  style="overflow: hidden;">
-                <div id="jqxgridlog" style="height: 100px; width: 400px; "></div>
+              <div id="console">
+                <img src='/images/ajax-loader.gif' />
+            </div>
+            <div id="config">
+                <img src='/images/ajax-loader.gif' />
             </div>
        </div>
    
       
 
     </div>
-    
-
     </div>
-
-

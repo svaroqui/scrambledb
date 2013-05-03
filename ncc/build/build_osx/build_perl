@@ -206,9 +206,52 @@ $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make i
 
 cd $DEPOTDIR
 rm -rf HTTP-Body-1.17
-http://search.cpan.org/CPAN/authors/id/G/GE/GETTY/HTTP-Body-1.17.tar.gz
+wget http://search.cpan.org/CPAN/authors/id/G/GE/GETTY/HTTP-Body-1.17.tar.gz
 tar xzf HTTP-Body-1.17.tar.gz
 cd HTTP-Body-1.17
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+cd $DEPOTDIR
+rm -rf HTTP-Date-6.02
+wget http://search.cpan.org/CPAN/authors/id/G/GA/GAAS/HTTP-Date-6.02.tar.gz
+tar xzf HTTP-Date-6.02.tar.gz 
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+cd $DEPOTDIR
+rm -rf Encode-Locale-1.03
+wget http://search.cpan.org/CPAN/authors/id/G/GA/GAAS/Encode-Locale-1.03.tar.gz
+tar xzf Encode-Locale-1.03.tar.gz
+cd Encode-Locale-1.03
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+
+cd $DEPOTDIR
+rm -rf YAML-Perl-0.02
+wget http://search.cpan.org/CPAN/authors/id/I/IN/INGY/YAML-Perl-0.02.tar.gz
+tar xzf YAML-Perl-0.02.tar.gz
+cd YAML-Perl-0.02
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+cd $DEPOTDIR
+rm -rf YAML-0.84
+wget http://search.cpan.org/CPAN/authors/id/M/MS/MSTROUT/YAML-0.84.tar.gz
+tar xzf YAML-0.84.tar.gz
+cd YAML-0.84
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+cd $DEPOTDIR
+rm -rf  HTTP-Server-Simple-0.44
+wget http://search.cpan.org/CPAN/authors/id/J/JE/JESSE/HTTP-Server-Simple-0.44.tar.gz
+tar xzf  HTTP-Server-Simple-0.44.tar.gz
+cd HTTP-Server-Simple-0.44
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+
+cd $DEPOTDIR
+rm -rf HTTP-Server-Simple-PSGI-0.14 
+wget http://search.cpan.org/CPAN/authors/id/M/MI/MIYAGAWA/HTTP-Server-Simple-PSGI-0.14.tar.gz
+tar xzf HTTP-Server-Simple-PSGI-0.14.tar.gz
+cd HTTP-Server-Simple-PSGI-0.14
 $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
 
 
@@ -219,4 +262,8 @@ tar xzf Dancer-1.3110.tar.gz
 cd Dancer-1.3110
 $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
 
-
+cd $DEPOTDIR
+wget https://github.com/fmgoncalves/p5-cassandra-simple/archive/master.zip
+unzip p5-cassandra-simple-master.zip
+cd unzip p5-cassandra-simple-master
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install

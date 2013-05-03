@@ -27,7 +27,7 @@
 <cloud cl-43e515b6>
 	status				slave
 	user				AKIAJR7YEOZPXASJCYDQ
-	password			xxxx
+	password			xxx
 	host				na
 	version				1.5
 	driver				EC2
@@ -46,7 +46,7 @@
 </cloud>
 
 <cloud cl-3b4b12d6>
-	status			 	master	
+	status			 	master 	
 	user				xxxx
 	password			xxxx
 	host				na
@@ -59,14 +59,57 @@
 	public_key			id_rsa
 </cloud>
 
+<cluster ar-3b4b1bd6>
+        label                           Read-Write-Mha-Cluster
+        vip                             10.0.0.10
+</cluster>
+
+<cluster ar-3b555bd6>
+        label                           Spider-Cluster
+        vip                             10.0.0.11
+</cluster>
+
+<cluster ar-8887d6a6>
+        label                           Ndb-Cluster
+        vip                             10.0.0.12
+</cluster>
+
+<cluster ar-b4b1aaa7>
+        label                           Galera-Cluster
+        vip                             10.0.0.13
+</cluster>
+
+<cluster ar-bbb1bcd6>
+        label                           Cassandra-Cluster
+        vip                             10.0.0.14
+</cluster>
+
+<cluster ar-aaa1bcd6>
+        label                           InfiniDB-Cluster
+        vip                             10.0.0.15
+</cluster>
+
+<cluster ar-aac1bcd8>
+        label                           Hbase-Cluster
+        vip                             10.0.0.16
+</cluster>
+
+<cluster ar-acc1bcd7>
+        label                           LevelDB-Cluster
+        vip                             10.0.0.18
+</cluster>
+
+<cluster ar-1111bcd6>
+        label                           ScrambleDB-Director
+</cluster>
+
 <db default>
 	cluster_interface		eth0
 	replication_user		repl
 	replication_password		repl
 	mysql_user			skysql 
 	mysql_password			skyvodka		
-	agent_user			skysql
-	agent_password			skyvodka
+	
 </db>
 
 <db db-d41d8cd9>
@@ -80,6 +123,7 @@
 	mysql_cnf			my.template
 	mem_pct				30
 	io_pct				30
+        cluster                         ar-3b4b1bd6
 </db>
 
 #<db db3>
@@ -107,6 +151,7 @@
 	mem_pct				30
 	io_pct				30
 	mysql_cnf			my.template
+        cluster                         ar-3b4b1bd8
 </db>
 
 <db db-c3a497ee>
@@ -118,9 +163,55 @@
 	mysql_port			5004
 	mysql_cnf			spider.template
 	cloud				cl-43e515b6
+        cluster                         ar-3b555bd8
 </db>
 
+<db db-c3a497ea>
+	ip				10.0.0.49
+	mode				mariadb
+	status				standalone 
+	peer				db-c3a497eb
+	mysql_version			mariadb 
+	mysql_port			5004
+	mysql_cnf			my.template
+	cloud				cl-43e515b6
+        cluster                         ar-3b555bd8
+</db>
+<db db-c3a497eb>
+	ip				10.0.0.47
+	mode				mariadb
+	status				standalone 
+	peer				db-c3a497ea
+	mysql_version			mariadb
+	mysql_port			5004
+	mysql_cnf			my.template
+	cloud				cl-43e515b6
+        cluster                         ar-3b555bd8
+</db>
 
+<db db-c3a497ec>
+	ip				10.0.0.49
+	mode				mariadb
+	status				standalone 
+	peer				db-c3a497ed
+	mysql_version			mariadb 
+	mysql_port			5004
+	mysql_cnf			my.template
+	cloud				cl-43e515b6
+        cluster                         ar-3b555bd8
+</db>
+
+<db db-c3a497ed>
+	ip				10.0.0.47
+	mode				mariadb
+	status				standalone 
+	peer				db-c3a497ec
+	mysql_version			mariadb
+	mysql_port			5004
+	mysql_cnf			my.template
+	cloud				cl-43e515b6
+        cluster                         ar-3b555bd8
+</db>
 
 <db db-d4a1e86c>
 	ip				10.0.0.102
@@ -132,6 +223,7 @@
         mysql_server_id		 	5005
 	mysql_cnf			cluster.template
 	cloud				cl-43e515b6
+        cluster                         ar-8887d6a6
 </db>
 
 
@@ -145,6 +237,7 @@
         mysql_server_id		 	5006
 	mysql_cnf			cluster.template
 	cloud				cl-43e515b6
+        cluster                         ar-8887d6a6
 </db>
 
 <db db-61dc1ac0>
@@ -157,6 +250,7 @@
         mysql_server_id		 	5007
 	mysql_cnf			infinidb.template
 	cloud				cl-43e515b6
+        cluster                         ar-aaa1bcd6
 </db>
 
 <db db-193a1baf>
@@ -169,83 +263,17 @@
         mysql_server_id		 	5008
 	mysql_cnf			tokudb.template
 	cloud				cl-43e515b6
+        cluster                         ar-aaa1bcd6
 </db>
 
 
-<db db-d58e3582>
-	ip				10.0.0.102
-	mode				cassandra
-	status				standalone 
-	peer				db-d58e3583
-	mysql_version			cassandra 
-	mysql_port			5009
-        mysql_server_id		 	5009
-	mysql_cnf			cassandra.template
+<agent ag-193a1baf>
+	ip				10.0.0.47
+	mode				ndbd-manager
+	peer				db-d4a1e86c,db-d4a1e8ac
 	cloud				cl-43e515b6
-</db>
-
-<db db-d58e3583>
-	ip				10.0.0.102
-	mode				cassandra
-	status				standalone 
-	peer				db-d58e3582
-	mysql_version			cassandra 
-	mysql_port			5010
-        mysql_server_id		 	5010
-	mysql_cnf			cassandra.template
-	cloud				cl-43e515b6
-</db>
-
-
-<db db-cde597c2>
-	ip				10.0.0.49
-	mode				cassandra
-	status				standalone 
-	peer				db-d58e3583
-	mysql_version			cassandra 
-	mysql_port			5011
-        mysql_server_id		 	5011
-	mysql_cnf			cassandra.template
-	cloud				cl-43e515b6
-</db>
-
-<db db-c57f7aba>
-	ip				10.0.0.49
-	mode				hbase
-	status				standalone 
-	peer				db-c57f7abb
-	mysql_version			hbase 
-	mysql_port			5012
-        mysql_server_id		 	5012
-	mysql_cnf			hbase.template
-	cloud				cl-43e515b6
-</db>
-
-<db db-c57f7abb>
-	ip				10.0.0.102
-	mode				hbase
-	status				standalone 
-	peer				db-c57f7aba
-	mysql_version			hbase 
-	mysql_port			5013
-        mysql_server_id		 	5013
-	mysql_cnf			hbase.template
-	cloud				cl-43e515b6
-</db>
-
-
-<db db-36e1357c>
-	ip				10.0.0.102
-	mode				leveldb
-	status				standalone 
-	peer				db-36e1357c
-	mysql_version			leveldb 
-	mysql_port			5021
-        mysql_server_id		 	5021
-	mysql_cnf			tokudb.template
-	cloud				cl-43e515b6
-</db>
-
+        cluster                         ar-8887d6a6
+</agent>
 
 
 <proxy pr-4de49f65> 
@@ -255,6 +283,7 @@
 	hosts				db-d41d8cd9
 	port 				3307 
 	script				scramble.template
+        cluster                         ar-3b4b1bd6
 </proxy>
 
 <proxy pr-d1b32dec>
@@ -264,6 +293,7 @@
 	hosts				db-d41d8cd9
 	port				3307
 	script				scramble.template
+        cluster                         ar-3b4b1bd6
 </proxy>
 
 <proxy pr-edf3ffff>
@@ -273,6 +303,7 @@
 	hosts				db-d41d8cd9
 	port				3307
 	script				scramble.template
+        cluster                         ar-3b4b1bd6
 </proxy>
 
 <nosql no-ef8977b2>
@@ -282,6 +313,7 @@
 	status				master
 	port				11211
 	mem				16
+        cluster                         ar-1111bcd6
 </nosql>
 
 <nosql no-d3c0725>
@@ -291,6 +323,7 @@
 	cloud				cl-43e515b6		
 	port				11211
 	mem				16
+        cluster                         ar-1111bcd6
 </nosql>
 
 <nosql no-ed85c392>
@@ -303,6 +336,8 @@
 	secondary_port			33014
 	admin_port			33015
 	rows_per_wal			50000
+        cluster                         ar-1111bcd6
+
 </nosql>
 
 <nosql no-1afbb562>
@@ -315,7 +350,65 @@
 	secondary_port			33024
 	admin_port			33025
 	rows_per_wal			50000
+        cluster                         ar-1111bcd6
 </nosql>
+
+<nosql no-d58e3582>
+	ip				10.0.0.102
+	mode				cassandra
+	status				standalone
+	port    			8888
+	cloud				cl-43e515b6
+        cluster                         ar-bbb1bcd6
+</nosql>
+
+<nosql no-d58e3583>
+	ip				10.0.0.49
+	mode				cassandra
+	status				standalone 
+	port    			8888
+	cloud				cl-43e515b6
+        cluster                         ar-bbb1bcd6
+</nosql>
+
+
+<nosql no-cde597c2>
+	ip				10.0.0.47
+	mode				cassandra
+	status				standalone 
+	port                            8888
+	cloud				cl-43e515b6
+        cluster                         ar-bbb1bcd6
+</nosql>
+
+<nosql no-c57f7aba>
+	ip				10.0.0.49
+	mode				hbase
+	status				standalone 
+	port                            5012
+	cloud				cl-43e515b6
+        cluster                         ar-aac1bcd8
+</nosql>
+
+<nosql no-c57f7abb>
+	ip				10.0.0.102
+	mode				hbase
+	status				standalone 
+	port                            5013
+	cloud				cl-43e515b6
+        cluster                         ar-aac1bcd8
+</nosql>
+
+
+<nosql no-36e1357c>
+	ip				10.0.0.102
+	mode				leveldb
+	status				standalone 
+        port    			5021
+	cloud				cl-43e515b6
+        cluster                         ar-acc1bcd7
+</nosql>
+
 
 
 <lb lb-b163d497>
@@ -329,6 +422,7 @@
 	device 				eth0		
 	mysql_user			skysql 
 	mysql_password			skyvodka
+        cluster                         ar-3b4b1bd6
 </lb>
 
 <lb lb-45c7b8c2>
@@ -341,7 +435,8 @@
 	mode				keepalived
 	device				eth0
 	mysql_user			skysql 
-	mysql_password			skyvodka	
+	mysql_password			skyvodka
+        cluster                         ar-3b4b1bd6
 </lb>
 
 <lb lb-3d4d1ad1>
@@ -354,7 +449,8 @@
 	mysql_password			skyvodka	
 	peer				lb-ca2cfc3a
 	mode				haproxy
-	device				eth1 
+	device				eth1
+        cluster                         ar-3b4b1bd6
 </lb>
 
 <lb lb-ca2cfc3a>
@@ -367,7 +463,8 @@
 	port				3306	
 	peer				lb-3d4d1ad1
 	mode				haproxy
-	device				eth1 
+	device				eth1
+        cluster                         ar-3b4b1bd6
 </lb>
 
 <bench be-75ef2a36>	
@@ -377,6 +474,7 @@
 	warehouse			4 
 	concurrency			10 
 	duration			20
+        cluster                         ar-3b4b1bd6
 </bench>
 
 <bench be-b432b7bc>	
@@ -386,6 +484,7 @@
 	warehouse			4 
 	concurrency			10 
 	duration			20
+        cluster                         ar-3b4b1bd6
 </bench>
 
 
@@ -396,6 +495,7 @@
 	warehouse			4 
 	concurrency			10 
 	duration			20
+        cluster                         ar-3b4b1bd6
 </bench>
 
 
@@ -407,7 +507,8 @@
 	smtp_to				stephane@skysql.com
 	smtp_host			localhost	
 	ip				10.0.0.47
-	purge_days			1	
+	purge_days			1
+        cluster                         ar-1111bcd6
 </monitor>
 
 <http ht-f3387e2d>
@@ -416,6 +517,7 @@
 	status				standalone
 	port				80	
 	ip				10.0.0.102
+        cluster                         ar-3b4b1bd6
 </http>
 
 <db db-b7c02005>
@@ -428,6 +530,7 @@
 	mysql_server_id		 	5010
 	mysql_cnf			my.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6
 </db>
 
 <db db-fa537f8c>
@@ -440,45 +543,170 @@
 	mysql_server_id		 	5011
 	mysql_cnf			my.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6
 </db>
 
 <db db-78b9ef72>
 	ip				127.0.0.1
 	mode				spider
-	status				slave 
-	peer				db-b7c02005,db-fa537f8c
+	status				master 
+	peer				db-79b9ef72
 	mysql_version			spider 
 	mysql_port			5012
         mysql_server_id		 	5012
 	mysql_cnf			spider.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
 </db>
+<db db-79b9ef72>
+	ip				127.0.0.1
+	mode				spider
+	status				master 
+	peer				db-78b9ef72
+	mysql_version			spider 
+	mysql_port			5013
+        mysql_server_id		 	5013
+	mysql_cnf			spider.template
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</db>
+
+
+
+<db db-78b9ef7a>
+	ip				127.0.0.1
+	mode				mariadb
+	status				standalone 
+	peer				db-78b9ef7b
+	mysql_version			mariadb 
+	mysql_port			5054
+	mysql_cnf			maria.template
+        handlersocket_port              20500
+        handlersocket_port_wr           20501
+        handlersocket_address           127.0.0.1
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</db>
+<db db-78b9ef7b>
+	ip				127.0.0.1
+	mode				mariadb
+	status				standalone 
+	peer				db-78b9ef7a
+        mysql_version			mariadb
+	mysql_port			5055
+	mysql_cnf			maria.template
+        handlersocket_port              20502
+        handlersocket_port_wr           20503
+        handlersocket_address           127.0.0.1
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</db>
+<db db-78b9ef7c>
+	ip				127.0.0.1
+	mode				mariadb
+	status				standalone 
+	peer				db-78b9ef7d
+	mysql_version			mariadb 
+	mysql_port			5056
+	mysql_cnf			maria.template
+        handlersocket_port              20504
+        handlersocket_port_wr           20505
+        handlersocket_address           127.0.0.1
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</db>
+<db db-78b9ef7d>
+	ip				127.0.0.1
+	mode				mariadb
+	status				standalone 
+	peer				db-78b9ef7c
+	mysql_version			mariadb
+	mysql_port			5057
+	mysql_cnf			maria.template
+        handlersocket_port              20506
+        handlersocket_port_wr           20507
+        handlersocket_address           127.0.0.1 
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</db>
+
+<proxy pr-78b9ef7a>
+	mode				mysql-proxy
+	ip				127.0.0.1 
+	hosts				db-b7c02005
+	port 				3327 
+	script				spider.template
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</proxy>
+
+<proxy pr-78b9ef7b>
+	mode				mysql-proxy
+	ip				127.0.0.1 
+	hosts				db-b7c02005
+	port 				3328
+	script				spider.template
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b555bd6
+</proxy>
+
+<lb lb-3d44ad1>
+	ip				127.0.0.1
+	vip				127.0.0.2 
+	port				3306	
+	cloud				cl-3b4b12d6		
+	status				master
+	mysql_user			skysql 
+	mysql_password			skyvodka	
+	peer				lb-ca2cfc3a
+	mode				haproxy
+	device				lo1
+        cluster                         ar-3b555bd6
+</lb>
+
 
 <db db-21891e01>
 	ip				127.0.0.1
 	mode				galera
-	status				master 
+	status				standalone 
 	peer				db-21891e01
 	mysql_version			galera 
 	mysql_port			5013
         mysql_server_id		 	5013
 	mysql_cnf			galera.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-b4b1aaa7
 </db>
+
+
+
+
 
 <db db-31891e01>
 	ip				127.0.0.1
 	mode				galera
-	status				slave 
+	status				standalone 
 	peer				db-21891e01
 	mysql_version			galera 
 	mysql_port			5014
         mysql_server_id		 	5014
 	mysql_cnf			galera.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-b4b1aaa7
 </db>
 
-
+<db db-41891e01>
+	ip				127.0.0.1
+	mode				galera
+	status				standalone 
+	peer				db-41891e01
+	mysql_version			galera 
+	mysql_port			5015
+        mysql_server_id		 	5015
+	mysql_cnf			galera.template
+	cloud				cl-3b4b12d6
+        cluster                         ar-b4b1aaa7
+</db>
 
 <db db-8d0c65c9>
 	ip				127.0.0.1
@@ -490,6 +718,7 @@
         mysql_server_id		 	5015
 	mysql_cnf			cluster.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-8887d6a6
 </db>
 
 <db db-f54aed57>
@@ -502,6 +731,7 @@
         mysql_server_id		 	5016
 	mysql_cnf			cluster.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-8887d6a6
 </db>
 
 <db db-31049954>
@@ -514,6 +744,7 @@
         mysql_server_id		 	5017
 	mysql_cnf			infinidb.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-aaa1bcd6        
 </db>
 
 <db db-bf554638>
@@ -526,69 +757,48 @@
         mysql_server_id		 	5018
 	mysql_cnf			tokudb.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-aaa1bcd6        
 </db>
 
-<db db-b5baf9a1>
+
+
+<nosql no-f38510af>
 	ip				127.0.0.1
 	mode				cassandra
 	status				standalone 
-	peer				db-f38510af
-	mysql_version			cassandra 
-	mysql_port			5019
-        mysql_server_id		 	5019
-	mysql_cnf			tokudb.template
-	cloud				cl-3b4b12d6
-</db>
-
-<db db-f38510af>
-	ip				127.0.0.1
-	mode				cassandra
-	status				standalone 
-	peer				db-b5baf9a1
-	mysql_version			cassandra 
-	mysql_port			5020
-        mysql_server_id		 	5020
-	mysql_cnf			tokudb.template
-	cloud				cl-3b4b12d6
-</db>
+	port                            8888
+ 	cloud				cl-3b4b12d6
+        cluster                         ar-bbb1bcd6        
+</nosql>
 
 
-<db db-05f68e3c>
+<nosql no-05f68e3c>
 	ip				127.0.0.1
 	mode				hbase
 	status				standalone 
-	peer				db-1beec66a
-	mysql_version			hbase 
-	mysql_port			5021
-        mysql_server_id		 	5021
-	mysql_cnf			tokudb.template
+	port    			5021
 	cloud				cl-3b4b12d6
-</db>
+        cluster                         ar-aac1bcd8        
+</nosql>
 
-<db db-1beec66a>
+<nosql no-1beec66a>
 	ip				127.0.0.1
 	mode				hbase
 	status				standalone 
-	peer				db-05f68e3c
-	mysql_version			hbase 
-	mysql_port			5022
-        mysql_server_id		 	5022
-	mysql_cnf			tokudb.template
-	cloud				cl-3b4b12d6
-</db>
+        port    			5022
+        cloud				cl-3b4b12d6
+        cluster                         ar-aac1bcd8
+</nosql>
 
 
-<db db-27bb8043>
+<nosql no-27bb8043>
 	ip				127.0.0.1
 	mode				leveldb
 	status				standalone 
-	peer				db-27bb8043
-	mysql_version			leveldb 
-	mysql_port			5023
-        mysql_server_id		 	5023
-	mysql_cnf			tokudb.template
+	port                            5023
 	cloud				cl-3b4b12d6
-</db>
+        cluster                         ar-acc1bcd7
+</nosql>
 
 <proxy pr-3644f237>
 	mode				mysql-proxy
@@ -597,6 +807,7 @@
 	port 				3307 
 	script				scramble.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6
 </proxy>
 
 <proxy pr-bf1eb62c>
@@ -606,6 +817,7 @@
 	port 				3308
 	script				scramble.template
 	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6
 </proxy>
 
 <nosql no-47506e16>
@@ -615,6 +827,7 @@
 	port				11211
 	mem				16
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6        
 </nosql>
 
 <nosql no-795b9ce4>
@@ -624,6 +837,7 @@
 	port				11212
 	cloud				cl-3b4b12d6
 	mem				16
+        cluster                         ar-1111bcd6
 </nosql>
 
 <lb lb-7b0c57ce>
@@ -638,6 +852,7 @@
 	mysql_user			skysql 
 	mysql_password			skyvodka	
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6
 </lb>
 
 <lb lb-3d9d6604>
@@ -652,6 +867,7 @@
 	mysql_user			skysql 
 	mysql_password			skyvodka	
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6
 </lb>
 
 <lb lb-af73ab61>
@@ -665,6 +881,7 @@
 	status				master
 	device				eth1 
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6
 </lb>
 
 <lb lb-18e84dae>
@@ -678,6 +895,7 @@
 	device				eth2 
 	status				slave
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6
 </lb>
 
 <bench be-d83e4aba> 
@@ -686,7 +904,8 @@
 	warehouse			100
 	concurrency			16 
 	duration			600
-	cloud				cl-3b4b12d6	
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6
 </bench>
 
 
@@ -696,7 +915,8 @@
 	warehouse			100
 	concurrency			16 
 	duration			600
-	cloud				cl-3b4b12d6	
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6	
 </bench>
 
 <bench be-ee3e4aba> 
@@ -705,7 +925,8 @@
 	warehouse			100
 	concurrency			16 
 	duration			600
-	cloud				cl-3b4b12d6	
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6	
 </bench>
 
 <bench be-ae7e4aba> 
@@ -714,7 +935,8 @@
 	warehouse			100
 	concurrency			16 
 	duration			600
-	cloud				cl-3b4b12d6	
+	cloud				cl-3b4b12d6
+        cluster                         ar-3b4b1bd6	
 </bench>
 
 
@@ -726,6 +948,7 @@
 	smtp_to				stephane@skysql.com
 	smtp_host			127.0.0.1
 	cloud				cl-3b4b12d6
+        cluster                         ar-1111bcd6
 </monitor>
 
 <nosql no-aa454aba>
@@ -738,6 +961,7 @@
 	secondary_port			33014
 	admin_port			33015
 	rows_per_wal			50000
+        cluster                         ar-1111bcd6        
 </nosql>
 
 <http ht-d83e4a54>
@@ -746,4 +970,5 @@
 	status				standalone
 	port				80	
 	ip				127.0.0.1
+        cluster                         ar-3b4b1bd6
 </http>

@@ -33,8 +33,9 @@ local auto_config = require("proxy.auto-config")
 local bit = require 'bit.numberlua'.bit32
 
 
-local backend_id_server = { 5013,5010,5014,5012,5011}
- local replication_dsn = {{ port = 5014, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'},{ port = 5012, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'},{ port = 5011, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'}}
+local cluster="ar-3b4b1bd6"
+local backend_id_server = { 5013,5010,5012,5011}
+ local replication_dsn = {{ port = 5011, ip = '127.0.0.1', user = 'skysql', password  = 'skyvodka'}}
 
 local memcache_master="127.0.0.1"
 local memcache_port = 11211

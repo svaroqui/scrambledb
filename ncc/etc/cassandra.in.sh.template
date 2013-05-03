@@ -33,7 +33,7 @@ cassandra_bin=$cassandra_bin:$CASSANDRA_HOME/build/classes/thrift
 #JAVA_HOME=/usr/local/jdk6
 
 # The java classpath (required)
-CLASSPATH=$CASSANDRA_CONF:$cassandra_bin
+        CLASSPATH=$CASSANDRA_CONF:$cassandra_bin
 
 for jar in $CASSANDRA_HOME/lib/*.jar; do
     CLASSPATH=$CLASSPATH:$jar

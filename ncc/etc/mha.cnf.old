@@ -6,51 +6,25 @@ repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-21891e01/data
+remote_workdir=/var/lib/skysql/mha
+master_binlog_dir=/var/lib/skysql/db-79b9ef72/data
 ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
 basedir=/usr/local/skysql
 
 [server2]
 hostname=127.0.0.1
 ip=127.0.0.1
-port=5014
+port=5010
 repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-31891e01/data
+remote_workdir=/var/lib/skysql/mha
+master_binlog_dir=/var/lib/skysql/db-b7c02005/data
 ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
 basedir=/usr/local/skysql
 
 [server3]
-hostname=10.0.0.102
-ip=10.0.0.102
-port=5010
-repl_user=skysql
-repl_password=skyvodka
-user=skysql
-password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-d41d8cd9/data
-ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
-basedir=/usr/local/skysql
-
-[server4]
-hostname=127.0.0.1
-ip=127.0.0.1
-port=5010
-repl_user=skysql
-repl_password=skyvodka
-user=skysql
-password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-b7c02005/data
-ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
-basedir=/usr/local/skysql
-
-[server5]
 hostname=127.0.0.1
 ip=127.0.0.1
 port=5012
@@ -58,12 +32,12 @@ repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-78b9ef72/data
+remote_workdir=/var/lib/skysql/mha
+master_binlog_dir=/var/lib/skysql/db-78b9ef72/data
 ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
 basedir=/usr/local/skysql
 
-[server6]
+[server4]
 hostname=127.0.0.1
 ip=127.0.0.1
 port=5011
@@ -71,8 +45,8 @@ repl_user=skysql
 repl_password=skyvodka
 user=skysql
 password=skyvodka
-remote_workdir=/usr/lib/skysql/mha
-master_binlog_dir=/usr/lib/skysql/sandboxes/db-fa537f8c/data
+remote_workdir=/var/lib/skysql/mha
+master_binlog_dir=/var/lib/skysql/db-fa537f8c/data
 ssh_options="-i /var/lib/skysql/.ssh/id_rsa"
 basedir=/usr/local/skysql
 

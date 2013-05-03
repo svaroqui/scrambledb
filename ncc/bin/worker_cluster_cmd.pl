@@ -138,6 +138,35 @@ sub cluster_cmd {
           my $json_rules = $json_rules_c->allow_blessed->convert_blessed->encode($config->get_ruleset());
           return  $json_rules;
         }
+        if ($action eq "file" ) {
+          my $json_file       = new JSON ;
+          my $info = Scramble::ClusterUtils::get_service_info_from_config($config,$group);
+         $log->log_debug("[cluster_cmd] Info: found this ip for fetching config  $info->{ip} ",1,"cluster");
+         my $file = "cat $SKYBASEDIR/ncc/etc/$group/$group.cnf"; 
+         if ($info->{mode} eq "mariadb"
+            || $info->{mode} eq "mysql"
+            || $info->{mode} eq "spider"
+            || $info->{mode} eq "galera"
+            || $info->{mode} eq "ndbd"
+            || $info->{mode} eq "tokudb"
+
+           )
+         {  
+            $file = "cat $SKYDATADIR/$group/my.sandbox.cnf"; 
+         } 
+         elsif ( $info->{mode} eq "cassandra" ) {
+            $file = "cat $SKYBASEDIR/ncc/etc/$group/cassandra.yaml"; 
+         } 
+        
+            
+          $ret = Scramble::ClusterTransport::worker_node_command($file,$info->{ip} ,$log); 
+         
+          my @console =$log->get_actions();
+           
+          return  '{"return":{"code":"000000"},"console":'. $json_file->allow_nonref->utf8->encode(@console) .' , "version":"1.0","actions":[]}';   
+          return  $ret;
+        }
+        
     }
     if ( $level eq "instances"  ){
        my $json_cmd       = new JSON ;
@@ -284,7 +313,7 @@ sub cluster_cmd {
            }
        }
        if ( $action eq "sql" && ( $ddlallnode == 0 || $ddlallnode == 2 ) ) {
-            spider_create_table_info( $query, $ddlallnode );
+            spider_create_table_info( $query, $ddlallnode,$group , $json_text->{command}->{database});
        }
        foreach my $nosql ( sort( keys( %{ $config->{nosql} } ) ) ) {
             my $host_info = $config->{nosql}->{default};
@@ -381,6 +410,7 @@ sub is_filter_service($$$$$) {
          || ($action_group eq "local" 
              && Scramble::ClusterUtils::is_ip_localhost($service_host->{ip})==1 )
          || $action_group eq $service_host->{ip}  
+         || $action_group eq $service_host->{cluster}
        )     
      { 
         
@@ -748,7 +778,7 @@ sub mysql_do_command($$) {
 sub spider_is_ddl_all_node($) {
     my $lquery = shift;
      $log->log_debug("[spider_is_ddl_all_node] Info: start  ",1,"cluster");  
-    my @tokens = tokenize_sql($lquery);
+    my @tokens =  Scramble::ClusterUtils::tokenize_sql($lquery);
     my $create = 99;
     my $next_i = 1;
     for my $token (@tokens) {
@@ -940,9 +970,10 @@ sub spider_node_sql($$$$$$$) {
         return 0;
     }
     if (
-        $self->{mode} ne "router"
+        $self->{mode} ne "spider"
         && (   $self->{status} eq "master"
             || $self->{status} eq "slave"
+            || $self->{status} eq "standalone"
             || $ddlallnode == 1 )
       )
     {
@@ -990,9 +1021,11 @@ sub spider_node_sql($$$$$$$) {
     }
 }
 
-sub spider_create_table_info($$) {
+sub spider_create_table_info($$$$) {
     my $query      = shift;
     my $ddlallnode = shift;
+    my $group = shift;
+    my $database= shift;
     my $err        = "000000";
     my $host_info;
     my $engine     = "";
@@ -1004,7 +1037,9 @@ sub spider_create_table_info($$) {
         foreach my $host ( keys( %{ $config->{db} } ) ) {
             $host_info = $config->{db}->{default};
             $host_info = $config->{db}->{$host};
-            if ( $host_info->{status} eq "master" ) {
+            if ( (  $host_info->{mode} eq "mariadb"
+            || $host_info->{mode} eq "mysql"
+            || $host_info->{mode} eq "galera")  && $host_info->{cluster} eq $group ) {
                 if ( $cptpart ne 0 ) { $engine = $engine . ",\n"; }
                 my $peer_host_info = $host_info->{peer}[0];
                 $createtable =~ s/`//g;
@@ -1014,33 +1049,41 @@ sub spider_create_table_info($$) {
                   . $cptpart
                   . " values in ("
                   . $cptpart
-                  . ") comment ' table \""
+                  . ") comment=' table \""
                   . $createtable
-                  . "\", host \""
-                  . $host_info->{ip} . " "
-                  . $config->{db}->{$peer_host_info}->{ip}
-                  . "\", port \""
-                  . $host_info->{mysql_port} . " "
-                  . $config->{db}->{$peer_host_info}->{mysql_port} . "\"  '";
+                  . "\", srv \""
+                  . $host_info->{ip} 
+                 # . $config->{db}->{$peer_host_info}->{ip}
+                 # . "\", port \""
+                 # . $host_info->{mysql_port} . " "
+                 # . $config->{db}->{$peer_host_info}->{mysql_port} . "\" 
+                  . "\", hrp \""
+                  . $host_info->{handlersocket_port}  
+                  . "\", hwp \""
+                  . $host_info->{handlersocket_port_wr} . "\"'";
+
+
 
 # $engine=$engine . "\n partition pt" . $cptpart ." values in (".$cptpart.") comment ' table \"".  $createtable ."\", host \"".$host_info->{ip} ." " .  $config->{db}->{$peer_host_info}->{ip} ."\", port \"".$host_info->{mysql_port} ." " .  $config->{db}->{$peer_host_info}->{mysql_port} .  "\" ,mbk \"2\", mkd \"2\", msi \"" . $monitoring  . "\" '";
                 $cptpart++;
             }
         }
         $engine =
-            " engine=Spider Connection 'user \""
-          . $host_info->{mysql_user}
-          . "\",password \""
-          . $host_info->{mysql_password}
-          . "\" '\n partition by list(mod("
+            " engine=Spider " 
+          #. " Connection 'user \""
+          #. $host_info->{mysql_user}
+          #. "\",password \""
+          #. $host_info->{mysql_password}
+          #. "\" '\n"
+          . "  partition by list(mod("
           . $hashcolumn . ","
           . $cptpart . "))("
           . $engine . ")";
         foreach my $host ( keys( %{ $config->{db} } ) ) {
             $host_info = $config->{db}->{default};
             $host_info = $config->{db}->{$host};
-            if (   $host_info->{mode} eq "spider"
-                || $host_info->{mode} eq "monitor" )
+            if (   ($host_info->{mode} eq "spider"
+                || $host_info->{mode} eq "spidermonitor" ) && $host_info->{cluster} eq $group )
             {
                 my $dsn =
                     "DBI:mysql:database="
@@ -1060,26 +1103,29 @@ sub spider_create_table_info($$) {
                 $log->log_debug("[spider_create_table_info] $dsn: $requete ",2,"cluster"); 
                
                 my $sth = $dbh->do($requete);
+                
+                $ddlallnode=2;
             }
         }
     }
     if ( $ddlallnode == 2 ) {
-        service_sql_database($query);
+        service_sql_database($query,$group);
     }
     return $err;
 }
 
 
 
-sub service_sql_database($) {
+sub service_sql_database($$) {
     my $query = shift;
+    my $group =shift;
     my $host_info;
     my $err = "000000";
     $log->log_debug("[service_sql_database] start ",2,"cluster"); 
     foreach my $host ( keys( %{ $config->{db} } ) ) {
         $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
-        if ( $host_info->{mode} eq "spider" ) {
+        if ( $host_info->{mode} eq "spider" && $host_info->{cluster} eq $group ) {
             use Error qw(:try);
             my $dsn =
                 "DBI:mysql:database="
@@ -1291,13 +1337,11 @@ sub service_status_hbase($$){
   my $self = shift;
   my $node = shift;
   my $err = "000000";
-
-  my $param="ls -l $SKYDATADIR/$node| grep -v 'No such'  | wc -l";
-          
-            my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
-            $res =~ s/^\s+//;
-            $res =~ s/\s+$//;
-            if ($res eq "0")  { return  "ER0024";}
+  my $param="if [ -d $SKYDATADIR/$node ] ;then echo 1; else echo 0; fi ";
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  $res =~ s/^\s+//;
+  $res =~ s/\s+$//;
+  if ($res eq "0")  { return  "ER0024";}
   return $err;
 }
 
@@ -1306,7 +1350,7 @@ sub service_status_cassandra($$){
   my $node = shift;
   my $err = "000000";
 
-  my $param="ls -l $SKYDATADIR/$node | grep -v 'No such' | wc -l";
+  my $param="if [ -d $SKYDATADIR/$node ] ;then echo 1; else echo 0; fi ";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1320,7 +1364,7 @@ sub service_status_leveldb($$){
   my $node = shift;
   my $err = "000000";
 
-  my $param="ls -l $SKYDATADIR/$node | grep -v 'No such'  | wc -l";
+  my $param="if [ -d $SKYDATADIR/$node ] ;then echo 1; else echo 0; fi ";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1346,7 +1390,7 @@ sub service_status_database($$) {
         $port = $self->{port};
     }
     else {
-            my $param="ls -l $SKYDATADIR/$node | grep -v 'No such' | wc -l";
+           my $param="if [ -d $SKYDATADIR/$node ] ;then echo 1; else echo 0; fi ";
           
             my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
             $res =~ s/^\s+//;
@@ -1669,6 +1713,26 @@ sub service_start_haproxy($$) {
 }
 
 
+sub service_start_cassandra($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "ER0019";  
+  my $param ="/bin/sh CASSANDRA_HOME=$SKYBASEDIR/cassandra;" 
+          . "CASSANDRA_CONF=$SKYBASEDIR/ncc/etc/$node;" 
+          . 'cassandra_bin=$CASSANDRA_HOME/build/classes/main;'
+          . 'cassandra_bin=$cassandra_bin:$CASSANDRA_HOME/build/classes/thrift;'
+          . "JAVA_HOME=$SKYBASEDIR/java/Contents/Home;"
+          . 'CLASSPATH=$CASSANDRA_CONF:$cassandra_bin;'
+          . 'for jar in $CASSANDRA_HOME/lib/*.jar; do CLASSPATH=$CLASSPATH:$jar;done ;'
+          . "$SKYBASEDIR/cassandra/bin/cassandra&;"
+          . 'echo $! >> '
+          . "$SKYDATADIR/tmp/cassandra.$node.pid";
+  $log->log_debug("[service_start_cassandra] on $self->{ip}: ". $param  ,1,"cluster");        
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
+  return $err;
+}
+
 sub service_start_dbt2($$$$) {
     my $self = shift;
     my $node = shift;
@@ -1964,7 +2028,7 @@ sub service_install_database($$$) {
     $log->log_debug("[service_install_database] Grant: $GRANT : ".$self->{ip},1,"cluster");  
     Scramble::ClusterTransport::worker_node_command( $GRANT, $self->{ip},$log );
 
-    if ( $type eq 'spider' || $type eq 'monitor' ) {
+    if ( $type eq 'spider' || $type eq 'spidermonitor' ) {
     
         my $SPIDER =
         "$SKYDATADIR/$node/my sql -uroot -p$self->{mysql_password} < $SKYBASEDIR/ncc/scripts/install_spider.sql";
@@ -2279,7 +2343,7 @@ sub service_switch_database($) {
               . " --new_master_port="
               . $host_info->{mysql_port};
             system($cmd);
-        }
+        } 
     }
     start_all_proxy();
     return $err;
@@ -2529,10 +2593,10 @@ sub service_do_command($$$) {
            $err= service_status_http($self,$node);
         }
          elsif ( $self->{mode} eq "cassandra" ) {
-           $err= service_status_http($self,$node);
+           $err= service_status_cassandra($self,$node);
         }
          elsif ( $self->{mode} eq "leveldb" ) {
-           $err= service_status_cassandra($self,$node);
+           $err= service_status_leveldb($self,$node);
         }
          elsif ( $self->{mode} eq "hbase" ) {
            $err= service_status_hbase($self,$node);
@@ -2600,6 +2664,12 @@ sub service_do_command($$$) {
     }
     elsif ( $cmd eq "stop" && $self->{mode} eq "dbt2" ) {
         $ret = service_stop_dbt2($self,$node); 
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "cassandra" ) {
+        $ret = service_start_cassandra($self,$node); 
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "cassandra" ) {
+        $ret = service_stop_cassandra($self,$node); 
     }
     $log->report_status( $self, $param, $err, $node );
     return $err;

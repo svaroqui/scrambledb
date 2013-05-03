@@ -153,6 +153,22 @@ my $status =shift;
   return 0; 
 }
 
+sub get_service_info_from_config($$) {
+  my $config =shift;  
+  my $node =shift;  
+  
+  my @statusgrid;    
+    foreach my $type  (keys( %{ $config} ) ) {
+    foreach my $key  (keys( %{ $config->{$type}} ) ) {
+       if ($key eq $node) {
+        return  $config->{$type}->{$key};
+      }   
+    }     
+  }  
+  return 0;
+}
+
+
 sub get_instance_status_from_ip($$){
 my $status =shift;
  my $ip =shift;
@@ -204,6 +220,27 @@ sub get_all_masters($) {
     return join( ',', @masters );
 }
 
+sub get_all_masters_cluster($$) {
+    
+    my $config =shift;
+    my $cluster =shift;
+    my $host_info;
+    my $err = "000000";
+    my @masters;
+     my $cloud_name = get_active_cloud_name($config);
+    foreach my $host ( keys( %{ $config->{db} } ) ) {
+      if ($host ne "default"  ) { 
+        $host_info = $config->{db}->{default};
+        $host_info = $config->{db}->{$host};
+        if ( $host_info->{status} eq "master" && $host_info->{cloud} eq $cloud_name  &&  $host_info->{cluster} eq $cluster) {
+            push( @masters, $host_info->{ip} . ":" . $host_info->{mysql_port} );
+        }
+       }
+        
+    }
+    return join( ',', @masters );
+}
+
 sub get_all_memcaches($) {
     my $config =shift;
     my $host_info;
@@ -220,6 +257,24 @@ sub get_all_memcaches($) {
     }
     return join( ',', @memcaches );
 }
+
+sub get_all_cassandra($) {
+    my $config =shift;
+    my $host_info;
+    my $err = "000000";
+    my @memcaches;
+    my $cloud_name = get_active_cloud_name($config);
+    foreach my $host ( keys( %{ $config->{nosql} } ) ) {
+        $host_info = $config->{nosql}->{default};
+        $host_info = $config->{nosql}->{$host};
+        if ( $host_info->{mode} eq "cassandra" && $host_info->{cloud} eq $cloud_name ) {
+            push( @memcaches,
+                $host_info->{ip} . ":" . $host_info->{port} );
+        }
+    }
+    return join( ',', @memcaches );
+}
+
 
 sub get_all_sercive_ips($) {
     my $config =shift;

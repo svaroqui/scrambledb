@@ -5,6 +5,8 @@ use strict;
 use Sys::Hostname;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Client;
+use Cache::Memcached;
+
 
 sub get_grid_status_services($) {
   my $status =shift;  
@@ -24,7 +26,7 @@ sub get_grid_status_services($) {
         ip         => $host_info->{"ip"}, 
         status    => $host_info->{"status"},
         state     => $host_info->{"state"},
-        time  => $host_info->{"time"}
+        cluster  => $host_info->{"cluster"}
        
        };
     push(@statusgrid , $action_add);   
@@ -50,12 +52,39 @@ sub get_grid_config_clouds($) {
   return \@statusgrid;
 }
 
+
+sub get_grid_config_clusters($) {
+  my $status =shift;  
+  my @statusgrid;   
+  my $host_info;
+
+   
+    foreach my $service  (keys( %{ $status->{"cluster"}} ) ) {
+         my $action_add  = 
+       {
+        id       => $service,
+        label       => $status->{"cluster"}->{$service}->{"label"}
+       };
+        push(@statusgrid , $action_add);   
+     
+    
+        
+  }
+    
+  return \@statusgrid;
+}
+
 sub get_grid_config_service($$) {
   my $status =shift;  
   my $node =shift;  
-
+  
   my @statusgrid;   
-  foreach my $type  (keys( %{ $status} ) ) {
+ # push (@statusgrid , {
+ #       name       => "aaa",
+ #       value       => "bbbb"
+ #        });
+ #   return \@statusgrid;
+    foreach my $type  (keys( %{ $status} ) ) {
     foreach my $key  (keys( %{ $status->{$type}->{$node}} ) ) {
       my $action_add  = 
        {
@@ -67,6 +96,8 @@ sub get_grid_config_service($$) {
   }  
   return \@statusgrid;
 }
+
+
 
 
 sub get_grid_status_instances($) {
@@ -98,8 +129,9 @@ sub get_grid_status_instances($) {
 
 
 sub get_json_local_infos(){
-  system("cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'"); 
-  my $ram =$? ;
+  #system("cat /proc/meminfo |  grep MemTotal | awk '{print \$2}'"); 
+ # my $ram =$? ;
+    my $ram ="10000000" ;
 
    my $interface;
    my %IPs;
@@ -116,6 +148,27 @@ sub get_json_local_infos(){
   return $json_interfaces;
  }
 
+sub get_result_from_node_cmd($){
+  my $result=shift; 
+  if (defined($result->{console}->{result})) {
+      if ( $result->{console}->{return}  eq "000000") {
+          return $result->{console}->{result};
+      } 
+      return "Nothing received";
+ } else {
+   return "Nothing defined";
+}  
+}
+sub get_console_from_node_cmd($){
+  my $result=shift; 
+  my $res="Console: <BR>";
+     
+  foreach my $console (  @{ $result->{console}} )  {
+    $res = $res . $console->{command} ."<BR>";
+    $res = $res . $console->{result} ."<BR>";
+  }    
+  return $res;
+}
 
 
 sub gearman_client($) {
@@ -160,8 +213,8 @@ get '/instances/status' => sub {
         return $resgrid ;
 };
 
-get '/services/:action/:group/:type' => sub {
-        my $level ="services";
+get '/:level/:action/:group/:type' => sub {
+        my $level =params->{level};
         my $action =params->{action};
         my $group=params->{group}; 
         my $type=params->{type};
@@ -170,7 +223,36 @@ get '/services/:action/:group/:type' => sub {
         if ( ! defined $level ) {$level='service';}
         my $command='{"level":"'. $level .'","command":{"action":"'.$action.'","group":"'.$group.'","type":"'.$type.'"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $resjson=gearman_client($command);
+        my $console = get_console_from_node_cmd($resjson);
+        my $memd = new Cache::Memcached {
+               'servers' => [ "127.0.0.1:11211"  ],
+               'debug'   => 0,
+               'compress_threshold' => 10_000,
+        };  
+        $memd->set($group."_console",$console); 
         return $resjson ;
+};
+
+
+get '/console/:group' => sub {
+
+   my $memd = new Cache::Memcached {
+               'servers' => [ "127.0.0.1:11211"  ],
+               'debug'   => 0,
+               'compress_threshold' => 10_000,
+   };  
+   my $console=$memd->get(params->{group}."_console"); 
+   content_type 'text/html';  
+   return $console; 
+};
+
+get '/getclusters' => sub {
+
+        my $command='{"level":"config","command":{"action":"display","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
+        my $resjson=gearman_client($command);
+        my $resgrid=get_grid_config_clusters($resjson);
+       
+        return $resgrid ;
 };
 
 
@@ -181,7 +263,7 @@ get '/config/:action' => sub {
         return $resjson ;
 };
 
-get '/config/getclouds' => sub {
+get '/getclouds' => sub {
         my $command='{"level":"config","command":{"action":"display","group":"all","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
         my $res=gearman_client($command);
         my $resgrid=get_grid_config_clouds($res);
@@ -194,6 +276,17 @@ get '/config/infos/:service' => sub {
         my $resgrid=get_grid_config_service($resjson,params->{service});
         return $resgrid ;
 };
+
+get '/config/file/:service' => sub {
+        my $command='{"level":"config","command":{"action":"file","group":"'.params->{service}.'","type":"all"}, "host":{"interfaces":['. get_json_local_infos .'] }}';
+        my $resjson=gearman_client($command);
+        my $resgrid=get_result_from_node_cmd($resjson);
+        content_type 'text/html';
+
+         $resgrid=~ s/\n/\<BR\>/g;
+        return $resgrid ;
+};
+
 
 
 get '/mon' => sub {

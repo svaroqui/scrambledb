@@ -1,0 +1,51 @@
+[mysqld]
+
+skip_name_resolv
+back_log=128  
+max_connections = 1024
+table_open_cache = 2048
+table_definition_cache = 2048
+max_allowed_packet = 16M
+log-bin
+binlog_cache_size = 1M
+expire_logs_days=7
+# sql_mode=ANSI
+max_heap_table_size = 64M
+thread_cache_size = 128 
+query_cache_size = 0 
+query_cache_size = 0
+query_cache_limit = 2M
+ft_min_word_len = 4
+#default_table_type = InnoDB
+thread_stack = 192K
+#transaction_isolation = READ-COMMITTED 
+tmp_table_size = 64M
+
+sort_buffer_size =  512K
+join_buffer_size =  1M 
+
+innodb_flush_method=O_DIRECT
+innodb_io_capacity=100
+innodb_write_io_thread = 4 
+innodb_read_io_thread = 4 
+innodb_thread_concurrency= 16
+innodb_doublewrite=0   
+innodb_old_blocks_time=100
+innodb_buffer_pool_size =128M
+innodb_open_files=1024
+innodb_max_dirty_pages_pct=30
+innodb_flush_log_at_trx_commit = 1
+innodb_log_buffer_size = 8M
+innodb_log_file_size = 256M
+innodb_log_files_in_group = 2
+innodb_lock_wait_timeout = 120
+innodb_file_per_table
+innodb_autoinc_lock_mode=2
+innodb_locks_unsafe_for_binlog=1
+
+wsrep_provider_options = "gcs.fc_limit = 256; gcs.fc_factor = 0.99; gcs.fc_master_slave = yes"
+
+#key_cache_segments= 
+key_buffer_size = 16M
+key_cache_block_size=4K 
+

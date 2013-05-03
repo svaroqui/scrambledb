@@ -32,5 +32,3 @@ default_backend  mysql-back
 backend mysql-back
   balance     roundrobin
   mode    tcp
-   server pr-bf1eb62c 127.0.0.1:3308  check
-   server pr-3644f237 127.0.0.1:3307  check

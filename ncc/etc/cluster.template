@@ -1,4 +1,4 @@
-[MYSQLD]
+[mysqld]
 ndb-cluster-connection-pool=1 
 ndbcluster
 ndb-connectstring=localhost:1186

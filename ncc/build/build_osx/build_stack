@@ -9,7 +9,6 @@ mkdir $SKYDATADIR/sphinx
 mkdir $SKYDATADIR/dbt2
 mkdir $SKYDATADIR/dbt3
 
-
 dscl . create /Groups/$CLUSTER_GROUP
 dscl . create /Groups/$CLUSTER_GROUP gid 3306
 dscl . -create /Users/$CLUSTER_USER PrimaryGroupID 3306
@@ -46,7 +45,6 @@ cd libevent-2.0.19-stable
 ./configure --prefix=$SKYDESTDIR/libevent && make 
 make install 
 
-
 cd $DEPOTDIR
 rm -rf  boost_1_50_0
 tar xzf boost_1_50_0.tar.gz 
@@ -54,8 +52,6 @@ cd boost_1_50_0
 ./bootstrap.sh --prefix=$SKYDESTDIR/boost
 ./b2
 ./b2 install
-
-
 
 rm -rf php-5.4.4
 cd $DEPOTDIR 
@@ -81,8 +77,6 @@ sh Configure -Dprefix=$SKYDESTDIR/perl -des
 make
 make test
 make install 
-
-
 
 cd $DEPOTDIR
 rm -rf lua-5.1.5
@@ -112,10 +106,24 @@ make mysqlclient libmysql
 make install
 
 cd $DEPOTDIR
+# BUG http://lists.mysql.com/commits/140413
 rm -rf mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95 
 tar xzf mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95.tar.gz
 cd mysql-5.5.14-spider-2.28-vp-0.17-hs-1.1-q4m-0.95
-cmake . -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/spider 
+mv storage/q4m ~/bk
+mv plugin/handlersocket ~/bk
+
+cmake . -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/spider \
+-DDEFAULT_CHARSET=utf8 \
+        -DWITH_EXTRA_CHARSETS=complex \
+        -DDEFAULT_COLLATION=utf8_general_ci \
+        -DWITH_PARTITION_STORAGE_ENGINE=1 \
+        -DWITHOUT_ARCHIVE_STORAGE_ENGINE=1 \
+        -DWITHOUT_BLACKHOLE_STORAGE_ENGINE=1 \
+        -DWITHOUT_EXAMPLE_STORAGE_ENGINE=1 \
+        -DWITHOUT_FEDERATED_STORAGE_ENGINE=1 \
+        -DWITH_PIC=1 
+
 make install
 
 
@@ -133,8 +141,6 @@ patch -u configure.in ../BUILD/macautomake1.2.1mysqlproxy0.8.2.patch
 make 
 make install
 cd $DEPOTDIR
-
-
 
 
 rm -f gearmand-0.33
@@ -163,7 +169,6 @@ cd libmemcached-1.0.9
 make 
 make install
 cd $DEPOTDIR
-
 
 
 rm -rf memcached_functions_mysql-1.1 

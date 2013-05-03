@@ -57,7 +57,6 @@ our %ERRORMESSAGE = (
     "ER0023" => "stopped",
     "ER0024" => "uninstalled"
 
-
 );
 
 
@@ -228,8 +227,8 @@ sub report_status($$$$$) {
      $status=$hostinfo->{status};
     }
     push(@{$self->{console}},
-       '{"'.$host .'":{"time":"'
-      . $le_localtime
+       '{"'.$host .'":{"cluster":"'
+      . $hostinfo->{cluster} 
       . '","name":"'
       .  $host
       . '","ip":"'
@@ -241,7 +240,7 @@ sub report_status($$$$$) {
       . '","code":"'
       . $err
       . '","state":"'
-      . $ERRORMESSAGE{$err}  
+      . $ERRORMESSAGE{$err}      
       . '"}}'
    ); 
  

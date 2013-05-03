@@ -96,7 +96,7 @@ my  $res =  `$command`;
        return $json_result;
  }   
     else {
-       $res =~ s/\n//g; 
+      # $res =~ s/\n//g; 
 
        my $result  = 
        {

@@ -149,13 +149,17 @@ my $host_nosql;
    $host_nosql = $config->{nosql}->{default};
    $host_nosql = $config->{nosql}->{$nosql}; 
    if  ($host_nosql->{mode} eq "cassandra") {     
-       system("cp -r $SKYBASEDIR/ncc/etc/cassandra.template $nosql");
-       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "saved_caches_directory: $SKYDATADIR/$nosql/saved_caches");
-       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "data_file_directories: $SKYDATADIR/$nosql/data");
-       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","saved_caches_directory" , "commitlog_directory: $SKYDATADIR/$nosql/commitlog");
-       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yalm","listen_address" , "listen_address: $host_nosql->{ip}");
-     
-       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/log4j-server.properties","log4j.appender.R.File" , "log4j.appender.R.File=$SKYDATADIR/$nosql/log/system.log");
+       $log->log_debug("[worker_config] Info:  cp -Rf $SKYBASEDIR/ncc/etc/cassandra.template $SKYBASEDIR/ncc/etc/$nosql ",1,"write_config");
+       system("mkdir  $SKYBASEDIR/ncc/etc/$nosql");
+       system("cp -rf $SKYBASEDIR/ncc/etc/cassandra.template/* $SKYBASEDIR/ncc/etc/$nosql");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yaml","saved_caches_directory:" , "saved_caches_directory: $SKYDATADIR/$nosql/saved_caches");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yaml","data_file_directories:" , "data_file_directories: \n\t- $SKYDATADIR/$nosql/data");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yaml","commitlog_directory:" , "commitlog_directory: $SKYDATADIR/$nosql/commitlog");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yaml","listen_address:" , "listen_address: $host_nosql->{ip}");
+       my $seed = Scramble::ClusterUtils::get_all_cassandra($config);
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/cassandra.yaml","- seeds:" , "- seeds: \"$seed\"");
+       
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$nosql/log4j-server.properties","log4j.appender.R.File=" , "log4j.appender.R.File=$SKYDATADIR/$nosql/log/system.log");
      
            
 
@@ -277,14 +281,17 @@ sub write_lua_script(){
  my $cloud_name = Scramble::ClusterUtils::get_active_cloud_name($config);
 
  my $host_info;
+ my $cluster;   
  foreach my $host (keys(%{$config->{proxy}})) {
     $host_info = $config->{proxy}->{default};
     $host_info = $config->{proxy}->{$host};
+  
     open my $in ,  '<', $SKYBASEDIR."/ncc/scripts/". $host_info->{script} or die "Can't write new file: $!";
     open my $out, '>', $SKYBASEDIR."/ncc/scripts/$host.lua" or die "Can't write new file: $!";
     while (<$in>) {
        # s/^$strin(.*)$/$strout/gi;
          if (/-- insert here --/) {
+          print $out "local cluster=\"$host_info->{cluster}\"\n" ;
           my $nosql_info; 
           foreach my $nosql (keys(%{$config->{nosql}})) {
             $nosql_info = $config->{nosql}->{default};
@@ -447,7 +454,56 @@ sub write_tarantool_config() {
  }
 }
 
+sub write_cluster_config (){
 
+
+$conf = <<END;
+
+[TCP DEFAULT]
+SendBufferMemory=256K
+ReceiveBufferMemory=256K
+
+[NDB_MGMD DEFAULT]
+PortNumber=1186
+Datadir=_DATADIR
+
+[NDB_MGMD]
+Id=1
+Hostname=localhost
+
+[NDBD DEFAULT]
+NoOfReplicas=2
+Datadir=_DATADIR
+DataMemory=128MM
+SharedGlobalMemory=64M
+DiskPageBufferMemory=32M
+IndexMemory=43M
+LockPagesInMainMemory=0
+
+MaxNoOfConcurrentOperations=32768
+
+StringMemory=25
+MaxNoOfTables=512
+MaxNoOfOrderedIndexes=256
+MaxNoOfUniqueHashIndexes=256
+MaxNoOfAttributes=5000
+DiskCheckpointSpeedInRestart=100M
+FragmentLogFileSize=256M
+NoOfFragmentLogFiles=3
+RedoBuffer=8M
+
+HeartbeatIntervalDbDb=15000
+HeartbeatIntervalDbApi=15000
+TimeBetweenLocalCheckpoints=20
+TimeBetweenGlobalCheckpoints=1000
+TimeBetweenEpochs=100
+
+TimeBetweenEpochsTimeout=32000
+MemReportFrequency=30
+BackupReportFrequency=30
+END
+
+}
 sub write_haproxy_config(){
  
  my $i=100;
@@ -510,7 +566,7 @@ sub write_haproxy_config(){
     my $host_info;
     foreach my $host (keys(%{$config->{proxy}})) {
         $host_info = $config->{proxy}->{$host};
-       if ($host_info->{cloud} eq $cloud_name){  
+       if ($host_info->{cloud} eq $cloud_name && $host_info->{cluster} eq $lb_info->{cluster}){  
     
         print $out "   server $host ". $host_info->{ip}.":". $host_info->{port} . "  check\n";
       }
@@ -556,7 +612,7 @@ sub write_memcached_config(){
 
 sub get_memory_from_status($){
  my $host_info =shift;
- return 100;
+ return 2000;
 }
 
 sub get_json_from_file($){
@@ -583,23 +639,32 @@ sub write_mysql_config(){
         my $host_info = $config->{db}->{default};
         $host_info = $config->{db}->{$host};
         if ($host_info->{cloud} eq $cloud_name){  
-         my $file = "$SKYDATADIR/tmp/template.$host.json";
-       
-     #  system  `$SKYBASEDIR/mariadb/bin/my_print_defaults  --defaults-file=$SKYBASEDIR/ncc/etc/$host_info->{template}  mysqld | sed 's/--//g' | awk -F'=' 'BEGIN { print "{"}  END { print "\"scramble\":\"\"}"}  {  print "\""$1"\":\""$2"\"," }' > $file `;
-       if (Scramble::ClusterUtils::is_ip_localhost($host_info->{ip}) ==1) {
-         my $change_variables =get_mysql_variables_diff($host,$host_info); 
-         foreach my $variable (keys(%{$change_variables})) {
-            if ( $variable ne "scramble" ) {
-                replace_patern_infile("$SKYDATADIR/".$host."/my.sandbox.cnf" , $variable,$variable. "=" .$change_variables->{$variable} );  
+        if (Scramble::ClusterUtils::is_ip_localhost($host_info->{ip}) ==1) {
+          my $file = "$SKYDATADIR/".$host."/my.sandbox.cnf";
+          my $param="ls -l $SKYDATADIR/$host| grep -v 'No such'  | wc -l";
+      #    my $res=system( $param);  
+      #    $res =~ s/^\s+//;
+      #    $res =~ s/\s+$//;
+          if (-e  $file)  {
+          
+            my $change_variables =get_mysql_variables_diff($host,$host_info); 
+            foreach my $variable (keys(%{$change_variables})) {
+               if ( $variable ne "scramble" ) {
+                   replace_patern_infile("$SKYDATADIR/".$host."/my.sandbox.cnf" , $variable,$variable. "=" .$change_variables->{$variable} );  
+               }
             }
-         }
-         my $ram =get_memory_from_status($host_info);
-         print STDERR $ram;
-         
-         my $mem = $ram*$host_info->{mem_pct}/100;    
-         print STDERR $mem;
-         
-            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem);        
+            my $ram =get_memory_from_status($host_info);
+            $log->log_debug("[worker_config] Info: mysql get_memory_from_status ". $ram ,1,"write_config");
+            my $mem = $ram*$host_info->{mem_pct}/100;    
+          
+             $log->log_debug("[worker_config] Info: mysql Setting memory to ". $mem ,1,"write_config");
+            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "innodb_buffer_pool_size","innodb_buffer_pool_size=" . $mem."M");        
+            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "handlersocket_address","handlersocket_address=" . $host_info->{handlersocket_address} );        
+            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "handlersocket_port=","handlersocket_port=" . $host_info->{handlersocket_port} );        
+            replace_patern_infile($SKYDATADIR."/".$host."/my.sandbox.cnf", "handlersocket_port_wr=","handlersocket_port_wr=" . $host_info->{handlersocket_port_wr} );        
+        
+           }
+  
         }
        }
     }
@@ -608,7 +673,7 @@ sub write_mysql_config(){
 
 sub write_mysql_proxy_config(){
 
-my $masters = Scramble::ClusterUtils::get_all_masters($config);
+
 my $slaves =  Scramble::ClusterUtils::get_all_slaves($config) ;
 
 my $i=100;
@@ -616,8 +681,9 @@ my $host_info;
 foreach my $host (keys(%{$config->{proxy}})) {
     $host_info = $config->{proxy}->{default};
     $host_info = $config->{proxy}->{$host};
-     my $dir=$SKYBASEDIR. "/ncc/etc/".$host; 
-     mkdir($dir) unless(-d $dir) ;
+    my $masters = Scramble::ClusterUtils::get_all_masters_cluster($config,$host_info->{cluster});
+    my $dir=$SKYBASEDIR. "/ncc/etc/".$host; 
+    mkdir($dir) unless(-d $dir) ;
     open my $out, '>', "$dir/$host.cnf" or die "Can't write new file: $!";
 
     print $out "[mysql-proxy]\n";
@@ -684,8 +750,8 @@ sub write_mha_config($){
             print $out "repl_password=$host_info->{mysql_password}\n";
             print $out "user=$host_info->{mysql_user}\n";
             print $out "password=$host_info->{mysql_password}\n";
-            print $out "remote_workdir=$host_info->{datadir}/mha\n";
-            print $out "master_binlog_dir=$host_info->{datadir}/$host/data\n";
+            print $out "remote_workdir=$SKYDATADIR/mha\n";
+            print $out "master_binlog_dir=$SKYDATADIR/$host/data\n";
             print $out "ssh_options=\"-i $SKYDATADIR/.ssh/". $cloud->{public_key} . "\"\n";
             print $out "basedir=$SKYBASEDIR\n";
             print $out "\n";

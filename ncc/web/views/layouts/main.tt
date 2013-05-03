@@ -25,6 +25,7 @@
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxdropdownlist.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxcheckbox.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxtabs.js"></script>
+    <script type="text/javascript" src="/javascripts/jqwidgets/jqxbuttons.js"></script>
     <script type="text/javascript" src="/javascripts/jqwidgets/jqxlistbox.js"></script>
     <script type="text/javascript" src="/javascripts/scripts/gettheme.js"></script>
     <script type="text/javascript">/* <![CDATA[ */
