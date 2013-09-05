@@ -207,6 +207,8 @@ our $RULESET = {
                 'ip'                          => { 'required' => ['AGENT', 'MONITOR', 'TOOLS','SANDBOX'] },	
                 'port'                        => { 'default' => 80  },
         	'cloud'                       => { 'refvalues' => 'cloud'  },
+                'user'                        => { 'refvalues' => 'skysql'  },
+                'password'                    => { 'refvalues' => 'skyvodka'  },
                 'cluster'                     => { 'refvalues' => 'cluster'  },
     		'status'                      => { 'required' => ['AGENT', 'MONITOR','SANDBOX'], 'values' => ['standalone'] }
                

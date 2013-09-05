@@ -45,6 +45,8 @@
 	interface_vip_id		eni-2704df4a 
 </cloud>
 
+
+
 <cloud cl-3b4b12d6>
 	status			 	master 	
 	user				xxxx
@@ -58,6 +60,25 @@
 	instance_type			na
 	public_key			id_rsa
 </cloud>
+
+<cloud cl-a1b2c3d5>
+	status			 	master 	
+	user				xxxx
+	password			xxxx
+	host				na
+	version				1.5
+	driver				LOCAL
+	template			na	 
+	key				na
+	ex_vdc				na
+	instance_type			na
+	public_key			id_rsa
+</cloud>
+
+<cluster ar-a1b2c3d5>
+        label                           Spider-Cluster
+        vip                             10.0.0.11
+</cluster>
 
 <cluster ar-3b4b1bd6>
         label                           Read-Write-Mha-Cluster
@@ -972,3 +993,6 @@
 	ip				127.0.0.1
         cluster                         ar-3b4b1bd6
 </http>
+
+
+

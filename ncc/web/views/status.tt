@@ -76,6 +76,7 @@
             $("#jqxgrid").jqxGrid(
             {
                 source: dataAdapter,
+                width : 798,
                 editable: true,
                 theme: theme,
                 enablehover: false,
@@ -111,7 +112,7 @@
                     { text: 'Cluster', filtertype: 'list', filteritems: sourceclusters, datafield: 'cluster', width: 100 },
                     { text: 'Id', datafield: 'name', width: 100 },
                     { text: 'Service', datafield: 'mode' , width: 90},
-                    { text: 'Ip', datafield: 'ip' ,width: 90},
+                    { text: 'Ip', datafield: 'ip' ,width: 120},
                     { text: 'Status', datafield: 'status' , width: 90 },
                     { text: 'State', datafield: 'state' , cellsrenderer: cellsrenderer}
                 ]
@@ -154,6 +155,7 @@
             {
                 source: dataAdapterInstances,
                 editable: true,
+                width : 798,
                 theme: theme,
                 enablehover: false,
                 selectionmode: 'none',
@@ -213,6 +215,7 @@
             {
                 source: dataAdapterVariables,
                 editable: true,
+                width : 798,
                 theme: theme,
                 enablehover: false,
                 selectionmode: 'none',
@@ -375,7 +378,7 @@
    
                 }
             }
-            $('#jqxTabs').jqxTabs({ width: 600, height: 450, theme: theme, initTabContent: initWidgets });
+            $('#jqxTabs').jqxTabs({ width: 800, height: 450, theme: theme, initTabContent: initWidgets });
 
             var initWidgetsDetails = function (tab) {
                 switch (tab) {
@@ -389,7 +392,7 @@
    
                 }
             }
-            $('#jqxTabsDetails').jqxTabs({ width: 600, height: 400, theme: theme, initTabContent: initWidgetsDetails });
+            $('#jqxTabsDetails').jqxTabs({ width: 800, height: 400, theme: theme, initTabContent: initWidgetsDetails });
             var loadPageDetails = function (url) {
                  $('#config').load(url);
               //  $.get(url, function (data) {
@@ -623,7 +626,7 @@
                </div>
             </div>
             <div  style="overflow: hidden;">
-                <div id="monitor" style="height: 100px; width: 400px; "></div>
+                <div id="monitor" style="height: 100px; width: 800px; "></div>
             </div>
              <div style="overflow: hidden;">
                 <div id="jqxgridsql"  ></div>

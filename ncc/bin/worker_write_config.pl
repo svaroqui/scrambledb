@@ -116,7 +116,9 @@ sub write_cmd {
     write_mysql_config(); 
     $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
     write_cassandra_config();
-      $log->log_debug("[worker_config] Info: mysql ",1,"write_config");
+      $log->log_debug("[worker_config] Info: cassandra ",1,"write_config");
+    write_httpd_config();  
+      $log->log_debug("[worker_config] Info: http ",1,"write_config");
     return  $console ;
 
 }
@@ -167,6 +169,24 @@ my $host_nosql;
   }     
 }
 
+
+sub write_httpd_config(){
+
+my $host_httpd;
+ foreach my $httpd (keys(%{$config->{http}})) {
+    
+   $host_httpd = $config->{http}->{default};
+   $host_httpd = $config->{http}->{$httpd}; 
+   if  ($host_httpd->{mode} eq "apache") {     
+       $log->log_debug("[worker_config] Info:  cp -f $SKYBASEDIR/ncc/etc/httpd.template $SKYBASEDIR/ncc/etc/$httpd/",1,"write_config");
+       system("cp -f $SKYBASEDIR/ncc/etc/httpd.template $SKYBASEDIR/ncc/etc/".$httpd."/".$httpd.".cnf");
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$httpd/".$httpd. ".cnf",  '<Directory "/var/lib/skysql/www/">', '<Directory "'.$SKYDATADIR.'/'.$httpd .'/htdocs/">');
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$httpd/".$httpd. ".cnf",  'Listen 80', 'Listen ' . $host_httpd->{port} );
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$httpd/".$httpd. ".cnf", 'DocumentRoot "/var/lib/skysql/www"', 'DocumentRoot "'.$SKYDATADIR.'/'.$httpd .'/htdocs"' ); 
+       replace_patern_infile( "$SKYBASEDIR/ncc/etc/$httpd/".$httpd. ".cnf", 'AuthUserFile ""', 'AuthUserFile "'.$SKYDATADIR.'/'.$httpd .'/passwords"' ); 
+   }        
+  }     
+}
 
 sub write_keepalived_config(){
  my $i=100;
@@ -328,9 +348,6 @@ sub write_lua_script(){
 
   } 
   return 0; 
-}
-sub write_write_httpd($){
-
 }
 
 
@@ -544,21 +561,31 @@ sub write_haproxy_config(){
     print $out "#    timeout http-keep-alive 10s\n";
     print $out "   timeout check           10s\n";
     print $out "   maxconn                 3000\n";
+
+    print $out "frontend http-front\n";
+    print $out "  mode tcp\n";
+    print $out "  bind     ".$lb_info->{vip}.":80\n";
+    print $out "  default_backend  http-back\n";
+
     print $out "frontend mysql-front\n";
-    print $out "mode tcp\n";
-    print $out "bind     ".$lb_info->{vip}.":".$lb_info->{port}."\n";
-    print $out "default_backend  mysql-back\n";
+    print $out "  mode tcp\n";
+    print $out "  bind     ".$lb_info->{vip}.":".$lb_info->{port}."\n";
+#    print $out "  bind     :".$lb_info->{port}."\n";
+  
+    print $out "  default_backend  mysql-back\n";
    
     # TO be tested  
     #tcp-smart-accept
     #option Ê Êtcp-smart-connect
     
-    #print $out "frontend web-front\n";
-    #print $out "mode tcp\n";
-    #print $out "bind   ".$lb_info->{vip}.":80\n";
-    #print $out "default_backend  htp-back\n";
+    print $out "listen stats :8080\n";
+    print $out "  mode http\n";
+    print $out "  stats uri /stats\n";
+    print $out "  stats enable\n";
+    print $out "  stats refresh 5s\n";     
+ 
     print $out "#---------------------------------------------------------------------\n";
-    print $out "# round robin balancing between the various backends\n";
+    print $out "# round robin balancing between the various mysql-proxy\n";
     print $out "#---------------------------------------------------------------------\n";
     print $out "backend mysql-back\n";
     print $out "  balance     roundrobin\n";
@@ -568,10 +595,25 @@ sub write_haproxy_config(){
         $host_info = $config->{proxy}->{$host};
        if ($host_info->{cloud} eq $cloud_name && $host_info->{cluster} eq $lb_info->{cluster}){  
     
+        print $out "   server $host ". $host_info->{ip}.":". $host_info->{port} . "  check inter 3000\n";
+      }
+     }
+
+     print $out "backend http-back\n";
+    print $out "  balance     roundrobin\n";
+    print $out "  mode    http\n";
+    foreach my $host (keys(%{$config->{http}})) {
+        $host_info = $config->{http}->{$host};
+       if ($host_info->{cloud} eq $cloud_name && $host_info->{cluster} eq $lb_info->{cluster}){  
+    
         print $out "   server $host ". $host_info->{ip}.":". $host_info->{port} . "  check\n";
       }
      }
+
       close $out;
+
+
+
       system("chmod 660 $dir/$lb.cnf " );
      $i++;
 

@@ -48,7 +48,7 @@ frontend mysql-write-front
 
  
 frontend stats-front
- bind *:80
+ bind *:8080
  mode http
  default_backend stats-back
 

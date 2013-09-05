@@ -387,6 +387,22 @@ sub cluster_cmd {
               }
           }
         }
+        foreach my $host ( sort( keys( %{ $config->{http} } ) ) ) {
+          my $host_info = $config->{http}->{default};
+          $host_info = $config->{http}->{$host};
+          $log->log_debug("[cluster_cmd]: for all http try to filter  hhtp",2,"cluster"); 
+          if ( is_filter_service($group,$type, $host_info, $host, $cloud_name) == 1 ) {
+              if (    $action eq "stop" 
+                    ||  $action eq "start" 
+                    ||  $action eq "restart" 
+                    ||  $action eq "install" 
+                    ||  $action eq "status" )
+              {
+                  $log->log_debug("[cluster_cmd]: $action Monitor",2,"cluster"); 
+                  $ret = service_do_command( $host_info, $host, $action );
+              }
+          }
+        }
    }
    my $json_action      = new JSON; 
    my @actions = $log->get_actions();
@@ -402,7 +418,7 @@ sub is_filter_service($$$$$) {
     my $host_name =  shift; 
     my $action_cloud_name = shift;
     
-    $log->log_debug("[is_filter_service] Info: Start",2,"cluster"); 
+    $log->log_debug("[is_filter_service] Info: $action_type",2,"cluster"); 
     my $pass = 0;
     
     if ( $action_group eq $host_name 
@@ -1051,16 +1067,16 @@ sub spider_create_table_info($$$$) {
                   . $cptpart
                   . ") comment=' table \""
                   . $createtable
-                  . "\", srv \""
+                  . "\", host \""
                   . $host_info->{ip} 
-                 # . $config->{db}->{$peer_host_info}->{ip}
-                 # . "\", port \""
-                 # . $host_info->{mysql_port} . " "
-                 # . $config->{db}->{$peer_host_info}->{mysql_port} . "\" 
-                  . "\", hrp \""
-                  . $host_info->{handlersocket_port}  
-                  . "\", hwp \""
-                  . $host_info->{handlersocket_port_wr} . "\"'";
+                  . $config->{db}->{$peer_host_info}->{ip}
+                  . "\", port \""
+                  . $host_info->{mysql_port} . " "
+                  . $config->{db}->{$peer_host_info}->{mysql_port} . "\"'"; 
+                 # . "\", hrp \""
+                 # . $host_info->{handlersocket_port}  
+                 # . "\", hwp \""
+                 # . $host_info->{handlersocket_port_wr} . "\"'";
 
 
 
@@ -1070,11 +1086,11 @@ sub spider_create_table_info($$$$) {
         }
         $engine =
             " engine=Spider " 
-          #. " Connection 'user \""
-          #. $host_info->{mysql_user}
-          #. "\",password \""
-          #. $host_info->{mysql_password}
-          #. "\" '\n"
+          . " Connection 'user \""
+          . $host_info->{mysql_user}
+          . "\",password \""
+          . $host_info->{mysql_password}
+          . "\" '\n"
           . "  partition by list(mod("
           . $hashcolumn . ","
           . $cptpart . "))("
@@ -1219,6 +1235,18 @@ sub service_remove_hbase($$) {
   return $err;
 }
 
+sub service_remove_apache($$) {
+  my $self = shift;
+  my $node = shift;
+  my $err = "000000";
+  
+  service_stop_apache($self,$node); 
+  my $param = "rm -rf $SKYDATADIR/$node";
+  $err   = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  $log->log_debug("[service_remove_hbase] $self->{ip}: $param ",2,"cluster"); 
+  return $err;
+}
+
 
 sub service_heartbeat_mycheckpoint($$$) {
   my $host_vip=shift;
@@ -1315,12 +1343,30 @@ sub service_status_memcache_fromdb($) {
           
         if ($res == 0 ) {
              
-            my $mem_info= Scramble::ClusterUtils::get_active_memcache($config);
-            $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
-            $log->log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": memc_servers_set ",2,"cluster");      
-           
-             my $sth = $dbh2->do($sql);
-            
+            $sql="memc_server_count() as c1";
+        
+             if ( my $stm = $dbh2->prepare($sql)){
+                $stm->execute; 
+                my($result) = $stm->fetchrow_array();
+                $result= defined ($result) ? $result : "no";
+                 
+                if  ( $result > 0 )   {
+                   $log->log_debug("[service_status_memcache_fromdb] memc_server_count succed",2,"cluster"); 
+                   $res=1;
+                } 
+                $stm->finish(); 
+            }  
+            else {
+               $dbh2->disconnect;
+              $log->log_debug("[service_status_memcache_fromdb] memc_server_count failed ",2,"cluster");
+             return 0; 
+            } 
+            if ($res == 0 ) {    
+                my $mem_info= Scramble::ClusterUtils::get_active_memcache($config);
+                $sql="SELECT memc_servers_set('". $mem_info->{ip} .":". $mem_info->{port}."')";
+                $log->log_debug("[service_status_memcache_fromdb] ". $mem_info->{ip} .":". $mem_info->{port}.": memc_servers_set ",2,"cluster");      
+                my $sth = $dbh2->do($sql);
+             }
            
         }
         $dbh2->disconnect;
@@ -1476,19 +1522,26 @@ sub service_status_dbt3($$) {
 }
 
 
-sub service_status_http($$) {
+sub service_status_apache($$) {
   my $self = shift;
   my $name = shift;
   my $err = "000000";
-  my $param =
-            "ps -ef `cat "
-          . $SKYDATADIR
-          . "/tmp/httpd."
-          . $name . ".pid` | grep httpd | grep -vc httpd   ";
-  $log->log_debug("[service_status_dbt3] on $self->{ip}: ". $param  ,1,"cluster");    
+  use LWP::UserAgent qw();
+  my $ua = LWP::UserAgent->new;
+  my $param ='http://$self->{ip}:80';
+  $ua->credentials('$self->{ip}:80', 'realm name', '$self->{user}', '$self->{password}');
+  my $res = $ua->head('http://$self->{ip}:80');
+  $res->is_success;
+
+ # my $param =
+ #           "ps -ef `cat "
+ #         . $SKYDATADIR
+ #         . "/tmp/httpd."
+ #         . $name . ".pid` | grep httpd | grep -vc httpd   ";
+  $log->log_debug("[service_status_http] on $self->{ip}: ". $param  ,1,"cluster");    
     
-  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
-  if ($res ne "1" ){ $err="ER0023";}
+ # my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip} ,$log);
+  if (! $res->is_success){ $err="ER0023";}
   return $err;
 }
 
@@ -1684,7 +1737,7 @@ sub service_start_keepalived($$) {
             $SKYBASEDIR
           . "/keepalived/sbin/keepalived -f  "
           . $SKYBASEDIR
-          . "/ncc/etc/keepalived."
+          . "/ncc/etc/". $node ."/"
           . $node . ".cnf";
   $log->log_debug("[service_start_keepalived] on $self->{ip}: ". $param  ,1,"cluster");                
   my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
@@ -1732,6 +1785,24 @@ sub service_start_cassandra($$) {
   if ( $res ne "000000")   { $err=$res;}  
   return $err;
 }
+
+sub service_start_apache($$){ 
+ my $self = shift;
+ my $node = shift;
+ my $err = "ER0019";  
+ my $param =
+            $SKYBASEDIR
+          . "/httpd/bin/httpd -f  "
+          . $SKYBASEDIR
+          . "/ncc/etc/". $node ."/"
+          . $node . ".cnf"
+          ." -k start -d$SKYDATADIR/$node";
+  $log->log_debug("[service_start_httpd] on $self->{ip}: ". $param  ,1,"cluster");                
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
+  return $err;
+}
+
 
 sub service_start_dbt2($$$$) {
     my $self = shift;
@@ -1795,6 +1866,26 @@ sub service_stop_database($$) {
     $err = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
     return $err;
 }
+
+sub service_stop_apache($$){ 
+ my $self = shift;
+ my $node = shift;
+ my $err = "ER0020";
+ my $param =
+            $SKYBASEDIR
+          . "/httpd/bin/httpd -f  "
+          . $SKYBASEDIR
+          . "/ncc/etc/". $node ."/"
+          . $node . ".cnf"
+          ." -k stop -d$SKYDATADIR/$node";
+        
+  $log->log_debug("[service_stop_httpd] on $self->{ip}: ". $param  ,1,"cluster");                
+  my $res = Scramble::ClusterTransport::worker_node_command( $param, $self->{ip},$log );
+  if ( $res ne "000000")   { $err=$res;}  
+  return $err;
+}
+
+
 sub service_stop_mysqlproxy($$) {
   my $self = shift;
   my $name = shift;
@@ -1886,6 +1977,29 @@ sub service_stop_mycheckpoint($$) {
    
   return $err;
 }
+
+sub service_install_apache($$) {
+    my $self=shift;
+    my $name = shift;
+    my $err = "000000";
+    my $cmd="mkdir ". $SKYDATADIR ."/".$name;
+    $err = Scramble::ClusterTransport::worker_node_command($cmd,  $self->{ip} ,$log);
+
+    $log->log_debug("[service_install_apache]  ". $cmd  ,1,"cluster");   
+    $cmd="mkdir ". $SKYDATADIR ."/".$name ."/htdocs";
+    $err = Scramble::ClusterTransport::worker_node_command($cmd,  $self->{ip} ,$log);
+    $cmd="$SKYBASEDIR/httpd/bin/htpasswd -b -c " . $SKYDATADIR ."/".$name ."/passwords " . $self->{user} . " " . $self->{password};
+    $err = Scramble::ClusterTransport::worker_node_command($cmd,  $self->{ip} ,$log);
+    $cmd="chown -R skysql:skysql ". $SKYDATADIR ."/".$name ."/";
+    $err = Scramble::ClusterTransport::worker_node_command($cmd,  $self->{ip} ,$log);
+      
+
+
+
+    # create user/password 
+    # /usr/local/skysql/httpd/bin/htpasswd -b -c /usr/local/skysql/ncc/etc/$name/passwords skysql skyvodka
+}
+
 
 sub service_install_dbt2($$) {
     my $self=shift;
@@ -2532,7 +2646,9 @@ sub service_do_command($$$) {
                 $ret = service_install_hbase( $self, $node );     
             } elsif ( $self->{mode} eq "cassandra" ) {
                 $ret = service_install_cassandra( $self, $node );
-            }
+            }  elsif ( $self->{mode} eq "apache" ) {
+                $ret = service_install_apache( $self, $node );
+            } 
     }
     elsif ( $cmd eq "remove" ) {
          if (  $self->{mode} eq "mariadb"
@@ -2552,6 +2668,8 @@ sub service_do_command($$$) {
                 $ret = service_remove_hbase( $self, $node );     
         } elsif ( $self->{mode} eq "cassandra" ) {
                 $ret = service_remove_cassandra( $self, $node );
+        } elsif ( $self->{mode} eq "apache" ) {
+                $ret = service_remove_apache( $self, $node );
         }       
     }
     elsif ( $cmd eq "status" ) {
@@ -2590,7 +2708,7 @@ sub service_do_command($$$) {
            $err= service_status_dbt2($self,$node);
         }
         elsif ( $self->{mode} eq "apache" ) {
-           $err= service_status_http($self,$node);
+           $err= service_status_apache($self,$node);
         }
          elsif ( $self->{mode} eq "cassandra" ) {
            $err= service_status_cassandra($self,$node);
@@ -2600,6 +2718,9 @@ sub service_do_command($$$) {
         }
          elsif ( $self->{mode} eq "hbase" ) {
            $err= service_status_hbase($self,$node);
+        }
+         elsif ( $self->{mode} eq "apache" ) {
+           $err= service_status_apache($self,$node);
         }
     }
     elsif (
@@ -2670,6 +2791,12 @@ sub service_do_command($$$) {
     }
     elsif ( $cmd eq "stop" && $self->{mode} eq "cassandra" ) {
         $ret = service_stop_cassandra($self,$node); 
+    }
+    elsif ( $cmd eq "start" && $self->{mode} eq "apache" ) {
+        $ret = service_start_apache($self,$node); 
+    }
+    elsif ( $cmd eq "stop" && $self->{mode} eq "apache" ) {
+        $ret = service_stop_apache($self,$node); 
     }
     $log->report_status( $self, $param, $err, $node );
     return $err;

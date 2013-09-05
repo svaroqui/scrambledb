@@ -33,6 +33,8 @@ use JSON;
 
 
 our %ERRORMESSAGE = (
+    "-1" => "Unknow error",
+    "" => "Unknow error",
     "000000" => "running",
     "ER0001" => "SQL command failure",
     "ER0002" => "Remote manager communication failure",
@@ -226,6 +228,14 @@ sub report_status($$$$$) {
     if ( $hostinfo->{status}) { 
      $status=$hostinfo->{status};
     }
+    print  STDERR "cluster:".  $hostinfo->{cluster} ."\n";
+ print  STDERR "host:". $host ."\n";
+ print  STDERR "ip:". $hostinfo->{ip} ."\n";
+print  STDERR "mode:". $hostinfo->{mode} ."\n";
+print  STDERR "status:". $status ."\n";
+print  STDERR "err:". $err ."\n";
+print  STDERR "state:". $ERRORMESSAGE{$err}  ."\n";
+
     push(@{$self->{console}},
        '{"'.$host .'":{"cluster":"'
       . $hostinfo->{cluster} 

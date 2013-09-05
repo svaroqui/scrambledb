@@ -88,16 +88,21 @@ my  $res =  `$command`;
        my $result  = 
        {
         command    => $command,
-        result     => "",
+        result     => "-1",
         return     => "ER0018"
        };
       
        my $json_result= $json->allow_blessed->convert_blessed->encode($result);
+        $log->log_debug("[gearman_worker] sending result back: " .$json_result  ,2,"node"); 
+       
        return $json_result;
  }   
     else {
       # $res =~ s/\n//g; 
 
+       if ( $res eq "" )   {
+         $res="-1";
+       }  
        my $result  = 
        {
         command    => $command,
@@ -106,6 +111,8 @@ my  $res =  `$command`;
        };
        
        my $json_result= $json->allow_blessed->convert_blessed->encode($result);
+       $log->log_debug("[gearman_worker] sending result back with result: " .$json_result  ,2,"node"); 
+       
        return $json_result;
     }
  }

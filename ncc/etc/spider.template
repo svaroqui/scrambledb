@@ -21,7 +21,7 @@ join_buffer_size =  2M
 key_buffer_size = 256M
 key_cache_block_size=4K 
 spider_use_handler=1
-
+progress_report_time=0
 
 #spider_bgs_mode=1
 #spider_bgs_mode

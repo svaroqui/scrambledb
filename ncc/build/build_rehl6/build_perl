@@ -311,8 +311,21 @@ tar xzf HTTP-Server-Simple-PSGI-0.14.tar.gz
 cd HTTP-Server-Simple-PSGI-0.14
 $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
 
+d $DEPOTDIR
+rm -rf Dancer-1.3110
+wget http://cpan.metacpan.org/authors/id/X/XS/XSAWYERX/Dancer-1.3110.tar.gz
+tar xzf Dancer-1.3110.tar.gz 
+cd Dancer-1.3110
+$SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+
 cd $DEPOTDIR
 wget https://github.com/fmgoncalves/p5-cassandra-simple/archive/master.zip
 unzip p5-cassandra-simple-master.zip
-cd unzip p5-cassandra-simple-master
+cd p5-cassandra-simple-master
 $SKYDESTDIR/perl/bin/perl Makefile.PL PREFIX=$SKYDESTDIR/perl && make &&  make install
+
+
+cd $DEPOTDIR
+http://search.cpan.org/CPAN/authors/id/G/GA/GAAS/libwww-perl-5.837.tar.gz
+tar xzf libwww-perl-5.837.tar.gz

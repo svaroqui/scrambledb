@@ -156,6 +156,11 @@ DocumentRoot "/var/lib/skysql/www"
     #
     Order allow,deny
     Allow from all
+    AuthType Basic
+    AuthName "Restricted Files"
+AuthUserFile ""
+    Require valid-user
+    
 
 </Directory>
 
@@ -164,7 +169,7 @@ DocumentRoot "/var/lib/skysql/www"
 # is requested.
 #
 <IfModule dir_module>
-    DirectoryIndex index.html
+    DirectoryIndex index.html index.php
 </IfModule>
 
 #
@@ -415,3 +420,6 @@ DefaultType text/plain
 SSLRandomSeed startup builtin
 SSLRandomSeed connect builtin
 </IfModule>
+<Location /scramble/>
+    ProxyPass http://localhost:3000/
+</Location>

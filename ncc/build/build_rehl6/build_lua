@@ -1,5 +1,5 @@
 SKYDESTDIR=/usr/local/skysql
-DEPOTDIR=$(dirname $0)/..
+DEPOTDIR=/home/svar/src
 cd $DEPOTDIR
 DEPOTDIR=$(pwd)
 
@@ -15,4 +15,6 @@ echo "LUAINC=$SKYDESTDIR/lua/include" >> config
 make
 make install 
 
-/usr/local/skysql/mysql-proxy/lib/mysql-proxy/lua
+
+cp -rp /usr/local/skysql/lua/lib/socket /usr/local/skysql/mysql-proxy/lib/mysql-proxy/lua/
+cp /home/svar/src/luasocket-2.0.2/src/socket.lua /usr/local/skysql/mysql-proxy/lib/mysql-proxy/lua/

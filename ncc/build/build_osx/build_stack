@@ -3,11 +3,6 @@ export SKYDATADIR=/var/lib/skysql
 export CLUSTER_USER=skysql
 export CLUSTER_GROUP=skysql
 
-mkdir $SKYDATADIR
-mkdir $SKYDATADIR/www
-mkdir $SKYDATADIR/sphinx
-mkdir $SKYDATADIR/dbt2
-mkdir $SKYDATADIR/dbt3
 
 dscl . create /Groups/$CLUSTER_GROUP
 dscl . create /Groups/$CLUSTER_GROUP gid 3306
@@ -17,7 +12,7 @@ groupadd $CLUSTER_GROUP
 useradd -g  $CLUSTER_GROUP $CLUSTER_USER 
 chown -R $CLUSTER_USER:$CLUSTER_GROUP $SKYDATADIR
 
-DEPOTDIR=$(dirname $0)/.. 
+DEPOTDIR=/home/svar/src 
 cd $DEPOTDIR
 DEPOTDIR=$(pwd)
 OS=macosx
@@ -45,7 +40,7 @@ cd libevent-2.0.19-stable
 ./configure --prefix=$SKYDESTDIR/libevent && make 
 make install 
 
-cd $DEPOTDIR
+cd $DEPOTDIR    
 rm -rf  boost_1_50_0
 tar xzf boost_1_50_0.tar.gz 
 cd boost_1_50_0

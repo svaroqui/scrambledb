@@ -3,11 +3,6 @@ export SKYDATADIR=/var/lib/skysql
 export CLUSTER_USER=skysql
 export CLUSTER_GROUP=skysql
 
-mkdir $SKYDATADIR
-mkdir $SKYDATADIR/www
-mkdir $SKYDATADIR/sphinx
-mkdir $SKYDATADIR/dbt2
-mkdir $SKYDATADIR/dbt3
 
 
 dscl . create /Groups/$CLUSTER_GROUP
@@ -18,9 +13,7 @@ groupadd $CLUSTER_GROUP
 useradd -g  $CLUSTER_GROUP $CLUSTER_USER 
 chown -R $CLUSTER_USER:$CLUSTER_GROUP $SKYDATADIR
 
-DEPOTDIR=$(dirname $0)/.. 
-cd $DEPOTDIR
-export DEPOTDIR=$(pwd)
+export DEPOTDIR=/usr/svar/src
 
 OS=linux
 
@@ -207,7 +200,7 @@ tar xzf  sysbench-0.4.12.tar.gz
 cd sysbench-0.4.12
 glibtoolize --force --copy
 ./autogen.sh
-./configure --prefix=$SKYDESTDIR/sysbench --with-mysql=$SKYDESTDIR/mysql
+./configure --prefix=$SKYDESTDIR/sysbench --with-mysql=$SKYDESTDIR/mariadb
 make && make install
 cd $DEPOTDIR
 rm -rf sysbench-0.4.12
@@ -228,21 +221,29 @@ cd $DEPOTDIR
 rm -f sphinx-2.0.4-release.tar.gz
 
 
+
 cd tarantool-1.4.8-45-gf3e2db3-src
-CC=gcc-mp-4.6 CXX=g++-mp-4.6 cmake . -DCMAKE_BUILD_TYPE=RelWithDebugInfo -DENABLE_CLIENT=true -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/tarantool  
-CC=gcc-mp-4.6 make
+CC=gcc-mp-4.7 CXX=g++-mp-4.7 cmake . -DCMAKE_BUILD_TYPE=RelWithDebugInfo -DENABLE_CLIENT=true -DCMAKE_INSTALL_PREFIX=$SKYDESTDIR/tarantool  
+CC=gcc-mp-4.7 make
 cd $DEPOTDIR
 
 
-wget http://dev.mysql.com/get/Downloads/MySQL-Cluster-7.2/mysql-cluster-gpl-7.2.10-linux2.6-x86_64.tar.gz/from/http://cdn.mysql.com/
+wget http://downloads.skysql.com/archives/mysql-cluster-gpl-7.3/mysql-cluster-gpl-7.3.2-linux-glibc2.5-x86_64.tar.gz
 cd $SKYDESTDIR 
-tar xzf $SKYDESTDIR/mysql-cluster-gpl-7.2.10-linux2.6-x86_64.tar.gz 
-mv mysql-cluster-gpl-7.2.10-linux2.6-x86_64/ cluster
+tar xzf $SKYDESTDIR/mysql-cluster-gpl-7.3/mysql-cluster-gpl-7.3.2-linux-glibc2.5-x86_64.tar.gz
+mv mysql-cluster-gpl-7.3/mysql-cluster-gpl-7.3.2-linux-glibc2.5-x86_64 cluster
 cd $DEPOTDIR
 
-wget wget https://downloads.mariadb.org/f/mariadb-galera-5.5.28a/kvm-bintar-hardy-amd64/mariadb-galera-5.5.28a-linux-x86_64.tar.gz/from/http:/ftp.igh.cnrs.fr/pub/mariadb
+wget wget https://downloads.mariadb.org/f/mariadb-galera-5.5.29/kvm-tarbake-jaunty-x86/mariadb-galera-5.5.29.tar.gz/from/http:/ftp.igh.cnrs.fr/pub/mariadb
 cd $SKYDESTDIR 
 tar xzf $SKYDESTDIR/mariadb-galera-5.5.28a-linux-x86_64.tar.gz
 mv mariadb-galera-5.5.28a-linux-x86_64/ galera
 cd $DEPOTDIR
 
+cd $SKYDESTDIR 
+wget http://www.keepalived.org/software/keepalived-1.2.7.tar.gz 
+tar xzf keepalived-1.2.7.tar.gz 
+cd keepalived-1.2.7
+./configure --prefix=$SKYDESTDIR/keepalived
+make && make install 
+cd $SKYDESTDIR
